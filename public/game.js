@@ -380,6 +380,7 @@ for (const button of document.querySelectorAll(".weapon-card")) {
     if (!joined) {
       socket.emit("join", { name, weapon: selectedWeapon });
     } else {
+      stopFiring();
       socket.emit("changeWeapon", selectedWeapon);
       document.getElementById("weaponName").textContent = weaponNames[selectedWeapon];
       document.getElementById("weaponScreen").classList.add("hidden");
@@ -435,6 +436,20 @@ fireButton.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   fireButton.setPointerCapture?.(e.pointerId);
   startFiring();
+});
+
+fireButton.addEventListener("pointerup", (e) => {
+  e.preventDefault();
+  stopFiring();
+});
+
+fireButton.addEventListener("pointercancel", (e) => {
+  e.preventDefault();
+  stopFiring();
+});
+
+fireButton.addEventListener("pointerleave", (e) => {
+  if (e.buttons === 0) stopFiring();
 });
 
 const lookSurface = renderer.domElement;
