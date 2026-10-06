@@ -198,8 +198,11 @@ function movePlayer(p, dt) {
   const sin = Math.sin(p.yaw);
   const cos = Math.cos(p.yaw);
 
-  const dx = (sin * forward + cos * strafe) * PLAYER_SPEED * dt;
-  const dz = (-cos * forward + sin * strafe) * PLAYER_SPEED * dt;
+  // Three.jsのカメラと同じ座標系を使う。
+  // カメラの前方 = (-sin(yaw), 0, -cos(yaw))
+  // カメラの右方 = ( cos(yaw), 0, -sin(yaw))
+  const dx = (-sin * forward + cos * strafe) * PLAYER_SPEED * dt;
+  const dz = (-cos * forward - sin * strafe) * PLAYER_SPEED * dt;
 
   const nextX = p.x + dx;
   const nextZ = p.z + dz;
@@ -213,9 +216,10 @@ function movePlayer(p, dt) {
 }
 
 function directionFromAngles(yaw, pitch) {
+  // プレイヤーのカメラと完全に同じ前方ベクトル。
   const cp = Math.cos(pitch);
   return {
-    x: Math.sin(yaw) * cp,
+    x: -Math.sin(yaw) * cp,
     y: Math.sin(pitch),
     z: -Math.cos(yaw) * cp
   };
@@ -260,7 +264,7 @@ function fireShot(shooter) {
     const dir = directionFromAngles(yaw, pitch);
     const origin = {
       x: shooter.x,
-      y: PLAYER_HEIGHT - 0.15,
+      y: shooter.y + PLAYER_HEIGHT - 0.15,
       z: shooter.z
     };
 
@@ -310,7 +314,7 @@ function fireShot(shooter) {
   io.emit("shot", {
     id: shooter.id,
     x: shooter.x,
-    y: PLAYER_HEIGHT - 0.15,
+    y: shooter.y + PLAYER_HEIGHT - 0.15,
     z: shooter.z,
     yaw: shooter.yaw,
     pitch: shooter.pitch,
