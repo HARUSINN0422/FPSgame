@@ -146,23 +146,26 @@ p {
   opacity: .92;
 }
 
-#weaponHud {
+#ammoHud {
   position: absolute;
   right: 14px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
+  bottom: calc(164px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 800;
+  text-shadow: 0 2px 6px #000;
 }
 
-#changeWeapon {
+#reloadButton {
   pointer-events: auto;
-  border: 1px solid rgba(255,255,255,.14);
-  border-radius: 12px;
-  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 11px;
+  padding: 8px 11px;
   color: #fff;
-  background: rgba(15,18,22,.78);
+  background: rgba(15,18,22,.82);
+  font-weight: 800;
 }
 
 #fullscreenButton {
@@ -196,34 +199,40 @@ p {
 
 #movePad {
   position: absolute;
-  left: 16px;
+  left: 18px;
   bottom: calc(18px + env(safe-area-inset-bottom));
   width: 170px;
   height: 170px;
+  border: 2px solid rgba(255,255,255,.20);
+  border-radius: 50%;
+  background: rgba(20,24,30,.52);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 6px 20px rgba(0,0,0,.20);
   pointer-events: auto;
-}
-
-.move-btn {
-  position: absolute;
-  width: 58px;
-  height: 58px;
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 16px;
-  color: #fff;
-  background: rgba(20,24,30,.78);
-  font-size: 22px;
   touch-action: none;
 }
 
-.move-btn:active,
-#fireButton:active {
-  background: rgba(80,90,105,.82);
+#movePad::before {
+  content: "";
+  position: absolute;
+  inset: 15%;
+  border: 1px dashed rgba(255,255,255,.15);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
-.move-btn.up { left: 56px; top: 0; }
-.move-btn.left { left: 0; top: 56px; }
-.move-btn.down { left: 56px; top: 112px; }
-.move-btn.right { right: 0; top: 56px; }
+#moveKnob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(255,255,255,.34);
+  border-radius: 50%;
+  background: rgba(95,105,120,.82);
+  box-shadow: 0 4px 14px rgba(0,0,0,.30);
+  pointer-events: none;
+}
 
 #jumpButton {
   position: absolute;
@@ -242,6 +251,22 @@ p {
 }
 
 #jumpButton:active { background: rgba(60,110,170,.9); }
+
+#reloadTouchButton {
+  position: absolute;
+  right: 162px;
+  bottom: calc(154px + env(safe-area-inset-bottom));
+  width: 82px;
+  height: 52px;
+  border: 2px solid rgba(255,255,255,.24);
+  border-radius: 14px;
+  color: #fff;
+  background: rgba(25,35,45,.80);
+  font-weight: 800;
+  letter-spacing: .04em;
+  pointer-events: auto;
+  touch-action: none;
+}
 
 #fireButton {
   position: absolute;
@@ -303,7 +328,117 @@ p {
 }
 
 @media (max-width: 900px) {
-  #fullscreenButton {
-    top: calc(82px + env(safe-area-inset-top));
+  .overlay {
+    padding: 10px;
+    overflow: hidden;
   }
+
+  .panel {
+    width: min(760px, calc(100vw - 20px));
+    max-height: calc(100dvh - 20px);
+    padding: 14px;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  h1 {
+    margin: 4px 0;
+    font-size: clamp(20px, 5vw, 28px);
+  }
+
+  p {
+    margin-bottom: 9px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .name-label {
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+
+  .name-input {
+    height: 38px;
+    margin-bottom: 9px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
+
+  .weapon-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .weapon-card {
+    min-height: 64px;
+    padding: 8px 7px;
+    border-radius: 12px;
+  }
+
+  .weapon-card strong {
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .weapon-card span {
+    margin-top: 3px;
+    font-size: 9px;
+    line-height: 1.15;
+  }
+
+  #movePad {
+    left: 14px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: 150px;
+    height: 150px;
+  }
+
+  #moveKnob {
+    width: 58px;
+    height: 58px;
+  }
+
+  #fireButton {
+    right: 14px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 100px;
+    height: 100px;
+  }
+
+  #jumpButton {
+    right: 128px;
+    bottom: calc(48px + env(safe-area-inset-bottom));
+    width: 72px;
+    height: 72px;
+  }
+
+  #reloadTouchButton {
+    right: 128px;
+    bottom: calc(128px + env(safe-area-inset-bottom));
+    width: 72px;
+    height: 44px;
+  }
+
+  #ammoHud {
+    right: 14px;
+    bottom: calc(130px + env(safe-area-inset-bottom));
+    font-size: 14px;
+  }
+
+  #reloadButton {
+    display: none;
+  }
+
+  #fullscreenButton {
+    top: calc(78px + env(safe-area-inset-top));
+    right: 12px;
+  }
+}
+
+@media (min-width: 900px) {
+  #touchUi { opacity: .38; }
+  #movePad { left: 28px; bottom: 28px; width: 170px; height: 170px; }
+  #jumpButton { right: 160px; bottom: 58px; }
+  #reloadTouchButton { display: none; }
+  #fireButton { right: 28px; bottom: 28px; }
 }
