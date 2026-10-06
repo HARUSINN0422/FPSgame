@@ -447,3 +447,26 @@ p {
   #reloadTouchButton { display: none; }
   #fireButton { right: 28px; bottom: 28px; }
 }
+
+
+/* Prevent accidental double-tap zoom on mobile controls. */
+button,
+input {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#zoomResetButton {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 10001;
+  pointer-events: auto;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: #fff;
+  background: rgba(15,18,22,.92);
+  font-weight: 800;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+}
