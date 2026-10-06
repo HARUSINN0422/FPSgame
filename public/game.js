@@ -2,6 +2,24 @@ import * as THREE from "three";
 
 const socket = io();
 
+// iPhone/iPad等で誤ってブラウザズームされた場合の復旧ボタン。
+const zoomResetButton = document.getElementById("zoomResetButton");
+function updateZoomResetButton() {
+  const scale = window.visualViewport?.scale ?? 1;
+  zoomResetButton?.classList.toggle("hidden", scale <= 1.01);
+}
+
+zoomResetButton?.addEventListener("click", () => {
+  // ブラウザ側のピンチ/ダブルタップズームを初期状態へ戻すため再読み込みする。
+  window.location.reload();
+});
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", updateZoomResetButton);
+  window.visualViewport.addEventListener("scroll", updateZoomResetButton);
+}
+updateZoomResetButton();
+
 async function requestLandscape() {
   try {
     if (screen.orientation && screen.orientation.lock) {
