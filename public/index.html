@@ -14,21 +14,21 @@
     <div class="panel">
       <div class="eyebrow">ONLINE FPS</div>
       <h1>プレイヤー名と武器を選択</h1>
-      <p>名前はこの端末のCookieに保存され、次回アクセス時にも自動入力されます。</p>
-      <label class="name-label" for="playerName">プレイヤー名</label>
-      <input id="playerName" class="name-input" type="text" maxlength="16" autocomplete="nickname" placeholder="名前を入力">
+      <p>名前は任意です。空欄なら自動で名前を付けます。入力した名前はこの端末のCookieに保存されます。</p>
+      <label class="name-label" for="playerName">プレイヤー名（任意）</label>
+      <input id="playerName" class="name-input" type="text" maxlength="16" autocomplete="nickname" placeholder="空欄でもスタートできます">
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pistol">
           <strong>ハンドガン</strong>
-          <span>単発 / 34ダメージ / バランス型</span>
+          <span>単発 / 34ダメージ / 中距離まで安定</span>
         </button>
         <button class="weapon-card" data-weapon="rifle">
           <strong>アサルトライフル</strong>
-          <span>連射可能 / 20ダメージ / 長射程</span>
+          <span>連射可能 / 20ダメージ / 長射程・距離減衰が小さい</span>
         </button>
         <button class="weapon-card" data-weapon="shotgun">
           <strong>ショットガン</strong>
-          <span>単発 / 8発の散弾 / 近距離で高火力</span>
+          <span>単発 / 8発の散弾 / 近距離で高火力・距離減衰が大きい</span>
         </button>
       </div>
     </div>
