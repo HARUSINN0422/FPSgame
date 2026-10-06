@@ -12,6 +12,8 @@ const WORLD = { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
 const PLAYER_SPEED = 6.5;
 const PLAYER_RADIUS = 0.45;
 const PLAYER_HEIGHT = 1.7;
+const GRAVITY = 22;
+const JUMP_SPEED = 8.5;
 
 const WEAPONS = {
   pistol: {
@@ -174,6 +176,17 @@ function collides(x, z) {
 }
 
 function movePlayer(p, dt) {
+  p.velocityY -= GRAVITY * dt;
+  p.y += p.velocityY * dt;
+
+  if (p.y <= 0) {
+    p.y = 0;
+    p.velocityY = 0;
+    p.grounded = true;
+  } else {
+    p.grounded = false;
+  }
+
   let forward = Number(p.input.forward || 0);
   let strafe = Number(p.input.strafe || 0);
   const len = Math.hypot(forward, strafe);
@@ -285,7 +298,10 @@ function fireShot(shooter) {
         if (!players.has(target.id)) return;
         const respawn = pickSpawn();
         target.x = respawn[0];
+        target.y = 0;
         target.z = respawn[2];
+        target.velocityY = 0;
+        target.grounded = true;
         target.health = 100;
       }, 900);
     }
@@ -307,6 +323,7 @@ function publicPlayer(p) {
   return {
     id: p.id,
     x: p.x,
+    y: p.y,
     z: p.z,
     yaw: p.yaw,
     pitch: p.pitch,
@@ -329,6 +346,7 @@ io.on("connection", (socket) => {
     players.set(socket.id, {
       id: socket.id,
       x: spawn[0],
+      y: 0,
       z: spawn[2],
       yaw: 0,
       pitch: 0,
@@ -337,6 +355,8 @@ io.on("connection", (socket) => {
       deaths: 0,
       weapon,
       lastFire: 0,
+      velocityY: 0,
+      grounded: true,
       input: { forward: 0, strafe: 0 }
     });
 
@@ -352,6 +372,13 @@ io.on("connection", (socket) => {
     p.input.strafe = clamp(Number(input.strafe) || 0, -1, 1);
     if (Number.isFinite(Number(input.yaw))) p.yaw = Number(input.yaw);
     if (Number.isFinite(Number(input.pitch))) p.pitch = clamp(Number(input.pitch), -1.35, 1.35);
+  });
+
+  socket.on("jump", () => {
+    const p = players.get(socket.id);
+    if (!p || p.health <= 0 || !p.grounded) return;
+    p.velocityY = JUMP_SPEED;
+    p.grounded = false;
   });
 
   socket.on("fire", () => {
