@@ -20,21 +20,24 @@ const WEAPONS = {
     name: "Pistol",
     damage: 34,
     fireInterval: 330,
-    range: 70
+    range: 70,
+    automatic: false
   },
   rifle: {
     name: "Rifle",
     damage: 20,
     fireInterval: 110,
-    range: 90
+    range: 90,
+    automatic: true
   },
   shotgun: {
     name: "Shotgun",
-    damage: 16,
+    damage: 12,
     fireInterval: 600,
     range: 42,
     pellets: 8,
-    spread: 0.075
+    spread: 0.075,
+    automatic: false
   }
 };
 
@@ -151,6 +154,11 @@ function sanitizeWeapon(value) {
   return Object.prototype.hasOwnProperty.call(WEAPONS, value) ? value : "pistol";
 }
 
+function sanitizeName(value) {
+  const name = String(value || "").trim().replace(/[<>]/g, "");
+  return name.slice(0, 16) || "Player";
+}
+
 function pickSpawn() {
   const candidates = spawnPoints.filter(([x, _y, z]) => {
     for (const p of players.values()) {
@@ -226,7 +234,7 @@ function directionFromAngles(yaw, pitch) {
 }
 
 function rayHitsPlayer(origin, direction, target) {
-  const targetCenter = { x: target.x, y: 1.0, z: target.z };
+  const targetCenter = { x: target.x, y: target.y + 1.0, z: target.z };
   const ox = origin.x - targetCenter.x;
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
@@ -239,7 +247,21 @@ function rayHitsPlayer(origin, direction, target) {
   const t1 = (-b - Math.sqrt(disc)) / 2;
   const t2 = (-b + Math.sqrt(disc)) / 2;
   const t = t1 >= 0 ? t1 : t2;
-  return t >= 0 ? t : null;
+  if (t < 0) return null;
+
+  const hitY = origin.y + direction.y * t - target.y;
+  let multiplier = 1.0;
+  let zone = "body";
+
+  if (hitY >= 1.42) {
+    multiplier = 2.0;
+    zone = "head";
+  } else if (hitY < 0.58) {
+    multiplier = 0.75;
+    zone = "legs";
+  }
+
+  return { t, multiplier, zone };
 }
 
 function fireShot(shooter) {
@@ -250,7 +272,14 @@ function fireShot(shooter) {
   shooter.lastFire = now;
 
   const pelletCount = weapon.pellets || 1;
-  let bestHit = null;
+  const origin = {
+    x: shooter.x,
+    y: shooter.y + PLAYER_HEIGHT - 0.15,
+    z: shooter.z
+  };
+
+  const hitResults = [];
+  const damageByTarget = new Map();
 
   for (let pellet = 0; pellet < pelletCount; pellet++) {
     let yaw = shooter.yaw;
@@ -262,54 +291,72 @@ function fireShot(shooter) {
     }
 
     const dir = directionFromAngles(yaw, pitch);
-    const origin = {
-      x: shooter.x,
-      y: shooter.y + PLAYER_HEIGHT - 0.15,
-      z: shooter.z
-    };
+    let bestHit = null;
 
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0) continue;
 
-      const t = rayHitsPlayer(origin, dir, target);
-      if (t === null || t > weapon.range) continue;
+      const hitInfo = rayHitsPlayer(origin, dir, target);
+      if (hitInfo === null || hitInfo.t > weapon.range) continue;
 
-      if (!bestHit || t < bestHit.t) {
-        bestHit = { target, t };
+      if (!bestHit || hitInfo.t < bestHit.t) {
+        bestHit = { target, ...hitInfo };
       }
     }
 
-    if (bestHit) break;
+    if (!bestHit) continue;
+
+    const damage = weapon.damage * bestHit.multiplier;
+    bestHit.target.health -= damage;
+
+    const existing = damageByTarget.get(bestHit.target.id);
+    if (existing) {
+      existing.damage += damage;
+      if (bestHit.zone === "head") existing.zone = "head";
+    } else {
+      damageByTarget.set(bestHit.target.id, {
+        id: bestHit.target.id,
+        damage,
+        zone: bestHit.zone
+      });
+    }
+
+    hitResults.push({ target: bestHit.target, damage, zone: bestHit.zone });
   }
 
-  let hit = null;
-  if (bestHit) {
-    const target = bestHit.target;
-    target.health -= weapon.damage * (weapon.pellets > 1 ? 1 : 1);
-    hit = { id: target.id, damage: weapon.damage };
-
-    if (target.health <= 0) {
-      target.health = 0;
+  for (const result of damageByTarget.values()) {
+    if (result.target.health <= 0) {
+      result.target.health = 0;
       shooter.kills += 1;
-      target.deaths += 1;
+      result.target.deaths += 1;
+
       io.emit("elimination", {
         killerId: shooter.id,
-        victimId: target.id,
-        killerKills: shooter.kills
+        victimId: result.target.id,
+        killerKills: shooter.kills,
+        zone: result.zone
       });
 
       setTimeout(() => {
-        if (!players.has(target.id)) return;
+        if (!players.has(result.target.id)) return;
         const respawn = pickSpawn();
-        target.x = respawn[0];
-        target.y = 0;
-        target.z = respawn[2];
-        target.velocityY = 0;
-        target.grounded = true;
-        target.health = 100;
+        result.target.x = respawn[0];
+        result.target.y = 0;
+        result.target.z = respawn[2];
+        result.target.velocityY = 0;
+        result.target.grounded = true;
+        result.target.health = 100;
       }, 900);
     }
   }
+
+  const hit = hitResults.length
+    ? {
+        id: hitResults[0].target.id,
+        damage: hitResults.reduce((sum, r) => sum + r.damage, 0),
+        zone: hitResults.some(r => r.zone === "head") ? "head" : hitResults[0].zone
+      }
+    : null;
 
   io.emit("shot", {
     id: shooter.id,
@@ -331,6 +378,7 @@ function publicPlayer(p) {
     z: p.z,
     yaw: p.yaw,
     pitch: p.pitch,
+    name: p.name,
     health: p.health,
     kills: p.kills,
     deaths: p.deaths,
@@ -344,11 +392,15 @@ io.on("connection", (socket) => {
   ) });
 
   socket.on("join", (data = {}) => {
+    if (players.has(socket.id)) return;
+
     const weapon = sanitizeWeapon(data.weapon);
+    const name = sanitizeName(data.name);
     const spawn = pickSpawn();
 
     players.set(socket.id, {
       id: socket.id,
+      name,
       x: spawn[0],
       y: 0,
       z: spawn[2],
