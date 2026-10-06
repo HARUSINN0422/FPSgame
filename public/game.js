@@ -217,8 +217,10 @@ function createTracer(event) {
 }
 
 function directionFromAngles(y, p) {
+  // Three.jsのカメラが実際に向いている方向（ローカル-Z）と同じ計算にする。
+  // yaw=0 のとき前方は -Z、右方向は +X。
   const cp = Math.cos(p);
-  return new THREE.Vector3(Math.sin(y) * cp, Math.sin(p), -Math.cos(y) * cp);
+  return new THREE.Vector3(-Math.sin(y) * cp, Math.sin(p), -Math.cos(y) * cp);
 }
 
 socket.on("world", buildWorld);
