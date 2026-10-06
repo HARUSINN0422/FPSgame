@@ -2,6 +2,18 @@ import * as THREE from "three";
 
 const socket = io();
 
+async function requestLandscape() {
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock("landscape");
+    }
+  } catch (_) {
+    // Some mobile browsers, including iOS Safari, do not allow page-level orientation locking.
+  }
+}
+
+requestLandscape();
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x07090d);
 scene.fog = new THREE.Fog(0x07090d, 24, 115);
