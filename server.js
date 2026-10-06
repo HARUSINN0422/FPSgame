@@ -24,7 +24,6 @@ const WEAPONS = {
     falloffStart: 18,
     minDamageMultiplier: 0.55,
     magazineSize: 12,
-    reserveAmmo: 60,
     reloadTime: 1000,
     automatic: false
   },
@@ -36,7 +35,6 @@ const WEAPONS = {
     falloffStart: 30,
     minDamageMultiplier: 0.65,
     magazineSize: 30,
-    reserveAmmo: 120,
     reloadTime: 1500,
     automatic: true
   },
@@ -50,7 +48,6 @@ const WEAPONS = {
     falloffStart: 8,
     minDamageMultiplier: 0.25,
     magazineSize: 8,
-    reserveAmmo: 32,
     reloadTime: 1400,
     automatic: false
   }
@@ -295,11 +292,7 @@ function finishReload(p, now = Date.now()) {
   if (!p.reloadingUntil || now < p.reloadingUntil) return false;
 
   const weapon = WEAPONS[p.weapon];
-  const needed = Math.max(0, weapon.magazineSize - p.ammo);
-  const loaded = Math.min(needed, p.reserveAmmo);
-
-  p.ammo += loaded;
-  p.reserveAmmo -= loaded;
+  p.ammo = weapon.magazineSize;
   p.reloadingUntil = 0;
   return true;
 }
@@ -309,7 +302,7 @@ function startReload(p) {
   const now = Date.now();
 
   if (p.health <= 0 || p.reloadingUntil > now) return false;
-  if (p.ammo >= weapon.magazineSize || p.reserveAmmo <= 0) return false;
+  if (p.ammo >= weapon.magazineSize) return false;
 
   p.reloadingUntil = now + weapon.reloadTime;
   return true;
@@ -388,6 +381,7 @@ function fireShot(shooter) {
 
   for (const result of damageByTarget.values()) {
     if (result.target.health <= 0) {
+        shooter.health = 100;
       result.target.health = 0;
       shooter.kills += 1;
       result.target.deaths += 1;
@@ -409,7 +403,6 @@ function fireShot(shooter) {
         result.target.grounded = true;
         result.target.health = 100;
         result.target.ammo = WEAPONS[result.target.weapon].magazineSize;
-        result.target.reserveAmmo = WEAPONS[result.target.weapon].reserveAmmo;
         result.target.reloadingUntil = 0;
         result.target.lastFire = 0;
       }, 900);
@@ -450,7 +443,6 @@ function publicPlayer(p) {
     deaths: p.deaths,
     weapon: p.weapon,
     ammo: p.ammo,
-    reserveAmmo: p.reserveAmmo,
     reloading: p.reloadingUntil > Date.now()
   };
 }
@@ -527,7 +519,6 @@ io.on("connection", (socket) => {
 
     p.weapon = nextWeapon;
     p.ammo = WEAPONS[nextWeapon].magazineSize;
-    p.reserveAmmo = WEAPONS[nextWeapon].reserveAmmo;
     p.reloadingUntil = 0;
     p.lastFire = 0;
   });
