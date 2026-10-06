@@ -408,6 +408,10 @@ function fireShot(shooter) {
         result.target.velocityY = 0;
         result.target.grounded = true;
         result.target.health = 100;
+        result.target.ammo = WEAPONS[result.target.weapon].magazineSize;
+        result.target.reserveAmmo = WEAPONS[result.target.weapon].reserveAmmo;
+        result.target.reloadingUntil = 0;
+        result.target.lastFire = 0;
       }, 900);
     }
   }
