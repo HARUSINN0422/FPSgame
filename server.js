@@ -2,8 +2,11 @@ const path = require("path");
 const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
+const { execFile, spawn } = require("child_process");
 
 const PORT = 3007;
+const AUTO_UPDATE_INTERVAL = 60 * 1000;
+const AUTO_UPDATE_BRANCH = "main";
 const TICK_RATE = 20;
 const WORLD = { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
 const PLAYER_SPEED = 6.5;
@@ -34,6 +37,79 @@ const WEAPONS = {
 };
 
 const app = express();
+
+let updateInProgress = false;
+
+function checkForUpdates() {
+  if (updateInProgress) return;
+  updateInProgress = true;
+
+  execFile("git", ["fetch", "origin", AUTO_UPDATE_BRANCH], { cwd: __dirname }, (fetchError) => {
+    if (fetchError) {
+      console.error("[AutoUpdate] GitHubの確認に失敗しました:", fetchError.message);
+      updateInProgress = false;
+      return;
+    }
+
+    execFile("git", ["rev-parse", "HEAD"], { cwd: __dirname }, (localError, localStdout) => {
+      if (localError) {
+        console.error("[AutoUpdate] 現在のコミットを取得できません:", localError.message);
+        updateInProgress = false;
+        return;
+      }
+
+      execFile("git", ["rev-parse", "origin/" + AUTO_UPDATE_BRANCH], { cwd: __dirname }, (remoteError, remoteStdout) => {
+        if (remoteError) {
+          console.error("[AutoUpdate] GitHub側のコミットを取得できません:", remoteError.message);
+          updateInProgress = false;
+          return;
+        }
+
+        if (localStdout.trim() === remoteStdout.trim()) {
+          updateInProgress = false;
+          return;
+        }
+
+        console.log("[AutoUpdate] GitHubに新しい更新があります。更新を取得します。");
+
+        execFile("git", ["pull", "--ff-only", "origin", AUTO_UPDATE_BRANCH], { cwd: __dirname }, (pullError, pullStdout, pullStderr) => {
+          if (pullError) {
+            console.error("[AutoUpdate] git pullに失敗しました:", pullError.message);
+            if (pullStderr) console.error(pullStderr.trim());
+            updateInProgress = false;
+            return;
+          }
+
+          console.log(pullStdout.trim() || "[AutoUpdate] GitHubの更新を取得しました。");
+          console.log("[AutoUpdate] npm installを実行します。");
+
+          execFile("npm", ["install", "--omit=dev"], { cwd: __dirname }, (npmError, npmStdout, npmStderr) => {
+            if (npmError) {
+              console.error("[AutoUpdate] npm installに失敗しました。現在のプロセスを継続します:", npmError.message);
+              if (npmStderr) console.error(npmStderr.trim());
+              updateInProgress = false;
+              return;
+            }
+
+            if (npmStdout) console.log(npmStdout.trim());
+            console.log("[AutoUpdate] 更新完了。新しいNode.jsプロセスを起動します。");
+
+            const child = spawn(process.execPath, [__filename], {
+              cwd: __dirname,
+              detached: true,
+              stdio: "inherit",
+              env: process.env
+            });
+
+            child.unref();
+            process.exit(0);
+          });
+        });
+      });
+    });
+  });
+}
+
 const server = http.createServer(app);
 const io = new Server(server);
 
@@ -307,4 +383,7 @@ setInterval(() => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Mobile FPS server running on http://0.0.0.0:${PORT}`);
+  console.log(`[AutoUpdate] GitHubの更新を${AUTO_UPDATE_INTERVAL / 1000}秒ごとに確認します。`);
+  setTimeout(checkForUpdates, AUTO_UPDATE_INTERVAL);
+  setInterval(checkForUpdates, AUTO_UPDATE_INTERVAL);
 });
