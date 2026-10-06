@@ -93,16 +93,22 @@ function loadPlayerName() {
   if (input) input.value = getCookie("fps_player_name");
 }
 
+function createGuestName() {
+  const suffix = Math.floor(1000 + Math.random() * 9000);
+  return "Player" + suffix;
+}
+
 function savePlayerName() {
   const input = document.getElementById("playerName");
-  const value = (input?.value || "").trim().replace(/[<>]/g, "");
+  let value = (input?.value || "").trim().replace(/[<>]/g, "");
+
   if (!value) {
-    showMessage("名前を入力してください");
-    return null;
+    value = createGuestName();
   }
+
   playerName = value.slice(0, 16);
   setCookie("fps_player_name", playerName);
-  input.value = playerName;
+  if (input) input.value = playerName;
   return playerName;
 }
 
