@@ -430,8 +430,7 @@ function updateAmmoHud() {
   if (!ammoEl || !myState) return;
 
   const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
-  const reserve = Math.max(0, Math.floor(Number(myState.reserveAmmo) || 0));
-  ammoEl.textContent = myState.reloading ? "RELOADING..." : `${ammo} / ${reserve}`;
+  ammoEl.textContent = myState.reloading ? "RELOADING..." : `${ammo} / ∞`;
 }
 
 socket.on("world", buildWorld);
