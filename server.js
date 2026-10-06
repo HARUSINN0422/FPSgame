@@ -21,6 +21,8 @@ const WEAPONS = {
     damage: 34,
     fireInterval: 330,
     range: 70,
+    falloffStart: 18,
+    minDamageMultiplier: 0.55,
     automatic: false
   },
   rifle: {
@@ -28,6 +30,8 @@ const WEAPONS = {
     damage: 20,
     fireInterval: 110,
     range: 90,
+    falloffStart: 30,
+    minDamageMultiplier: 0.65,
     automatic: true
   },
   shotgun: {
@@ -37,6 +41,8 @@ const WEAPONS = {
     range: 42,
     pellets: 8,
     spread: 0.075,
+    falloffStart: 8,
+    minDamageMultiplier: 0.25,
     automatic: false
   }
 };
@@ -223,6 +229,18 @@ function movePlayer(p, dt) {
   p.pitch = clamp(p.pitch, -1.35, 1.35);
 }
 
+function getDistanceDamageMultiplier(weapon, distance) {
+  const start = Number(weapon.falloffStart ?? 0);
+  const range = Math.max(start + 0.001, Number(weapon.range) || 1);
+  const minMultiplier = clamp(Number(weapon.minDamageMultiplier ?? 1), 0, 1);
+
+  if (distance <= start) return 1;
+  if (distance >= range) return minMultiplier;
+
+  const progress = (distance - start) / (range - start);
+  return 1 - (1 - minMultiplier) * progress;
+}
+
 function directionFromAngles(yaw, pitch) {
   // プレイヤーのカメラと完全に同じ前方ベクトル。
   const cp = Math.cos(pitch);
@@ -306,7 +324,8 @@ function fireShot(shooter) {
 
     if (!bestHit) continue;
 
-    const damage = weapon.damage * bestHit.multiplier;
+    const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
+    const damage = weapon.damage * bestHit.multiplier * distanceMultiplier;
     bestHit.target.health -= damage;
 
     const existing = damageByTarget.get(bestHit.target.id);
@@ -316,6 +335,7 @@ function fireShot(shooter) {
     } else {
       damageByTarget.set(bestHit.target.id, {
         id: bestHit.target.id,
+        target: bestHit.target,
         damage,
         zone: bestHit.zone
       });
