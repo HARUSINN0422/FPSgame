@@ -1,0 +1,212 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #080a0d;
+  touch-action: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game, canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hidden { display: none !important; }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: radial-gradient(circle at center, rgba(25, 30, 40, .6), rgba(4, 6, 9, .94));
+  z-index: 20;
+}
+
+.panel {
+  width: min(680px, 100%);
+  padding: 26px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 24px;
+  background: rgba(14, 18, 24, .92);
+  box-shadow: 0 20px 80px rgba(0,0,0,.4);
+  backdrop-filter: blur(10px);
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: .18em;
+  opacity: .65;
+}
+
+h1 {
+  margin: 8px 0 6px;
+  font-size: clamp(28px, 7vw, 48px);
+}
+
+p {
+  margin: 0 0 20px;
+  opacity: .72;
+}
+
+.weapon-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.weapon-card {
+  min-height: 74px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  padding: 14px 16px;
+  text-align: left;
+  color: #fff;
+  background: #171c23;
+}
+
+.weapon-card:active {
+  transform: scale(.985);
+}
+
+.weapon-card strong,
+.weapon-card span {
+  display: block;
+}
+
+.weapon-card strong { font-size: 18px; }
+.weapon-card span { margin-top: 4px; opacity: .62; }
+
+#hud {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#topHud {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  text-shadow: 0 2px 6px #000;
+}
+
+#crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 30px;
+  line-height: 1;
+  opacity: .92;
+}
+
+#weaponHud {
+  position: absolute;
+  right: 14px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+#changeWeapon {
+  pointer-events: auto;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: #fff;
+  background: rgba(15,18,22,.78);
+}
+
+#message {
+  position: absolute;
+  top: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 700;
+  text-shadow: 0 2px 8px #000;
+  white-space: nowrap;
+}
+
+#touchUi {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+#movePad {
+  position: absolute;
+  left: 16px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  width: 170px;
+  height: 170px;
+  pointer-events: auto;
+}
+
+.move-btn {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 16px;
+  color: #fff;
+  background: rgba(20,24,30,.78);
+  font-size: 22px;
+  touch-action: none;
+}
+
+.move-btn:active,
+#fireButton:active {
+  background: rgba(80,90,105,.82);
+}
+
+.move-btn.up { left: 56px; top: 0; }
+.move-btn.left { left: 0; top: 56px; }
+.move-btn.down { left: 56px; top: 112px; }
+.move-btn.right { right: 0; top: 56px; }
+
+#fireButton {
+  position: absolute;
+  right: 20px;
+  bottom: calc(32px + env(safe-area-inset-bottom));
+  width: 112px;
+  height: 112px;
+  border: 2px solid rgba(255,255,255,.24);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(140,30,30,.72);
+  font-weight: 800;
+  letter-spacing: .08em;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+@media (min-width: 900px) {
+  #touchUi { opacity: .38; }
+  #movePad { left: 28px; bottom: 28px; }
+  #fireButton { right: 28px; bottom: 28px; }
+}
