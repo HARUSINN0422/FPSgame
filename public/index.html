@@ -13,20 +13,22 @@
   <div id="weaponScreen" class="overlay">
     <div class="panel">
       <div class="eyebrow">ONLINE FPS</div>
-      <h1>武器を選んで入る</h1>
-      <p>選択すると、そのまま対戦マップへ参加します。</p>
+      <h1>プレイヤー名と武器を選択</h1>
+      <p>名前はこの端末のCookieに保存され、次回アクセス時にも自動入力されます。</p>
+      <label class="name-label" for="playerName">プレイヤー名</label>
+      <input id="playerName" class="name-input" type="text" maxlength="16" autocomplete="nickname" placeholder="名前を入力">
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pistol">
           <strong>ハンドガン</strong>
-          <span>近距離〜中距離 / 安定</span>
+          <span>単発 / 34ダメージ / バランス型</span>
         </button>
         <button class="weapon-card" data-weapon="rifle">
           <strong>アサルトライフル</strong>
-          <span>連射重視 / 中距離向け</span>
+          <span>連射可能 / 20ダメージ / 長射程</span>
         </button>
         <button class="weapon-card" data-weapon="shotgun">
           <strong>ショットガン</strong>
-          <span>近距離 / 散弾</span>
+          <span>単発 / 8発の散弾 / 近距離で高火力</span>
         </button>
       </div>
     </div>
@@ -43,6 +45,7 @@
       <button id="changeWeapon">武器</button>
       <span id="weaponName">Pistol</span>
     </div>
+    <button id="fullscreenButton" aria-label="全画面">全画面</button>
     <div id="message"></div>
   </div>
 
