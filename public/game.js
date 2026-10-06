@@ -44,6 +44,7 @@ let joined = false;
 let myId = null;
 let myState = null;
 let selectedWeapon = "pistol";
+let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
 
@@ -68,12 +69,44 @@ const weaponNames = {
 };
 
 const weaponConfig = {
-  pistol: { fireInterval: 330 },
-  rifle: { fireInterval: 110 },
-  shotgun: { fireInterval: 600 }
+  pistol: { fireInterval: 330, automatic: false },
+  rifle: { fireInterval: 110, automatic: true },
+  shotgun: { fireInterval: 600, automatic: false }
 };
 
 let localLastFire = 0;
+let autoFireTimer = null;
+
+function getCookie(name) {
+  const prefix = name + "=";
+  const item = document.cookie.split("; ").find(row => row.startsWith(prefix));
+  return item ? decodeURIComponent(item.slice(prefix.length)) : "";
+}
+
+function setCookie(name, value, days = 365) {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = name + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
+}
+
+function loadPlayerName() {
+  const input = document.getElementById("playerName");
+  if (input) input.value = getCookie("fps_player_name");
+}
+
+function savePlayerName() {
+  const input = document.getElementById("playerName");
+  const value = (input?.value || "").trim().replace(/[<>]/g, "");
+  if (!value) {
+    showMessage("名前を入力してください");
+    return null;
+  }
+  playerName = value.slice(0, 16);
+  setCookie("fps_player_name", playerName);
+  input.value = playerName;
+  return playerName;
+}
+
+loadPlayerName();
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
@@ -110,24 +143,74 @@ function buildWorld(data) {
   makeBox(1, 3, 100, 50, 1.5, 0, 0x58636e);
 }
 
+function createWeaponMesh(weapon) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: weapon === "shotgun" ? 0x9a9a9a : weapon === "rifle" ? 0x4d6b4f : 0x303030,
+    roughness: .7,
+    metalness: .25
+  });
+
+  const barrelLength = weapon === "shotgun" ? .55 : weapon === "rifle" ? .7 : .42;
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(.10, .10, barrelLength), material);
+  barrel.position.z = -barrelLength / 2;
+  group.add(barrel);
+
+  const stock = new THREE.Mesh(
+    new THREE.BoxGeometry(weapon === "rifle" ? .16 : .13, .16, .28),
+    material
+  );
+  stock.position.z = .16;
+  group.add(stock);
+
+  if (weapon === "shotgun") {
+    const pump = new THREE.Mesh(new THREE.BoxGeometry(.16, .12, .24), material);
+    pump.position.set(0, -.07, -.12);
+    group.add(pump);
+  }
+
+  group.position.set(.34, 1.02, -.22);
+  group.rotation.x = -.08;
+  return group;
+}
+
 function createRemotePlayer() {
   const root = new THREE.Group();
 
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(.35, 1.0, 4, 8),
-    new THREE.MeshStandardMaterial({ color: 0x2b8cff })
-  );
-  body.position.y = .9;
-  body.castShadow = true;
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2b8cff, roughness: .8 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffd2ba, roughness: .9 });
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x20252d, roughness: .9 });
 
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(.28, 12, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffd2ba })
-  );
-  head.position.y = 1.55;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(.62, .72, .36), bodyMat);
+  torso.position.y = 1.05;
+  torso.castShadow = true;
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.28, 14, 12), skinMat);
+  head.position.y = 1.62;
   head.castShadow = true;
 
-  root.add(body, head);
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .45, 4, 8), bodyMat);
+  armL.position.set(-.43, 1.05, 0);
+  armL.rotation.z = -.15;
+  armL.castShadow = true;
+
+  const armR = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .45, 4, 8), bodyMat);
+  armR.position.set(.43, 1.05, 0);
+  armR.rotation.z = .15;
+  armR.castShadow = true;
+
+  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .55, 4, 8), legMat);
+  legL.position.set(-.18, .43, 0);
+  legL.castShadow = true;
+
+  const legR = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .55, 4, 8), legMat);
+  legR.position.set(.18, .43, 0);
+  legR.castShadow = true;
+
+  const weapon = createWeaponMesh("pistol");
+  root.add(torso, head, armL, armR, legL, legR, weapon);
+  root.userData.weaponMesh = weapon;
+  root.userData.weaponType = "pistol";
   scene.add(root);
   return root;
 }
@@ -151,6 +234,15 @@ function updateRemotePlayers(players) {
     obj.position.set(p.x, p.y || 0, p.z);
     obj.rotation.y = p.yaw;
     obj.visible = p.health > 0;
+
+    if (obj.userData.weaponType !== p.weapon) {
+      const oldWeapon = obj.userData.weaponMesh;
+      if (oldWeapon) obj.remove(oldWeapon);
+      const newWeapon = createWeaponMesh(p.weapon);
+      obj.add(newWeapon);
+      obj.userData.weaponMesh = newWeapon;
+      obj.userData.weaponType = p.weapon;
+    }
   }
 
   for (const [id, obj] of remotePlayers) {
@@ -195,6 +287,20 @@ function fire() {
   socket.emit("fire");
 }
 
+function startFiring() {
+  fire();
+  const cfg = weaponConfig[selectedWeapon];
+  if (!cfg.automatic || autoFireTimer) return;
+  autoFireTimer = setInterval(fire, cfg.fireInterval);
+}
+
+function stopFiring() {
+  if (autoFireTimer) {
+    clearInterval(autoFireTimer);
+    autoFireTimer = null;
+  }
+}
+
 function showMessage(text) {
   const el = document.getElementById("message");
   el.textContent = text;
@@ -227,6 +333,8 @@ socket.on("world", buildWorld);
 
 socket.on("joined", ({ player }) => {
   joined = true;
+  playerName = player.name || playerName;
+  setCookie("fps_player_name", playerName);
   myId = player.id;
   myState = player;
   yaw = player.yaw;
@@ -264,13 +372,39 @@ socket.on("connect", () => {
 
 for (const button of document.querySelectorAll(".weapon-card")) {
   button.addEventListener("click", () => {
+    const name = savePlayerName();
+    if (!name) return;
+
     selectedWeapon = button.dataset.weapon;
-    socket.emit("join", { weapon: selectedWeapon });
+
+    if (!joined) {
+      socket.emit("join", { name, weapon: selectedWeapon });
+    } else {
+      socket.emit("changeWeapon", selectedWeapon);
+      document.getElementById("weaponName").textContent = weaponNames[selectedWeapon];
+      document.getElementById("weaponScreen").classList.add("hidden");
+    }
   });
 }
 
 document.getElementById("changeWeapon").addEventListener("click", () => {
   document.getElementById("weaponScreen").classList.remove("hidden");
+  loadPlayerName();
+});
+
+const fullscreenButton = document.getElementById("fullscreenButton");
+async function toggleFullscreen() {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen?.();
+    } else {
+      await document.exitFullscreen?.();
+    }
+  } catch (_) {}
+}
+fullscreenButton?.addEventListener("click", toggleFullscreen);
+document.addEventListener("fullscreenchange", () => {
+  if (fullscreenButton) fullscreenButton.textContent = document.fullscreenElement ? "全画面解除" : "全画面";
 });
 
 for (const button of document.querySelectorAll(".move-btn")) {
@@ -300,7 +434,7 @@ const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   fireButton.setPointerCapture?.(e.pointerId);
-  fire();
+  startFiring();
 });
 
 const lookSurface = renderer.domElement;
@@ -360,8 +494,14 @@ lookSurface.addEventListener("mousedown", (e) => {
   if (document.pointerLockElement !== lookSurface) {
     lookSurface.requestPointerLock?.();
   }
-  fire();
+  startFiring();
 });
+
+window.addEventListener("mouseup", (e) => {
+  if (e.button === 0) stopFiring();
+});
+
+window.addEventListener("blur", stopFiring);
 
 window.addEventListener("keydown", (e) => {
   if (e.code === "KeyW" || e.code === "ArrowUp") movement.forward = true;
