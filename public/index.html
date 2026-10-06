@@ -41,23 +41,21 @@
       <div>K <span id="kills">0</span> / D <span id="deaths">0</span></div>
     </div>
     <div id="crosshair">+</div>
-    <div id="weaponHud">
-      <button id="changeWeapon">武器</button>
-      <span id="weaponName">Pistol</span>
+    <div id="ammoHud">
+      <span id="ammoCount">12 / 60</span>
+      <button id="reloadButton" aria-label="リロード">RELOAD</button>
     </div>
     <button id="fullscreenButton" aria-label="全画面">全画面</button>
     <div id="message"></div>
   </div>
 
   <div id="touchUi" class="hidden">
-    <div id="movePad" aria-label="移動">
-      <button class="move-btn up" data-key="forward">▲</button>
-      <button class="move-btn left" data-key="left">◀</button>
-      <button class="move-btn down" data-key="back">▼</button>
-      <button class="move-btn right" data-key="right">▶</button>
+    <div id="movePad" aria-label="360度移動スティック">
+      <div id="moveKnob"></div>
     </div>
 
     <button id="jumpButton" aria-label="ジャンプ">JUMP</button>
+    <button id="reloadTouchButton" aria-label="リロード">RELOAD</button>
     <button id="fireButton" aria-label="発射">FIRE</button>
   </div>
 
