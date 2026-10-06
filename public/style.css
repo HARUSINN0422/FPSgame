@@ -10,7 +10,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #080a0d;
+  background: #6f8fa8;
   touch-action: none;
 }
 
@@ -189,6 +189,24 @@ p {
 .move-btn.down { left: 56px; top: 112px; }
 .move-btn.right { right: 0; top: 56px; }
 
+#jumpButton {
+  position: absolute;
+  right: 146px;
+  bottom: calc(58px + env(safe-area-inset-bottom));
+  width: 82px;
+  height: 82px;
+  border: 2px solid rgba(255,255,255,.24);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(35,85,140,.78);
+  font-weight: 800;
+  letter-spacing: .05em;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#jumpButton:active { background: rgba(60,110,170,.9); }
+
 #fireButton {
   position: absolute;
   right: 20px;
@@ -208,6 +226,7 @@ p {
 @media (min-width: 900px) {
   #touchUi { opacity: .38; }
   #movePad { left: 28px; bottom: 28px; }
+  #jumpButton { right: 160px; bottom: 58px; }
   #fireButton { right: 28px; bottom: 28px; }
 }
 
