@@ -7,16 +7,14 @@ async function requestLandscape() {
     if (screen.orientation && screen.orientation.lock) {
       await screen.orientation.lock("landscape");
     }
-  } catch (_) {
-    // Some mobile browsers, including iOS Safari, do not allow page-level orientation locking.
-  }
+  } catch (_) {}
 }
 
 requestLandscape();
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x07090d);
-scene.fog = new THREE.Fog(0x07090d, 24, 115);
+scene.background = new THREE.Color(0x7fa4c4);
+scene.fog = new THREE.Fog(0x7fa4c4, 45, 160);
 
 const camera = new THREE.PerspectiveCamera(76, innerWidth / innerHeight, 0.05, 150);
 camera.rotation.order = "YXZ";
@@ -27,10 +25,10 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 document.getElementById("game").appendChild(renderer.domElement);
 
-const hemi = new THREE.HemisphereLight(0x9ab2d0, 0x161b22, 1.65);
+const hemi = new THREE.HemisphereLight(0xdff1ff, 0x506050, 2.5);
 scene.add(hemi);
 
-const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+const sun = new THREE.DirectionalLight(0xffffff, 3.0);
 sun.position.set(12, 30, 8);
 sun.castShadow = true;
 scene.add(sun);
@@ -40,7 +38,6 @@ scene.add(worldGroup);
 
 const remotePlayers = new Map();
 const tracers = [];
-
 const clock = new THREE.Clock();
 
 let joined = false;
@@ -62,6 +59,7 @@ let pitch = 0;
 let lookPointerId = null;
 let lastLookX = 0;
 let lastLookY = 0;
+let pointerLocked = false;
 
 const weaponNames = {
   pistol: "Pistol",
@@ -77,7 +75,7 @@ const weaponConfig = {
 
 let localLastFire = 0;
 
-function makeBox(w, h, d, x, y, z, color = 0x3b4654) {
+function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
     new THREE.MeshStandardMaterial({ color, roughness: .9, metalness: .05 })
@@ -92,24 +90,24 @@ function makeBox(w, h, d, x, y, z, color = 0x3b4654) {
 function buildWorld(data) {
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 100),
-    new THREE.MeshStandardMaterial({ color: 0x171c22, roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: 0x526052, roughness: 1 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   worldGroup.add(floor);
 
-  const grid = new THREE.GridHelper(100, 50, 0x38424e, 0x202833);
+  const grid = new THREE.GridHelper(100, 50, 0x879487, 0x6b756b);
   grid.position.y = 0.01;
   worldGroup.add(grid);
 
   for (const o of data.obstacles || []) {
-    makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z);
+    makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
   }
 
-  makeBox(100, 3, 1, 0, 1.5, -50, 0x252d37);
-  makeBox(100, 3, 1, 0, 1.5, 50, 0x252d37);
-  makeBox(1, 3, 100, -50, 1.5, 0, 0x252d37);
-  makeBox(1, 3, 100, 50, 1.5, 0, 0x252d37);
+  makeBox(100, 3, 1, 0, 1.5, -50, 0x58636e);
+  makeBox(100, 3, 1, 0, 1.5, 50, 0x58636e);
+  makeBox(1, 3, 100, -50, 1.5, 0, 0x58636e);
+  makeBox(1, 3, 100, 50, 1.5, 0, 0x58636e);
 }
 
 function createRemotePlayer() {
@@ -150,7 +148,7 @@ function updateRemotePlayers(players) {
       remotePlayers.set(p.id, obj);
     }
 
-    obj.position.set(p.x, 0, p.z);
+    obj.position.set(p.x, p.y || 0, p.z);
     obj.rotation.y = p.yaw;
     obj.visible = p.health > 0;
   }
@@ -167,7 +165,7 @@ function updateRemotePlayers(players) {
 
 function updateCamera() {
   if (!myState) return;
-  camera.position.set(myState.x, 1.62, myState.z);
+  camera.position.set(myState.x, 1.62 + (myState.y || 0), myState.z);
   camera.rotation.set(pitch, yaw, 0);
 }
 
@@ -179,6 +177,11 @@ function sendInput(now) {
 
   socket.emit("input", { forward, strafe, yaw, pitch });
   lastInputSent = now;
+}
+
+function jump() {
+  if (!joined) return;
+  socket.emit("jump");
 }
 
 function fire() {
@@ -202,7 +205,7 @@ function showMessage(text) {
 }
 
 function createTracer(event) {
-  const start = new THREE.Vector3(event.x, event.y, event.z);
+  const start = new THREE.Vector3(event.x, event.y + (event.yOffset || 0), event.z);
   const dir = directionFromAngles(event.yaw, event.pitch);
   const end = start.clone().add(dir.multiplyScalar(event.hit ? 18 : 12));
 
@@ -284,6 +287,13 @@ for (const button of document.querySelectorAll(".move-btn")) {
   });
 }
 
+const jumpButton = document.getElementById("jumpButton");
+jumpButton.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  jumpButton.setPointerCapture?.(e.pointerId);
+  jump();
+});
+
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
   e.preventDefault();
@@ -294,7 +304,7 @@ fireButton.addEventListener("pointerdown", (e) => {
 const lookSurface = renderer.domElement;
 
 lookSurface.addEventListener("pointerdown", (e) => {
-  if (!joined) return;
+  if (!joined || e.pointerType === "mouse") return;
   if (e.clientX < innerWidth * .42 || e.clientX > innerWidth * .58) {
     lookPointerId = e.pointerId;
     lastLookX = e.clientX;
@@ -322,12 +332,45 @@ function releaseLook(e) {
 lookSurface.addEventListener("pointerup", releaseLook);
 lookSurface.addEventListener("pointercancel", releaseLook);
 
+lookSurface.addEventListener("click", () => {
+  if (!joined || !window.matchMedia("(pointer:fine)").matches) return;
+  if (document.pointerLockElement !== lookSurface) {
+    lookSurface.requestPointerLock?.();
+  }
+});
+
+document.addEventListener("pointerlockchange", () => {
+  pointerLocked = document.pointerLockElement === lookSurface;
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!pointerLocked) return;
+
+  yaw -= e.movementX * .0028;
+  pitch -= e.movementY * .0028;
+  pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
+});
+
+lookSurface.addEventListener("contextmenu", (e) => e.preventDefault());
+
+lookSurface.addEventListener("mousedown", (e) => {
+  if (!joined || e.button !== 0) return;
+  if (document.pointerLockElement !== lookSurface) {
+    lookSurface.requestPointerLock?.();
+  }
+  fire();
+});
+
 window.addEventListener("keydown", (e) => {
   if (e.code === "KeyW" || e.code === "ArrowUp") movement.forward = true;
   if (e.code === "KeyS" || e.code === "ArrowDown") movement.back = true;
   if (e.code === "KeyA" || e.code === "ArrowLeft") movement.left = true;
   if (e.code === "KeyD" || e.code === "ArrowRight") movement.right = true;
-  if (e.code === "Space") fire();
+
+  if (e.code === "Space") {
+    e.preventDefault();
+    jump();
+  }
 });
 
 window.addEventListener("keyup", (e) => {
@@ -335,6 +378,13 @@ window.addEventListener("keyup", (e) => {
   if (e.code === "KeyS" || e.code === "ArrowDown") movement.back = false;
   if (e.code === "KeyA" || e.code === "ArrowLeft") movement.left = false;
   if (e.code === "KeyD" || e.code === "ArrowRight") movement.right = false;
+});
+
+window.addEventListener("blur", () => {
+  movement.forward = false;
+  movement.back = false;
+  movement.left = false;
+  movement.right = false;
 });
 
 window.addEventListener("resize", () => {
