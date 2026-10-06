@@ -23,6 +23,9 @@ const WEAPONS = {
     range: 70,
     falloffStart: 18,
     minDamageMultiplier: 0.55,
+    magazineSize: 12,
+    reserveAmmo: 60,
+    reloadTime: 1000,
     automatic: false
   },
   rifle: {
@@ -32,6 +35,9 @@ const WEAPONS = {
     range: 90,
     falloffStart: 30,
     minDamageMultiplier: 0.65,
+    magazineSize: 30,
+    reserveAmmo: 120,
+    reloadTime: 1500,
     automatic: true
   },
   shotgun: {
@@ -43,6 +49,9 @@ const WEAPONS = {
     spread: 0.075,
     falloffStart: 8,
     minDamageMultiplier: 0.25,
+    magazineSize: 8,
+    reserveAmmo: 32,
+    reloadTime: 1400,
     automatic: false
   }
 };
@@ -282,12 +291,45 @@ function rayHitsPlayer(origin, direction, target) {
   return { t, multiplier, zone };
 }
 
+function finishReload(p, now = Date.now()) {
+  if (!p.reloadingUntil || now < p.reloadingUntil) return false;
+
+  const weapon = WEAPONS[p.weapon];
+  const needed = Math.max(0, weapon.magazineSize - p.ammo);
+  const loaded = Math.min(needed, p.reserveAmmo);
+
+  p.ammo += loaded;
+  p.reserveAmmo -= loaded;
+  p.reloadingUntil = 0;
+  return true;
+}
+
+function startReload(p) {
+  const weapon = WEAPONS[p.weapon];
+  const now = Date.now();
+
+  if (p.health <= 0 || p.reloadingUntil > now) return false;
+  if (p.ammo >= weapon.magazineSize || p.reserveAmmo <= 0) return false;
+
+  p.reloadingUntil = now + weapon.reloadTime;
+  return true;
+}
+
 function fireShot(shooter) {
   const weapon = WEAPONS[shooter.weapon];
   const now = Date.now();
 
+  finishReload(shooter, now);
+  if (shooter.reloadingUntil > now) return;
   if (now - shooter.lastFire < weapon.fireInterval) return;
+
+  if (shooter.ammo <= 0) {
+    startReload(shooter);
+    return;
+  }
+
   shooter.lastFire = now;
+  shooter.ammo -= 1;
 
   const pelletCount = weapon.pellets || 1;
   const origin = {
@@ -402,7 +444,10 @@ function publicPlayer(p) {
     health: p.health,
     kills: p.kills,
     deaths: p.deaths,
-    weapon: p.weapon
+    weapon: p.weapon,
+    ammo: p.ammo,
+    reserveAmmo: p.reserveAmmo,
+    reloading: p.reloadingUntil > Date.now()
   };
 }
 
@@ -463,10 +508,24 @@ io.on("connection", (socket) => {
     fireShot(p);
   });
 
+  socket.on("reload", () => {
+    const p = players.get(socket.id);
+    if (!p || p.health <= 0) return;
+    startReload(p);
+  });
+
   socket.on("changeWeapon", (weapon) => {
     const p = players.get(socket.id);
     if (!p) return;
-    p.weapon = sanitizeWeapon(weapon);
+
+    const nextWeapon = sanitizeWeapon(weapon);
+    if (p.weapon === nextWeapon) return;
+
+    p.weapon = nextWeapon;
+    p.ammo = WEAPONS[nextWeapon].magazineSize;
+    p.reserveAmmo = WEAPONS[nextWeapon].reserveAmmo;
+    p.reloadingUntil = 0;
+    p.lastFire = 0;
   });
 
   socket.on("disconnect", () => {
@@ -477,8 +536,12 @@ io.on("connection", (socket) => {
 
 setInterval(() => {
   const dt = 1 / TICK_RATE;
+  const now = Date.now();
   for (const p of players.values()) {
-    if (p.health > 0) movePlayer(p, dt);
+    if (p.health > 0) {
+      finishReload(p, now);
+      movePlayer(p, dt);
+    }
   }
 
   io.emit("state", Array.from(players.values()).map(publicPlayer));
