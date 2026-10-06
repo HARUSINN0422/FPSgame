@@ -55,18 +55,17 @@ const movement = {
   right: false
 };
 
+const joystick = {
+  forward: 0,
+  strafe: 0
+};
+
 let yaw = 0;
 let pitch = 0;
 let lookPointerId = null;
 let lastLookX = 0;
 let lastLookY = 0;
 let pointerLocked = false;
-
-const weaponNames = {
-  pistol: "Pistol",
-  rifle: "Rifle",
-  shotgun: "Shotgun"
-};
 
 const weaponConfig = {
   pistol: { fireInterval: 330, automatic: false },
@@ -180,6 +179,73 @@ function createWeaponMesh(weapon) {
   return group;
 }
 
+function createPlayerLabel(name, health) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 112;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const sprite = new THREE.Sprite(material);
+  sprite.position.set(0, 2.35, 0);
+  sprite.scale.set(3.1, .54, 1);
+  sprite.userData.canvas = canvas;
+  sprite.userData.texture = texture;
+
+  updatePlayerLabel(sprite, name, health);
+  return sprite;
+}
+
+function updatePlayerLabel(sprite, name, health) {
+  const canvas = sprite.userData.canvas;
+  const ctx = canvas.getContext("2d");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const text = String(name || "Player");
+  const hp = Math.max(0, Math.round(Number(health) || 0));
+  const label = `${text}   HP ${hp}`;
+
+  ctx.font = "700 38px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const width = Math.min(canvas.width - 24, Math.max(180, ctx.measureText(label).width + 36));
+  const height = 72;
+  const x = (canvas.width - width) / 2;
+  const y = (canvas.height - height) / 2;
+  const radius = 18;
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 1);
+
+  sprite.userData.texture.needsUpdate = true;
+}
+
 function createRemotePlayer() {
   const root = new THREE.Group();
 
@@ -214,9 +280,13 @@ function createRemotePlayer() {
   legR.castShadow = true;
 
   const weapon = createWeaponMesh("pistol");
-  root.add(torso, head, armL, armR, legL, legR, weapon);
+  const label = createPlayerLabel("Player", 100);
+
+  root.add(torso, head, armL, armR, legL, legR, weapon, label);
   root.userData.weaponMesh = weapon;
   root.userData.weaponType = "pistol";
+  root.userData.label = label;
+  root.userData.labelText = "";
   scene.add(root);
   return root;
 }
@@ -240,6 +310,12 @@ function updateRemotePlayers(players) {
     obj.position.set(p.x, p.y || 0, p.z);
     obj.rotation.y = p.yaw;
     obj.visible = p.health > 0;
+
+    const labelText = `${p.name || "Player"}|${Math.round(p.health || 0)}`;
+    if (obj.userData.labelText !== labelText) {
+      updatePlayerLabel(obj.userData.label, p.name, p.health);
+      obj.userData.labelText = labelText;
+    }
 
     if (obj.userData.weaponType !== p.weapon) {
       const oldWeapon = obj.userData.weaponMesh;
@@ -270,8 +346,11 @@ function updateCamera() {
 function sendInput(now) {
   if (!joined || now - lastInputSent < 33) return;
 
-  const forward = (movement.forward ? 1 : 0) + (movement.back ? -1 : 0);
-  const strafe = (movement.right ? 1 : 0) + (movement.left ? -1 : 0);
+  const keyboardForward = (movement.forward ? 1 : 0) + (movement.back ? -1 : 0);
+  const keyboardStrafe = (movement.right ? 1 : 0) + (movement.left ? -1 : 0);
+
+  const forward = THREE.MathUtils.clamp(keyboardForward + joystick.forward, -1, 1);
+  const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1);
 
   socket.emit("input", { forward, strafe, yaw, pitch });
   lastInputSent = now;
@@ -283,7 +362,12 @@ function jump() {
 }
 
 function fire() {
-  if (!joined) return;
+  if (!joined || myState?.reloading) return;
+
+  if (myState && myState.ammo <= 0) {
+    reload();
+    return;
+  }
 
   const now = performance.now();
   const cfg = weaponConfig[selectedWeapon];
@@ -291,6 +375,12 @@ function fire() {
 
   localLastFire = now;
   socket.emit("fire");
+}
+
+function reload() {
+  if (!joined || myState?.reloading) return;
+  stopFiring();
+  socket.emit("reload");
 }
 
 function startFiring() {
@@ -335,12 +425,22 @@ function directionFromAngles(y, p) {
   return new THREE.Vector3(-Math.sin(y) * cp, Math.sin(p), -Math.cos(y) * cp);
 }
 
+function updateAmmoHud() {
+  const ammoEl = document.getElementById("ammoCount");
+  if (!ammoEl || !myState) return;
+
+  const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
+  const reserve = Math.max(0, Math.floor(Number(myState.reserveAmmo) || 0));
+  ammoEl.textContent = myState.reloading ? "RELOADING..." : `${ammo} / ${reserve}`;
+}
+
 socket.on("world", buildWorld);
 
 socket.on("joined", ({ player }) => {
   joined = true;
   playerName = player.name || playerName;
   setCookie("fps_player_name", playerName);
+  selectedWeapon = player.weapon || selectedWeapon;
   myId = player.id;
   myState = player;
   yaw = player.yaw;
@@ -349,7 +449,7 @@ socket.on("joined", ({ player }) => {
   document.getElementById("weaponScreen").classList.add("hidden");
   document.getElementById("hud").classList.remove("hidden");
   document.getElementById("touchUi").classList.remove("hidden");
-  document.getElementById("weaponName").textContent = weaponNames[selectedWeapon];
+  updateAmmoHud();
 });
 
 socket.on("players", updateRemotePlayers);
@@ -362,6 +462,11 @@ socket.on("state", (players) => {
     document.getElementById("health").textContent = String(myState.health);
     document.getElementById("kills").textContent = String(myState.kills);
     document.getElementById("deaths").textContent = String(myState.deaths);
+    updateAmmoHud();
+
+    if (myState.reloading) {
+      stopFiring();
+    }
   }
 });
 
@@ -394,11 +499,6 @@ for (const button of document.querySelectorAll(".weapon-card")) {
   });
 }
 
-document.getElementById("changeWeapon").addEventListener("click", () => {
-  document.getElementById("weaponScreen").classList.remove("hidden");
-  loadPlayerName();
-});
-
 const fullscreenButton = document.getElementById("fullscreenButton");
 async function toggleFullscreen() {
   try {
@@ -414,21 +514,65 @@ document.addEventListener("fullscreenchange", () => {
   if (fullscreenButton) fullscreenButton.textContent = document.fullscreenElement ? "全画面解除" : "全画面";
 });
 
-for (const button of document.querySelectorAll(".move-btn")) {
-  const key = button.dataset.key;
-  const set = (value, event) => {
-    event.preventDefault();
-    movement[key] = value;
-    button.setPointerCapture?.(event.pointerId);
-  };
+const movePad = document.getElementById("movePad");
+const moveKnob = document.getElementById("moveKnob");
+let movePointerId = null;
 
-  button.addEventListener("pointerdown", (e) => set(true, e));
-  button.addEventListener("pointerup", (e) => set(false, e));
-  button.addEventListener("pointercancel", (e) => set(false, e));
-  button.addEventListener("pointerleave", (e) => {
-    if (e.buttons === 0) movement[key] = false;
-  });
+function resetJoystick() {
+  joystick.forward = 0;
+  joystick.strafe = 0;
+  if (moveKnob) moveKnob.style.transform = "translate(-50%, -50%)";
 }
+
+function updateJoystick(event) {
+  if (!movePad || event.pointerId !== movePointerId) return;
+
+  const rect = movePad.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const maxDistance = Math.max(1, rect.width / 2 - 34);
+
+  let dx = event.clientX - centerX;
+  let dy = event.clientY - centerY;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance > maxDistance) {
+    const scale = maxDistance / distance;
+    dx *= scale;
+    dy *= scale;
+  }
+
+  joystick.strafe = THREE.MathUtils.clamp(dx / maxDistance, -1, 1);
+  joystick.forward = THREE.MathUtils.clamp(-dy / maxDistance, -1, 1);
+
+  if (moveKnob) {
+    moveKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
+}
+
+movePad?.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  movePointerId = e.pointerId;
+  movePad.setPointerCapture?.(e.pointerId);
+  updateJoystick(e);
+});
+
+movePad?.addEventListener("pointermove", updateJoystick);
+
+movePad?.addEventListener("pointerup", (e) => {
+  e.preventDefault();
+  if (e.pointerId === movePointerId) {
+    movePointerId = null;
+    resetJoystick();
+  }
+});
+
+movePad?.addEventListener("pointercancel", (e) => {
+  if (e.pointerId === movePointerId) {
+    movePointerId = null;
+    resetJoystick();
+  }
+});
 
 const jumpButton = document.getElementById("jumpButton");
 jumpButton.addEventListener("pointerdown", (e) => {
@@ -436,6 +580,20 @@ jumpButton.addEventListener("pointerdown", (e) => {
   jumpButton.setPointerCapture?.(e.pointerId);
   jump();
 });
+
+const reloadButton = document.getElementById("reloadButton");
+const reloadTouchButton = document.getElementById("reloadTouchButton");
+
+function bindReloadButton(button) {
+  button?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    button.setPointerCapture?.(e.pointerId);
+    reload();
+  });
+}
+
+bindReloadButton(reloadButton);
+bindReloadButton(reloadTouchButton);
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
@@ -533,6 +691,11 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
     jump();
+  }
+
+  if (e.code === "KeyR") {
+    e.preventDefault();
+    reload();
   }
 });
 
