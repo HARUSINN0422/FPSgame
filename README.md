@@ -57,12 +57,16 @@ http://<サーバーIP>:3007/
 - `npm install --omit=dev` を実行
 - 新しいNode.jsプロセスを起動して、古いプロセスを終了
 
+**重要:** 自動更新は `server.js` 自身の場所（`__dirname`）を基準にGitを操作するため、リポジトリをどのディレクトリに置いても動作します。現在のラズパイでは `/home/harusinn/Desktop/FPSgame` に配置しています。
+
 そのため、ラズパイでは最初にリポジトリをcloneして依存関係をインストールした後、通常どおり `node server.js` を起動するだけで、自動更新が有効になります。
 
 ### Raspberry Piでの初回設定
 
+現在の配置場所でのコマンド:
+
 ```bash
-cd /home/harusinn
+cd /home/harusinn/Desktop
 git clone https://github.com/yumakasugai0422-cmyk/FPSgame.git
 cd FPSgame
 npm install
