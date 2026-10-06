@@ -210,3 +210,39 @@ p {
   #movePad { left: 28px; bottom: 28px; }
   #fireButton { right: 28px; bottom: 28px; }
 }
+
+
+/* Mobile FPS is designed for landscape play. */
+@media (orientation: portrait) and (max-width: 900px) {
+  #game,
+  #hud,
+  #touchUi {
+    display: none !important;
+  }
+
+  body::before {
+    content: "スマホを横向きにしてください";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    background: #080a0d;
+    color: #fff;
+  }
+
+  body::after {
+    content: "↻";
+    position: fixed;
+    z-index: 10000;
+    left: 50%;
+    top: 42%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    font-size: 58px;
+    color: #fff;
+  }
+}
