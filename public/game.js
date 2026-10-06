@@ -105,6 +105,192 @@ function setCookie(name, value, days = 365) {
   document.cookie = name + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
 }
 
+const DEFAULT_SETTINGS = {
+  sensitivity: 1,
+  layout: {
+    movePad: { x: 14, y: 12, side: "left", size: 150 },
+    jumpButton: { x: 128, y: 48, side: "right", size: 72 },
+    reloadTouchButton: { x: 128, y: 128, side: "right", size: 72 },
+    fireButton: { x: 14, y: 18, side: "right", size: 100 }
+  }
+};
+
+let gameSettings = loadGameSettings();
+let layoutEditing = false;
+
+function cloneSettings(settings) {
+  return JSON.parse(JSON.stringify(settings));
+}
+
+function loadGameSettings() {
+  try {
+    const raw = getCookie("fps_game_settings");
+    if (!raw) return cloneSettings(DEFAULT_SETTINGS);
+    const saved = JSON.parse(raw);
+    return {
+      sensitivity: THREE.MathUtils.clamp(Number(saved.sensitivity) || 1, 0.4, 2.5),
+      layout: {
+        movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
+        jumpButton: { ...DEFAULT_SETTINGS.layout.jumpButton, ...(saved.layout?.jumpButton || {}) },
+        reloadTouchButton: { ...DEFAULT_SETTINGS.layout.reloadTouchButton, ...(saved.layout?.reloadTouchButton || {}) },
+        fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) }
+      }
+    };
+  } catch (_) {
+    return cloneSettings(DEFAULT_SETTINGS);
+  }
+}
+
+function saveGameSettings() {
+  setCookie("fps_game_settings", JSON.stringify(gameSettings), 3650);
+}
+
+function applyButtonLayout() {
+  const configs = [
+    ["movePad", gameSettings.layout.movePad],
+    ["jumpButton", gameSettings.layout.jumpButton],
+    ["reloadTouchButton", gameSettings.layout.reloadTouchButton],
+    ["fireButton", gameSettings.layout.fireButton]
+  ];
+
+  for (const [id, cfg] of configs) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.style.left = "";
+    el.style.right = "";
+    el.style.top = "";
+    el.style.bottom = "";
+    el.style.width = cfg.size + "px";
+    el.style.height = cfg.size + "px";
+
+    if (cfg.side === "left") {
+      el.style.left = cfg.x + "px";
+    } else {
+      el.style.right = cfg.x + "px";
+    }
+    el.style.bottom = cfg.y + "px";
+  }
+
+  const knob = document.getElementById("moveKnob");
+  if (knob) {
+    const size = Math.max(48, Math.round(gameSettings.layout.movePad.size * 0.387));
+    knob.style.width = size + "px";
+    knob.style.height = size + "px";
+  }
+}
+
+function updateSettingsUi() {
+  const slider = document.getElementById("sensitivitySlider");
+  const value = document.getElementById("sensitivityValue");
+  if (slider) slider.value = String(gameSettings.sensitivity);
+  if (value) value.textContent = gameSettings.sensitivity.toFixed(2);
+}
+
+function setupSettings() {
+  const settingsButton = document.getElementById("settingsButton");
+  const panel = document.getElementById("settingsPanel");
+  const close = document.getElementById("settingsCloseButton");
+  const done = document.getElementById("settingsDoneButton");
+  const slider = document.getElementById("sensitivitySlider");
+  const edit = document.getElementById("layoutEditButton");
+  const resetLayout = document.getElementById("layoutResetButton");
+  const resetAll = document.getElementById("settingsResetButton");
+  const status = document.getElementById("layoutEditStatus");
+
+  const open = () => {
+    updateSettingsUi();
+    panel?.classList.remove("hidden");
+  };
+  const closePanel = () => {
+    layoutEditing = false;
+    status?.classList.add("hidden");
+    document.getElementById("touchUi")?.classList.remove("layout-editing");
+    panel?.classList.add("hidden");
+    applyButtonLayout();
+  };
+
+  settingsButton?.addEventListener("click", open);
+  close?.addEventListener("click", closePanel);
+  done?.addEventListener("click", closePanel);
+
+  slider?.addEventListener("input", () => {
+    gameSettings.sensitivity = Number(slider.value);
+    updateSettingsUi();
+    saveGameSettings();
+  });
+
+  edit?.addEventListener("click", () => {
+    layoutEditing = !layoutEditing;
+    status?.classList.toggle("hidden", !layoutEditing);
+    document.getElementById("touchUi")?.classList.toggle("layout-editing", layoutEditing);
+  });
+
+  resetLayout?.addEventListener("click", () => {
+    gameSettings.layout = cloneSettings(DEFAULT_SETTINGS.layout);
+    applyButtonLayout();
+    saveGameSettings();
+  });
+
+  resetAll?.addEventListener("click", () => {
+    gameSettings = cloneSettings(DEFAULT_SETTINGS);
+    applyButtonLayout();
+    updateSettingsUi();
+    saveGameSettings();
+  });
+
+  applyButtonLayout();
+  updateSettingsUi();
+}
+
+function setupDraggableButton(id, settingKey) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (!layoutEditing) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    pointerId = e.pointerId;
+    el.setPointerCapture?.(pointerId);
+    const rect = el.getBoundingClientRect();
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!layoutEditing || e.pointerId !== pointerId) return;
+    e.preventDefault();
+
+    const x = THREE.MathUtils.clamp(startLeft + (e.clientX - startX), 0, innerWidth - el.offsetWidth);
+    const y = THREE.MathUtils.clamp(startTop + (e.clientY - startY), 0, innerHeight - el.offsetHeight);
+
+    el.style.left = x + "px";
+    el.style.right = "auto";
+    el.style.top = y + "px";
+    el.style.bottom = "auto";
+
+    const cfg = gameSettings.layout[settingKey];
+    cfg.x = cfg.side === "left" ? x : innerWidth - x - el.offsetWidth;
+    cfg.y = innerHeight - y - el.offsetHeight;
+    saveGameSettings();
+  });
+
+  const end = (e) => {
+    if (e.pointerId === pointerId) pointerId = null;
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+
 function loadPlayerName() {
   const input = document.getElementById("playerName");
   if (input) input.value = getCookie("fps_player_name");
@@ -130,6 +316,7 @@ function savePlayerName() {
 }
 
 loadPlayerName();
+setupSettings();
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
@@ -466,6 +653,7 @@ socket.on("joined", ({ player }) => {
   document.getElementById("weaponScreen").classList.add("hidden");
   document.getElementById("hud").classList.remove("hidden");
   document.getElementById("touchUi").classList.remove("hidden");
+  document.getElementById("settingsButton")?.classList.remove("hidden");
   updateAmmoHud();
 });
 
@@ -606,6 +794,10 @@ function bindReloadButton(button) {
 bindReloadButton(reloadButton);
 bindReloadButton(reloadTouchButton);
 
+setupDraggableButton("movePad", "movePad");
+setupDraggableButton("jumpButton", "jumpButton");
+setupDraggableButton("reloadTouchButton", "reloadTouchButton");
+
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
   e.preventDefault();
@@ -647,8 +839,8 @@ lookSurface.addEventListener("pointermove", (e) => {
   lastLookX = e.clientX;
   lastLookY = e.clientY;
 
-  yaw -= dx * .0045;
-  pitch -= dy * .0045;
+  yaw -= dx * .0045 * gameSettings.sensitivity;
+  pitch -= dy * .0045 * gameSettings.sensitivity;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 });
 
@@ -672,8 +864,8 @@ document.addEventListener("pointerlockchange", () => {
 document.addEventListener("mousemove", (e) => {
   if (!pointerLocked) return;
 
-  yaw -= e.movementX * .0028;
-  pitch -= e.movementY * .0028;
+  yaw -= e.movementX * .0028 * gameSettings.sensitivity;
+  pitch -= e.movementY * .0028 * gameSettings.sensitivity;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 });
 
