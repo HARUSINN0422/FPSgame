@@ -483,19 +483,13 @@ socket.on("connect", () => {
 
 for (const button of document.querySelectorAll(".weapon-card")) {
   button.addEventListener("click", () => {
+    if (joined) return;
+
     const name = savePlayerName();
     if (!name) return;
 
     selectedWeapon = button.dataset.weapon;
-
-    if (!joined) {
-      socket.emit("join", { name, weapon: selectedWeapon });
-    } else {
-      stopFiring();
-      socket.emit("changeWeapon", selectedWeapon);
-      document.getElementById("weaponName").textContent = weaponNames[selectedWeapon];
-      document.getElementById("weaponScreen").classList.add("hidden");
-    }
+    socket.emit("join", { name, weapon: selectedWeapon });
   });
 }
 
