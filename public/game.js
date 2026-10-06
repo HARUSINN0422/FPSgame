@@ -797,6 +797,7 @@ bindReloadButton(reloadTouchButton);
 setupDraggableButton("movePad", "movePad");
 setupDraggableButton("jumpButton", "jumpButton");
 setupDraggableButton("reloadTouchButton", "reloadTouchButton");
+setupDraggableButton("fireButton", "fireButton");
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
