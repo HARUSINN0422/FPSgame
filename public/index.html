@@ -25,6 +25,9 @@
         <input id="sensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
       </label>
 
+      <div class="settings-group">
+        <div class="settings-group-title">操作</div>
+
       <div class="setting-section">
         <strong>タッチ移動スティックのサイズ</strong>
         <span class="setting-value"><strong id="movePadSizeValue">150px</strong></span>
@@ -49,10 +52,14 @@
         </div>
         <div id="layoutEditStatus" class="setting-status hidden">配置編集を開始すると設定画面が閉じます。ボタンをドラッグして動かしてください。</div>
       </div>
+      </div>
 
+      <div class="settings-group">
+        <div class="settings-group-title">設定</div>
       <div class="settings-actions">
         <button id="settingsResetButton">設定をすべて初期化</button>
         <button id="settingsDoneButton">完了</button>
+      </div>
       </div>
     </div>
   </div>
@@ -93,6 +100,7 @@
       <div>PLAYERS <span id="playerCount">0</span></div>
       <div>K <span id="kills">0</span> / D <span id="deaths">0</span></div>
     </div>
+    <div id="connectionStatus" class="disconnected">接続中…</div>
     <div id="minimap" aria-label="敵位置を表示しないミニマップ">
       <canvas id="minimapCanvas" width="180" height="180"></canvas>
       <span>MAP</span>
