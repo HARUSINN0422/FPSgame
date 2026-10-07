@@ -222,6 +222,12 @@ function updateSettingsUi() {
   const value = document.getElementById("sensitivityValue");
   if (slider) slider.value = String(gameSettings.sensitivity);
   if (value) value.textContent = gameSettings.sensitivity.toFixed(2);
+
+  const movePadSizeSlider = document.getElementById("movePadSizeSlider");
+  const movePadSizeValue = document.getElementById("movePadSizeValue");
+  const movePadSize = Number(gameSettings.layout.movePad.size) || DEFAULT_SETTINGS.layout.movePad.size;
+  if (movePadSizeSlider) movePadSizeSlider.value = String(movePadSize);
+  if (movePadSizeValue) movePadSizeValue.textContent = Math.round(movePadSize) + "px";
 }
 
 function setupSettings() {
@@ -264,6 +270,15 @@ function setupSettings() {
 
   slider?.addEventListener("input", () => {
     gameSettings.sensitivity = Number(slider.value);
+    updateSettingsUi();
+    saveGameSettings();
+  });
+
+  const movePadSizeSlider = document.getElementById("movePadSizeSlider");
+  movePadSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(movePadSizeSlider.value) || 150, 90, 240);
+    gameSettings.layout.movePad.size = Math.round(size);
+    applyButtonLayout();
     updateSettingsUi();
     saveGameSettings();
   });
@@ -362,6 +377,32 @@ function setupDraggableOffset(id, settingKey) {
   let startY = 0;
   let startOffsetX = 0;
   let startOffsetY = 0;
+  let baseLeft = 0;
+  let baseTop = 0;
+
+  const move = (e) => {
+    if (!layoutEditing || e.pointerId !== pointerId) return;
+    e.preventDefault();
+
+    const dx = startOffsetX + (e.clientX - startX);
+    const dy = startOffsetY + (e.clientY - startY);
+
+    const maxX = innerWidth - el.offsetWidth - baseLeft;
+    const maxY = innerHeight - el.offsetHeight - baseTop;
+    const clampedX = THREE.MathUtils.clamp(dx, -baseLeft, maxX);
+    const clampedY = THREE.MathUtils.clamp(dy, -baseTop, maxY);
+
+    el.style.transform = "translate(" + Math.round(clampedX) + "px, " + Math.round(clampedY) + "px)";
+
+    gameSettings.layout[settingKey].x = Math.round(clampedX);
+    gameSettings.layout[settingKey].y = Math.round(clampedY);
+    saveGameSettings();
+  };
+
+  const end = (e) => {
+    if (e.pointerId !== pointerId) return;
+    pointerId = null;
+  };
 
   el.addEventListener("pointerdown", (e) => {
     if (!layoutEditing) return;
@@ -369,47 +410,24 @@ function setupDraggableOffset(id, settingKey) {
     e.stopPropagation();
 
     pointerId = e.pointerId;
-    el.setPointerCapture?.(pointerId);
     startX = e.clientX;
     startY = e.clientY;
 
     const cfg = gameSettings.layout[settingKey] || { x: 0, y: 0 };
     startOffsetX = Number(cfg.x) || 0;
     startOffsetY = Number(cfg.y) || 0;
-  });
-
-  el.addEventListener("pointermove", (e) => {
-    if (!layoutEditing || e.pointerId !== pointerId) return;
-    e.preventDefault();
-
-    const dx = startOffsetX + (e.clientX - startX);
-    const dy = startOffsetY + (e.clientY - startY);
 
     const rect = el.getBoundingClientRect();
-    const baseLeft = rect.left - startOffsetX;
-    const baseTop = rect.top - startOffsetY;
-    const minX = -baseLeft;
-    const maxX = innerWidth - el.offsetWidth - baseLeft;
-    const minY = -baseTop;
-    const maxY = innerHeight - el.offsetHeight - baseTop;
+    baseLeft = rect.left - startOffsetX;
+    baseTop = rect.top - startOffsetY;
 
-    const clampedX = THREE.MathUtils.clamp(dx, minX, maxX);
-    const clampedY = THREE.MathUtils.clamp(dy, minY, maxY);
-
-    el.style.transform = "translate(" + clampedX + "px, " + clampedY + "px)";
-    gameSettings.layout[settingKey].x = Math.round(clampedX);
-    gameSettings.layout[settingKey].y = Math.round(clampedY);
-    saveGameSettings();
+    el.setPointerCapture?.(pointerId);
   });
 
-  const end = (e) => {
-    if (e.pointerId === pointerId) pointerId = null;
-  };
-
+  el.addEventListener("pointermove", move);
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
 }
-
 function loadPlayerName() {
   const input = document.getElementById("playerName");
   if (input) input.value = getCookie("fps_player_name");
