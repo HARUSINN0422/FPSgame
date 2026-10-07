@@ -1127,6 +1127,74 @@ setupDraggableButton("reloadTouchButton", "reloadTouchButton");
 setupDraggableButton("fireButton", "fireButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
+
+// MAP/HPバーは親要素やCanvasのイベント状態に左右されないよう、
+// 配置編集中だけdocument側でもドラッグを拾う。
+(function setupHudLayoutDragFallback() {
+  const targets = new Map([
+    ["minimap", "minimap"],
+    ["healthHud", "healthHud"]
+  ]);
+
+  let active = null;
+
+  document.addEventListener("pointerdown", (e) => {
+    if (!layoutEditing) return;
+
+    for (const [id, key] of targets) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+
+      const rect = el.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right ||
+          e.clientY < rect.top || e.clientY > rect.bottom) continue;
+
+      const cfg = gameSettings.layout[key] || { x: 0, y: 0 };
+      active = {
+        id,
+        key,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        x: Number(cfg.x) || 0,
+        y: Number(cfg.y) || 0
+      };
+
+      try { el.setPointerCapture?.(e.pointerId); } catch (_) {}
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+  }, true);
+
+  document.addEventListener("pointermove", (e) => {
+    if (!active || e.pointerId !== active.pointerId || !layoutEditing) return;
+
+    const cfg = gameSettings.layout[active.key];
+    const el = document.getElementById(active.id);
+    if (!cfg || !el) return;
+
+    cfg.x = Math.round(active.x + e.clientX - active.startX);
+    cfg.y = Math.round(active.y + e.clientY - active.startY);
+    el.style.transform = "translate3d(" + cfg.x + "px, " + cfg.y + "px, 0)";
+
+    e.preventDefault();
+    e.stopPropagation();
+    saveGameSettings();
+  }, true);
+
+  const end = (e) => {
+    if (!active || e.pointerId !== active.pointerId) return;
+    active = null;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  document.addEventListener("pointerup", end, true);
+  document.addEventListener("pointercancel", end, true);
+})();
+
+
 setupDraggableOffset("fullscreenButton", "fullscreenButton");
 setupDraggableOffset("settingsButton", "settingsButton");
 setupDraggableOffset("reloadButton", "reloadButton");
