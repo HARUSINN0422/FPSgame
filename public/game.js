@@ -266,6 +266,7 @@ function setupSettings() {
     layoutEditing = false;
     status?.classList.add("hidden");
     document.getElementById("touchUi")?.classList.remove("layout-editing");
+    document.getElementById("hud")?.classList.remove("layout-editing");
 
     for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "reloadButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
@@ -306,6 +307,7 @@ function setupSettings() {
     layoutEditing = true;
     status?.classList.remove("hidden");
     document.getElementById("touchUi")?.classList.add("layout-editing");
+    document.getElementById("hud")?.classList.add("layout-editing");
 
     for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "reloadButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
