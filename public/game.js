@@ -913,6 +913,8 @@ function jump() {
 
 function fire() {
   if (!joined || myState?.reloading) return;
+  // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
+  if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
   if (myState && myState.ammo <= 0) {
     reload();
