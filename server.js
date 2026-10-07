@@ -233,45 +233,12 @@ const obstacles = [
   { x: 30, z: 10, w: 4, d: 8, h: 2.5 },
   { x: -30, z: -10, w: 4, d: 8, h: 2.5 },
   { x: 30, z: -10, w: 4, d: 8, h: 2.5 },
-  { x: -30, z: 10, w: 4, d: 8, h: 2.5 },
-  { x: 14, z: 27, w: 8, d: 3, h: 2.8 },
-  { x: -14, z: -27, w: 8, d: 3, h: 2.8 },
-  { x: 27, z: 14, w: 3, d: 8, h: 2.8 },
-  { x: -27, z: -14, w: 3, d: 8, h: 2.8 },
-  { x: 34, z: 0, w: 6, d: 3, h: 2.8 },
-  { x: -34, z: 0, w: 6, d: 3, h: 2.8 },
-  { x: 0, z: 34, w: 3, d: 6, h: 2.8 },
-  { x: 0, z: -34, w: 3, d: 6, h: 2.8 }
+  { x: -30, z: 10, w: 4, d: 8, h: 2.5 }
 ];
 
 const ramps = [
-  // 中央南北壁。スロープの高い端を壁の端にぴったり接続する。
-  { x: 0, z: 14, w: 18, d: 4, h: 3, direction: "north" },
-  { x: 0, z: -14, w: 18, d: 4, h: 3, direction: "south" },
-  // 四隅側も壁と同じ3mまで上がり、壁の端に接続する。
-  { x: 14, z: 22.5, w: 8, d: 6, h: 3, direction: "north" },
-  { x: -14, z: -22.5, w: 8, d: 6, h: 3, direction: "south" },
-  { x: 22.5, z: 14, w: 6, d: 8, h: 3, direction: "east" },
-  { x: -22.5, z: -14, w: 6, d: 8, h: 3, direction: "west" },
-  { x: 34, z: -3, w: 6, d: 3, h: 2.8, direction: "north" },
-  { x: -34, z: 3, w: 6, d: 3, h: 2.8, direction: "south" }
-];
-
-const bridges = [
-  // 3mの壁の上に橋を載せる。中央の壁が橋の主な支持部になる。
-  { x: 0, z: 18, w: 26, d: 4, y: 3, thickness: 0.6 },
-  { x: 20, z: 0, w: 4, d: 26, y: 3, thickness: 0.6 },
-  { x: 0, z: -18, w: 26, d: 4, y: 3, thickness: 0.6 }
-];
-
-const bridgeSupports = [
-  // 橋の張り出した端にも柱を追加し、「浮いている」見た目をなくす。
-  { x: -12, z: 18, w: 1.2, d: 1.2, h: 3 },
-  { x: 12, z: 18, w: 1.2, d: 1.2, h: 3 },
-  { x: 20, z: -12, w: 1.2, d: 1.2, h: 3 },
-  { x: 20, z: 12, w: 1.2, d: 1.2, h: 3 },
-  { x: -12, z: -18, w: 1.2, d: 1.2, h: 3 },
-  { x: 12, z: -18, w: 1.2, d: 1.2, h: 3 }
+  { x: 0, z: -3, w: 12, d: 4, h: 3.5, direction: "north" },
+  { x: 0, z: 3, w: 12, d: 4, h: 3.5, direction: "south" }
 ];
 
 function clamp(v, min, max) {
@@ -313,27 +280,13 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT) {
   const bodyBottom = y;
   const bodyTop = y + height;
 
-  if (obstacles.concat(bridgeSupports).some((o) => {
+  return obstacles.some((o) => {
     if (bodyTop <= 0 || bodyBottom >= o.h) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
       z > o.z - o.d / 2 - PLAYER_RADIUS &&
       z < o.z + o.d / 2 + PLAYER_RADIUS;
-  })) return true;
-
-  // 橋は床から離れているため、下を通れる。
-  // プレイヤーの頭が橋の下面に当たる場合だけ水平移動を止める。
-  if (bridges.some((b) => {
-    const bottom = b.y;
-    const top = b.y + b.thickness;
-    if (bodyTop <= bottom + 0.02 || bodyBottom >= top) return false;
-    return x > b.x - b.w / 2 - PLAYER_RADIUS &&
-      x < b.x + b.w / 2 + PLAYER_RADIUS &&
-      z > b.z - b.d / 2 - PLAYER_RADIUS &&
-      z < b.z + b.d / 2 + PLAYER_RADIUS;
-  })) return true;
-
-  return false;
+  });
 }
 
 function getRampHeight(ramp, x, z) {
@@ -361,15 +314,6 @@ function getGroundHeight(x, z, playerY = 0) {
     if (rampHeight !== null) height = Math.max(height, rampHeight);
   }
 
-  for (const b of bridges) {
-    const top = b.y + b.thickness;
-    const within = Math.abs(x - b.x) <= b.w / 2 - PLAYER_RADIUS &&
-      Math.abs(z - b.z) <= b.d / 2 - PLAYER_RADIUS;
-    // 地上のプレイヤーは橋の下面を床と誤認しない。
-    // 橋の高さまで上がっている場合だけ橋上を床として扱う。
-    if (within && playerY >= b.y - 0.35) height = Math.max(height, top);
-  }
-
   const center = obstacles[0];
   if (Math.abs(x - center.x) <= center.w / 2 - PLAYER_RADIUS &&
       Math.abs(z - center.z) <= center.d / 2 + PLAYER_RADIUS) {
@@ -394,24 +338,6 @@ function movePlayer(p, dt) {
     p.velocityY = JUMP_SPEED;
     p.grounded = false;
     p.jumpQueuedUntil = 0;
-  }
-
-  const previousY = p.y;
-  p.velocityY -= GRAVITY * dt;
-  p.y += p.velocityY * dt;
-
-  for (const bridge of bridges) {
-    const within = Math.abs(p.x - bridge.x) <= bridge.w / 2 - PLAYER_RADIUS &&
-      Math.abs(p.z - bridge.z) <= bridge.d / 2 - PLAYER_RADIUS;
-    const underside = bridge.y;
-
-    if (within &&
-        previousY + PLAYER_HEIGHT <= underside &&
-        p.y + PLAYER_HEIGHT > underside &&
-        p.velocityY > 0) {
-      p.y = underside - PLAYER_HEIGHT;
-      p.velocityY = 0;
-    }
   }
 
   let forward = Number(p.input.forward || 0);
@@ -467,7 +393,7 @@ function directionFromAngles(yaw, pitch) {
 function rayHitsObstacle(origin, direction, maxDistance) {
   let nearest = Infinity;
 
-  for (const o of obstacles.concat(bridgeSupports)) {
+  for (const o of obstacles) {
     // 壁を少し厚くして、弾が境界をすり抜けるのを防ぐ。
     const minX = o.x - o.w / 2;
     const maxX = o.x + o.w / 2;
