@@ -872,7 +872,13 @@ function pollGamepad(now) {
   const reloadPressed = Boolean(pad.buttons?.[1]?.pressed);
   const firePressed = Boolean(pad.buttons?.[7]?.pressed);
 
-  if (jumpPressed && !gamepadJumpHeld) jump();
+  if (jumpPressed && !gamepadJumpHeld) {
+    if (myState?.health <= 0) {
+      requestRespawn();
+    } else {
+      jump();
+    }
+  }
   if (reloadPressed && !gamepadReloadHeld) reload();
   gamepadJumpHeld = jumpPressed;
   gamepadReloadHeld = reloadPressed;
@@ -960,6 +966,17 @@ function stopAllControls() {
   resetJoystick();
 }
 
+function requestRespawn() {
+  if (!joined || !myState || myState.health > 0) return false;
+
+  const respawnAt = Number(myState.respawnAt) || 0;
+  if (respawnAt > Date.now()) return false;
+
+  socket.emit("respawn");
+  controllerRespawnRequested = true;
+  return true;
+}
+
 function showRespawnPanel() {
   const panel = document.getElementById("respawnPanel");
   const button = document.getElementById("respawnButton");
@@ -982,10 +999,6 @@ function showRespawnPanel() {
     if (remaining <= 0) {
       clearInterval(respawnTimer);
       respawnTimer = null;
-      if (controllerMode && !controllerRespawnRequested) {
-        controllerRespawnRequested = true;
-        socket.emit("respawn");
-      }
     }
   };
 
@@ -1583,7 +1596,11 @@ window.addEventListener("keydown", (e) => {
 
   if (e.code === "Space") {
     e.preventDefault();
-    jump();
+    if (myState?.health <= 0) {
+      requestRespawn();
+    } else {
+      jump();
+    }
   }
 
   if (e.code === "KeyR") {
