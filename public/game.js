@@ -740,6 +740,61 @@ function showMessage(text) {
   }, 1300);
 }
 
+function triggerHitFlash() {
+  const el = document.getElementById("hitFlash");
+  if (!el) return;
+  el.classList.remove("active");
+  void el.offsetWidth;
+  el.classList.add("active");
+}
+
+function addDamageNumber(damage, zone) {
+  const container = document.getElementById("damageNumbers");
+  if (!container) return;
+
+  const el = document.createElement("div");
+  el.className = "damage-number" + (zone === "head" ? " head critical" : "");
+  el.textContent = String(Math.max(1, Math.round(damage)));
+
+  // 敵の正確な位置はUIに残さず、画面中央付近から数字を出す。
+  el.style.left = (50 + (Math.random() - 0.5) * 10) + "%";
+  el.style.top = (44 + (Math.random() - 0.5) * 8) + "%";
+
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+}
+
+function addKillLog(event) {
+  const log = document.getElementById("killLog");
+  if (!log) return;
+
+  const entry = document.createElement("div");
+  const mine = event.killerId === myId;
+  const death = event.victimId === myId;
+  entry.className = "kill-entry" + (mine ? " mine" : "") + (death ? " death" : "");
+
+  const killer = document.createElement("span");
+  killer.className = "killer";
+  killer.textContent = event.killerName || "Player";
+
+  const victim = document.createElement("span");
+  victim.className = "victim";
+  victim.textContent = event.victimName || "Player";
+
+  entry.append(killer, document.createTextNode("  →  "), victim);
+  if (event.zone === "head") {
+    entry.append(document.createTextNode("  HEAD"));
+  }
+
+  log.prepend(entry);
+
+  while (log.children.length > 5) {
+    log.lastElementChild.remove();
+  }
+
+  setTimeout(() => entry.remove(), 5000);
+}
+
 function createTracer(event) {
   const start = new THREE.Vector3(event.x, event.y + (event.yOffset || 0), event.z);
   const dir = directionFromAngles(event.yaw, event.pitch);
@@ -837,9 +892,22 @@ socket.on("respawned", ({ player }) => {
 
 socket.on("shot", createTracer);
 
+socket.on("damageDealt", (event) => {
+  addDamageNumber(event.damage, event.zone);
+});
+
+socket.on("damageTaken", () => {
+  triggerHitFlash();
+});
+
 socket.on("elimination", (event) => {
-  if (event.killerId === myId) showMessage("ヒット");
-  if (event.victimId === myId) showMessage("リスポーン");
+  addKillLog(event);
+  if (event.killerId === myId) {
+    showMessage("キル！");
+  }
+  if (event.victimId === myId) {
+    showMessage("デス");
+  }
 });
 
 function setConnectionStatus(text, connected = false) {
