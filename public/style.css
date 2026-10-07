@@ -591,3 +591,28 @@ input {
     padding: 16px;
   }
 }
+
+
+/* Button layout editor */
+#layoutEditDoneButton {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, calc(18px + env(safe-area-inset-bottom)));
+  transform: translateX(-50%);
+  z-index: 10006;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  padding: 10px 16px;
+  color: #fff;
+  background: rgba(15,18,22,.94);
+  box-shadow: 0 6px 24px rgba(0,0,0,.45);
+  font-weight: 800;
+  pointer-events: auto;
+}
+#touchUi.layout-editing {
+  z-index: 10005;
+  pointer-events: auto;
+}
+#touchUi.layout-editing > * {
+  touch-action: none !important;
+}
