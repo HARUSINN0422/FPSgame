@@ -1085,8 +1085,22 @@ function createTracer(event) {
 
     let line = null;
 
-    // アサルトライフルは線を表示せず、弾頭の球だけを表示する。
-    if (!isRifle) {
+    // アサルトライフルは弾頭に短いトレーサーを付ける。
+    // 弾そのものが長い線に見えないよう、線は弾の後ろだけに短く表示する。
+    if (isRifle) {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        start,
+        start
+      ]);
+      const material = new THREE.LineBasicMaterial({
+        color: bulletColor,
+        transparent: true,
+        opacity: .8
+      });
+      line = new THREE.Line(geometry, material);
+      line.userData.rifleTracer = true;
+      scene.add(line);
+    } else {
       const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
       const material = new THREE.LineBasicMaterial({
         color: bulletColor,
@@ -1636,6 +1650,18 @@ function animate(now) {
     const progress = THREE.MathUtils.clamp((now - tracer.born) / life, 0, 1);
     if (tracer.dot && tracer.start && tracer.end) {
       tracer.dot.position.lerpVectors(tracer.start, tracer.end, progress);
+
+      if (tracer.line) {
+        if (tracer.line.userData?.rifleTracer) {
+          const current = tracer.dot.position;
+          const dir = tracer.end.clone().sub(tracer.start).normalize();
+          const streakLength = 0.75;
+          const streakStart = current.clone().sub(dir.multiplyScalar(streakLength));
+          tracer.line.geometry.setFromPoints([streakStart, current]);
+        } else {
+          tracer.line.geometry.setFromPoints([tracer.start, tracer.end]);
+        }
+      }
     }
 
     if (now - tracer.born > life) {
