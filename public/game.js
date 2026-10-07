@@ -560,6 +560,18 @@ function buildWorld(data) {
     makeRamp(ramp);
   }
 
+  for (const bridge of data.bridges || []) {
+    makeBox(bridge.w, bridge.thickness, bridge.d, bridge.x, bridge.y + bridge.thickness / 2, bridge.z, 0x7b8792);
+    // 橋の縁を少し高くして、立体感を出す。
+    if (bridge.w > bridge.d) {
+      makeBox(bridge.w, 0.45, 0.18, bridge.x, bridge.y + bridge.thickness + 0.22, bridge.z - bridge.d / 2 + 0.12, 0x56616c);
+      makeBox(bridge.w, 0.45, 0.18, bridge.x, bridge.y + bridge.thickness + 0.22, bridge.z + bridge.d / 2 - 0.12, 0x56616c);
+    } else {
+      makeBox(0.18, 0.45, bridge.d, bridge.x - bridge.w / 2 + 0.12, bridge.y + bridge.thickness + 0.22, bridge.z, 0x56616c);
+      makeBox(0.18, 0.45, bridge.d, bridge.x + bridge.w / 2 - 0.12, bridge.y + bridge.thickness + 0.22, bridge.z, 0x56616c);
+    }
+  }
+
   makeBox(100, 3, 1, 0, 1.5, -50, 0x58636e);
   makeBox(100, 3, 1, 0, 1.5, 50, 0x58636e);
   makeBox(1, 3, 100, -50, 1.5, 0, 0x58636e);
@@ -586,6 +598,24 @@ function updateMinimap() {
   ctx.strokeRect(1, 1, w - 2, h - 2);
 
   ctx.fillStyle = "rgba(150,160,170,.38)";
+  for (const ramp of worldData.ramps || []) {
+    const x = mapX(ramp.x - ramp.w / 2);
+    const y = mapZ(ramp.z - ramp.d / 2);
+    const rw = (ramp.w / (world.maxX - world.minX)) * w;
+    const rh = (ramp.d / (world.maxZ - world.minZ)) * h;
+    ctx.fillStyle = "rgba(105,145,170,.42)";
+    ctx.fillRect(x, y, rw, rh);
+  }
+
+  for (const bridge of worldData.bridges || []) {
+    const x = mapX(bridge.x - bridge.w / 2);
+    const y = mapZ(bridge.z - bridge.d / 2);
+    const bw = (bridge.w / (world.maxX - world.minX)) * w;
+    const bh = (bridge.d / (world.maxZ - world.minZ)) * h;
+    ctx.fillStyle = "rgba(210,175,100,.48)";
+    ctx.fillRect(x, y, bw, bh);
+  }
+
   for (const o of worldData.obstacles || []) {
     const x = mapX(o.x - o.w / 2);
     const y = mapZ(o.z - o.d / 2);
