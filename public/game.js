@@ -86,6 +86,7 @@ let controllerMode = false;
 let gamepadJumpHeld = false;
 let gamepadReloadHeld = false;
 let gamepadFireHeld = false;
+let controllerRespawnRequested = false;
 const clock = new THREE.Clock();
 
 let worldData = null;
@@ -886,6 +887,7 @@ function showRespawnPanel() {
 
   panel?.classList.remove("hidden");
   touchUi?.classList.add("hidden");
+  controllerRespawnRequested = false;
   if (button) button.disabled = true;
   if (respawnTimer) clearInterval(respawnTimer);
 
@@ -899,6 +901,10 @@ function showRespawnPanel() {
     if (remaining <= 0) {
       clearInterval(respawnTimer);
       respawnTimer = null;
+      if (controllerMode && !controllerRespawnRequested) {
+        controllerRespawnRequested = true;
+        socket.emit("respawn");
+      }
     }
   };
 
