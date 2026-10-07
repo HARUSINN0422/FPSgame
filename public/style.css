@@ -142,6 +142,8 @@ p {
   align-items: center;
   gap: 7px;
   min-width: 150px;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 #healthBar {
@@ -606,6 +608,7 @@ input {
   outline: 2px dashed rgba(255,255,255,.6) !important;
   cursor: move !important;
   pointer-events: auto !important;
+  touch-action: none !important;
 }
 
 #touchUi.layout-editing {
