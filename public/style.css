@@ -723,6 +723,24 @@ input {
   #respawnPanel { min-width: 210px; }
 }
 
+#invulnerabilityHud {
+  position: fixed;
+  left: 50%;
+  top: max(58px, calc(58px + env(safe-area-inset-top)));
+  transform: translateX(-50%);
+  z-index: 10003;
+  padding: 7px 14px;
+  border: 1px solid rgba(110, 200, 255, .7);
+  border-radius: 999px;
+  background: rgba(35, 120, 190, .78);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  text-shadow: 0 1px 4px #000;
+  box-shadow: 0 0 18px rgba(80, 190, 255, .45);
+  pointer-events: none;
+}
+
 #connectionStatus {
   position: absolute;
   top: max(10px, calc(10px + env(safe-area-inset-top)));
