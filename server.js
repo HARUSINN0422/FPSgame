@@ -19,7 +19,7 @@ const WEAPONS = {
   pistol: {
     name: "Pistol",
     damage: 34,
-    fireInterval: 330,
+    fireInterval: 400,
     range: 70,
     falloffStart: 18,
     minDamageMultiplier: 0.55,
@@ -30,7 +30,7 @@ const WEAPONS = {
   rifle: {
     name: "Rifle",
     damage: 20,
-    fireInterval: 110,
+    fireInterval: 140,
     range: 90,
     falloffStart: 30,
     minDamageMultiplier: 0.65,
@@ -41,7 +41,7 @@ const WEAPONS = {
   shotgun: {
     name: "Shotgun",
     damage: 12,
-    fireInterval: 600,
+    fireInterval: 700,
     range: 42,
     pellets: 8,
     spread: 0.075,
@@ -394,8 +394,6 @@ function fireShot(shooter) {
         killerKills: shooter.kills,
         zone: result.zone
       });
-
-
     }
   }
 
