@@ -127,6 +127,10 @@ p {
   pointer-events: none;
 }
 
+#hud.layout-editing {
+  pointer-events: auto !important;
+}
+
 #topHud {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
