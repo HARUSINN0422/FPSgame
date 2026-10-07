@@ -264,7 +264,7 @@ function setupSettings() {
     panel?.classList.add("hidden");
   };
 
-  settingsButton?.addEventListener("click", open);
+  settingsButton?.addEventListener("click", () => {\n    if (layoutEditing) return;\n    open();\n  });
   close?.addEventListener("click", closePanel);
   done?.addEventListener("click", closePanel);
 
@@ -1085,7 +1085,7 @@ async function toggleFullscreen() {
     }
   } catch (_) {}
 }
-fullscreenButton?.addEventListener("click", toggleFullscreen);
+fullscreenButton?.addEventListener("click", () => {\n  if (layoutEditing) return;\n  toggleFullscreen();\n});
 document.addEventListener("fullscreenchange", () => {
   if (fullscreenButton) fullscreenButton.textContent = document.fullscreenElement ? "全画面解除" : "全画面";
 });
