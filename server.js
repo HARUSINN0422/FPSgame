@@ -245,23 +245,33 @@ const obstacles = [
 ];
 
 const ramps = [
-  { x: 0, z: -3, w: 12, d: 4, h: 3.5, direction: "north" },
-  { x: 0, z: 3, w: 12, d: 4, h: 3.5, direction: "south" },
-  { x: 14, z: 22, w: 8, d: 5, h: 2.8, direction: "north" },
-  { x: -14, z: -22, w: 8, d: 5, h: 2.8, direction: "south" },
-  { x: 22, z: 14, w: 5, d: 8, h: 2.8, direction: "east" },
-  { x: -22, z: -14, w: 5, d: 8, h: 2.8, direction: "west" },
-  { x: 34, z: -4, w: 6, d: 5, h: 2.8, direction: "north" },
-  { x: -34, z: 4, w: 6, d: 5, h: 2.8, direction: "south" }
+  // 中央南北壁。スロープの高い端を壁の端にぴったり接続する。
+  { x: 0, z: 14, w: 18, d: 4, h: 3, direction: "north" },
+  { x: 0, z: -14, w: 18, d: 4, h: 3, direction: "south" },
+  // 四隅側も壁と同じ3mまで上がり、壁の端に接続する。
+  { x: 14, z: 22.5, w: 8, d: 6, h: 3, direction: "north" },
+  { x: -14, z: -22.5, w: 8, d: 6, h: 3, direction: "south" },
+  { x: 22.5, z: 14, w: 6, d: 8, h: 3, direction: "east" },
+  { x: -22.5, z: -14, w: 6, d: 8, h: 3, direction: "west" },
+  { x: 34, z: -3, w: 6, d: 3, h: 2.8, direction: "north" },
+  { x: -34, z: 3, w: 6, d: 3, h: 2.8, direction: "south" }
 ];
 
 const bridges = [
-  // z=18の壁をまたぐ東西方向の橋。橋の下は地上をそのまま通れる。
-  { x: 0, z: 18, w: 26, d: 4, y: 4.2, thickness: 0.55 },
-  // x=20の壁をまたぐ南北方向の橋。
-  { x: 20, z: 0, w: 4, d: 26, y: 4.2, thickness: 0.55 },
-  // 北側にも高架通路を追加。
-  { x: 0, z: -18, w: 26, d: 4, y: 3.8, thickness: 0.55 }
+  // 3mの壁の上に橋を載せる。中央の壁が橋の主な支持部になる。
+  { x: 0, z: 18, w: 26, d: 4, y: 3, thickness: 0.6 },
+  { x: 20, z: 0, w: 4, d: 26, y: 3, thickness: 0.6 },
+  { x: 0, z: -18, w: 26, d: 4, y: 3, thickness: 0.6 }
+];
+
+const bridgeSupports = [
+  // 橋の張り出した端にも柱を追加し、「浮いている」見た目をなくす。
+  { x: -12, z: 18, w: 1.2, d: 1.2, h: 3 },
+  { x: 12, z: 18, w: 1.2, d: 1.2, h: 3 },
+  { x: 20, z: -12, w: 1.2, d: 1.2, h: 3 },
+  { x: 20, z: 12, w: 1.2, d: 1.2, h: 3 },
+  { x: -12, z: -18, w: 1.2, d: 1.2, h: 3 },
+  { x: 12, z: -18, w: 1.2, d: 1.2, h: 3 }
 ];
 
 function clamp(v, min, max) {
@@ -303,7 +313,7 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT) {
   const bodyBottom = y;
   const bodyTop = y + height;
 
-  if (obstacles.some((o) => {
+  if (obstacles.concat(bridgeSupports).some((o) => {
     if (bodyTop <= 0 || bodyBottom >= o.h) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
@@ -386,8 +396,23 @@ function movePlayer(p, dt) {
     p.jumpQueuedUntil = 0;
   }
 
+  const previousY = p.y;
   p.velocityY -= GRAVITY * dt;
   p.y += p.velocityY * dt;
+
+  for (const bridge of bridges) {
+    const within = Math.abs(p.x - bridge.x) <= bridge.w / 2 - PLAYER_RADIUS &&
+      Math.abs(p.z - bridge.z) <= bridge.d / 2 - PLAYER_RADIUS;
+    const underside = bridge.y;
+
+    if (within &&
+        previousY + PLAYER_HEIGHT <= underside &&
+        p.y + PLAYER_HEIGHT > underside &&
+        p.velocityY > 0) {
+      p.y = underside - PLAYER_HEIGHT;
+      p.velocityY = 0;
+    }
+  }
 
   let forward = Number(p.input.forward || 0);
   let strafe = Number(p.input.strafe || 0);
@@ -442,7 +467,7 @@ function directionFromAngles(yaw, pitch) {
 function rayHitsObstacle(origin, direction, maxDistance) {
   let nearest = Infinity;
 
-  for (const o of obstacles) {
+  for (const o of obstacles.concat(bridgeSupports)) {
     // 壁を少し厚くして、弾が境界をすり抜けるのを防ぐ。
     const minX = o.x - o.w / 2;
     const maxX = o.x + o.w / 2;
