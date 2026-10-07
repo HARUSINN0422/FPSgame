@@ -483,6 +483,10 @@ function fireShot(shooter) {
       const hitInfo = rayHitsPlayer(origin, dir, target);
       if (hitInfo === null || hitInfo.t > weapon.range) continue;
 
+      // プレイヤーより手前に壁がある場合は、その弾丸を無効にする。
+      const wallDistance = rayHitsObstacle(origin, dir, hitInfo.t);
+      if (wallDistance !== null && wallDistance <= hitInfo.t + 0.001) continue;
+
       if (!bestHit || hitInfo.t < bestHit.t) {
         bestHit = { target, ...hitInfo };
       }
