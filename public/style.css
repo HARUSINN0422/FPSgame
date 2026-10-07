@@ -601,6 +601,13 @@ input {
   cursor: move;
 }
 
+/* HUD/UI elements outside touchUi can also be moved in layout editing mode. */
+.layout-editing-target {
+  outline: 2px dashed rgba(255,255,255,.6) !important;
+  cursor: move !important;
+  pointer-events: auto !important;
+}
+
 #touchUi.layout-editing {
   pointer-events: auto;
 }
