@@ -747,3 +747,98 @@ input {
 .settings-group .setting-section:first-of-type {
   margin-top: 12px;
 }
+
+#hitFlash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  background: rgba(210, 25, 25, .28);
+}
+#hitFlash.active {
+  animation: hitFlash .22s ease-out;
+}
+@keyframes hitFlash {
+  0% { opacity: .9; }
+  100% { opacity: 0; }
+}
+
+#damageNumbers {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  pointer-events: none;
+}
+.damage-number {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 5px #000, 0 0 8px rgba(255,255,255,.4);
+  animation: damageNumber .65s ease-out forwards;
+}
+.damage-number.head {
+  color: #ffd35a;
+  font-size: 24px;
+}
+.damage-number.critical {
+  color: #ffb52e;
+}
+@keyframes damageNumber {
+  0% { opacity: 0; transform: translate(-50%, -35%) scale(.8); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -150%) scale(1.05); }
+}
+
+#killLog {
+  position: fixed;
+  top: max(48px, calc(48px + env(safe-area-inset-top)));
+  right: 12px;
+  z-index: 10002;
+  width: min(300px, 38vw);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.kill-entry {
+  max-width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(7, 10, 14, .78);
+  border: 1px solid rgba(255,255,255,.12);
+  color: #eee;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 1px 3px #000;
+  animation: killEntry .22s ease-out;
+}
+.kill-entry.mine {
+  border-color: rgba(110, 190, 255, .5);
+}
+.kill-entry.death {
+  border-color: rgba(240, 90, 90, .5);
+}
+.kill-entry .killer {
+  color: #75baff;
+}
+.kill-entry .victim {
+  color: #ff8585;
+}
+@keyframes killEntry {
+  from { opacity: 0; transform: translateX(15px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (max-width: 900px) {
+  #killLog {
+    top: max(44px, calc(44px + env(safe-area-inset-top)));
+    width: min(230px, 42vw);
+  }
+  .kill-entry {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+}
