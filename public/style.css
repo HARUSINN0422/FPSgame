@@ -861,3 +861,25 @@ input {
     padding: 6px 8px;
   }
 }
+
+
+/* HUD layout editor: allow MAP and HP bar to receive drag events directly. */
+#hud.layout-editing #topHud,
+#hud.layout-editing #healthHud,
+#hud.layout-editing #minimap,
+#hud.layout-editing #fullscreenButton,
+#hud.layout-editing #reloadButton {
+  pointer-events: auto !important;
+  touch-action: none !important;
+}
+
+#hud.layout-editing #minimap canvas {
+  pointer-events: none !important;
+}
+
+#hud.layout-editing #healthHud,
+#hud.layout-editing #minimap {
+  cursor: move !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
