@@ -85,9 +85,17 @@
 
   <div id="hud" class="hidden">
     <div id="topHud">
-      <div>HP <span id="health">100</span></div>
+      <div id="healthHud">
+        <span>HP</span>
+        <div id="healthBar"><div id="healthBarFill"></div></div>
+        <span id="healthValue">100</span>
+      </div>
       <div>PLAYERS <span id="playerCount">0</span></div>
       <div>K <span id="kills">0</span> / D <span id="deaths">0</span></div>
+    </div>
+    <div id="minimap" aria-label="敵位置を表示しないミニマップ">
+      <canvas id="minimapCanvas" width="180" height="180"></canvas>
+      <span>MAP</span>
     </div>
     <div id="crosshair">+</div>
     <div id="ammoHud">
