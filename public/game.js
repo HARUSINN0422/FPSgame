@@ -495,23 +495,37 @@ function makeBox(w, h, d, x, y, z, color = 0x647080) {
 }
 
 function makeRamp(ramp, color = 0x71808d) {
-  const hw = ramp.w / 2;
-  const hd = ramp.d / 2;
-  const zLow = -hd;
-  const zHigh = hd;
+  const halfW = ramp.w / 2;
+  const halfD = ramp.d / 2;
+  const xLow = -halfW;
+  const xHigh = halfW;
+  const zLow = -halfD;
+  const zHigh = halfD;
   const yLow = 0;
   const yHigh = ramp.h;
 
-  const highAtZHigh = ramp.direction === "north";
-  const aY = highAtZHigh ? yLow : yHigh;
-  const bY = highAtZHigh ? yHigh : yLow;
-
-  const vertices = new Float32Array([
-    -hw, yLow, zLow,   hw, yLow, zLow,
-    -hw, yLow, zHigh,  hw, yLow, zHigh,
-    -hw, aY, zLow,     hw, aY, zLow,
-    -hw, bY, zHigh,    hw, bY, zHigh
-  ]);
+  let vertices;
+  if (ramp.direction === "east" || ramp.direction === "west") {
+    const highAtXHigh = ramp.direction === "east";
+    const aY = highAtXHigh ? yLow : yHigh;
+    const bY = highAtXHigh ? yHigh : yLow;
+    vertices = new Float32Array([
+      xLow, yLow, zLow,   xLow, yLow, zHigh,
+      xHigh, yLow, zLow,  xHigh, yLow, zHigh,
+      xLow, aY, zLow,     xLow, aY, zHigh,
+      xHigh, bY, zLow,    xHigh, bY, zHigh
+    ]);
+  } else {
+    const highAtZHigh = ramp.direction === "north";
+    const aY = highAtZHigh ? yLow : yHigh;
+    const bY = highAtZHigh ? yHigh : yLow;
+    vertices = new Float32Array([
+      xLow, yLow, zLow,   xHigh, yLow, zLow,
+      xLow, yLow, zHigh,  xHigh, yLow, zHigh,
+      xLow, aY, zLow,     xHigh, aY, zLow,
+      xLow, bY, zHigh,    xHigh, bY, zHigh
+    ]);
+  }
 
   const indices = [
     0,1,3, 0,3,2,
