@@ -85,6 +85,7 @@ let activeGamepad = null;
 let controllerMode = false;
 let gamepadJumpHeld = false;
 let gamepadReloadHeld = false;
+let gamepadFireHeld = false;
 const clock = new THREE.Clock();
 
 let worldData = null;
@@ -495,8 +496,8 @@ function makeBox(w, h, d, x, y, z, color = 0x647080) {
 function makeRamp(ramp, color = 0x71808d) {
   const hw = ramp.w / 2;
   const hd = ramp.d / 2;
-  const zLow = ramp.z - hd;
-  const zHigh = ramp.z + hd;
+  const zLow = -hd;
+  const zHigh = hd;
   const yLow = 0;
   const yHigh = ramp.h;
 
@@ -796,15 +797,15 @@ function pollGamepad(now) {
   gamepadJumpHeld = jumpPressed;
   gamepadReloadHeld = reloadPressed;
 
-  if (firePressed) {
-    if (weaponConfig[selectedWeapon]?.automatic) {
-      if (!autoFireTimer) startFiring();
-    } else {
-      fire();
-    }
-  } else if (autoFireTimer) {
+  if (firePressed && !gamepadFireHeld) {
+    if (!weaponConfig[selectedWeapon]?.automatic) fire();
+  }
+  if (firePressed && weaponConfig[selectedWeapon]?.automatic) {
+    if (!autoFireTimer) startFiring();
+  } else if (!firePressed && autoFireTimer) {
     stopFiring();
   }
+  gamepadFireHeld = firePressed;
 
   if (now - lastInputSent >= 33) {
     socket.emit("input", { forward: joystick.forward, strafe: joystick.strafe, yaw, pitch });
