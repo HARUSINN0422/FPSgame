@@ -26,6 +26,21 @@
       </label>
 
       <div class="setting-section">
+        <strong>タッチ移動スティックのサイズ</strong>
+        <span class="setting-value"><strong id="movePadSizeValue">150px</strong></span>
+        <input id="movePadSizeSlider" type="range" min="90" max="240" step="5" value="150">
+      </div>
+
+      <div class="setting-section">
+        <strong>Bluetoothコントローラー</strong>
+        <p>先に端末のBluetooth設定でコントローラーをペアリングしてください。その後「接続を確認」を押すとゲームパッドを検出します。</p>
+        <div class="settings-actions">
+          <button id="gamepadConnectButton">接続を確認</button>
+        </div>
+        <div id="gamepadStatus" class="setting-status">未接続</div>
+      </div>
+
+      <div class="setting-section">
         <strong>ボタン配置</strong>
         <p>「配置を編集」を押したあと、移動スティック・JUMP・RELOAD・FIREをドラッグして移動できます。</p>
         <div class="settings-actions">
@@ -81,6 +96,10 @@
     </div>
     <button id="fullscreenButton" aria-label="全画面">全画面</button>
     <div id="message"></div>
+    <div id="respawnPanel" class="hidden">
+      <div id="respawnText">リスポーンまで 5秒</div>
+      <button id="respawnButton" disabled>リスポーン</button>
+    </div>
   </div>
 
   <div id="touchUi" class="hidden">
