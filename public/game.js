@@ -58,6 +58,9 @@ const remotePlayers = new Map();
 const tracers = [];
 const clock = new THREE.Clock();
 
+let worldData = null;
+let respawnTimer = null;
+
 let joined = false;
 let myId = null;
 let myState = null;
@@ -345,6 +348,7 @@ function makeBox(w, h, d, x, y, z, color = 0x647080) {
 }
 
 function buildWorld(data) {
+  worldData = data;
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(100, 100),
     new THREE.MeshStandardMaterial({ color: 0x526052, roughness: 1 })
@@ -365,6 +369,51 @@ function buildWorld(data) {
   makeBox(100, 3, 1, 0, 1.5, 50, 0x58636e);
   makeBox(1, 3, 100, -50, 1.5, 0, 0x58636e);
   makeBox(1, 3, 100, 50, 1.5, 0, 0x58636e);
+}
+
+function updateMinimap() {
+  const canvas = document.getElementById("minimapCanvas");
+  if (!canvas || !myState || !worldData?.world) return;
+
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  const world = worldData.world;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(9,14,18,.9)";
+  ctx.fillRect(0, 0, w, h);
+
+  const mapX = (x) => ((x - world.minX) / (world.maxX - world.minX)) * w;
+  const mapZ = (z) => ((z - world.minZ) / (world.maxZ - world.minZ)) * h;
+
+  ctx.strokeStyle = "rgba(255,255,255,.35)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, w - 2, h - 2);
+
+  ctx.fillStyle = "rgba(150,160,170,.38)";
+  for (const o of worldData.obstacles || []) {
+    const x = mapX(o.x - o.w / 2);
+    const y = mapZ(o.z - o.d / 2);
+    const ow = (o.w / (world.maxX - world.minX)) * w;
+    const oh = (o.d / (world.maxZ - world.minZ)) * h;
+    ctx.fillRect(x, y, ow, oh);
+  }
+
+  const px = mapX(myState.x);
+  const pz = mapZ(myState.z);
+
+  ctx.strokeStyle = "rgba(110,190,255,.95)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(px, pz);
+  ctx.lineTo(px - Math.sin(yaw) * 14, pz - Math.cos(yaw) * 14);
+  ctx.stroke();
+
+  ctx.fillStyle = "#69b7ff";
+  ctx.beginPath();
+  ctx.arc(px, pz, 5, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function createWeaponMesh(weapon) {
@@ -563,7 +612,7 @@ function updateCamera() {
 }
 
 function sendInput(now) {
-  if (!joined || now - lastInputSent < 33) return;
+  if (!joined || myState?.health <= 0 || now - lastInputSent < 33) return;
 
   const keyboardForward = (movement.forward ? 1 : 0) + (movement.back ? -1 : 0);
   const keyboardStrafe = (movement.right ? 1 : 0) + (movement.left ? -1 : 0);
@@ -576,7 +625,7 @@ function sendInput(now) {
 }
 
 function jump() {
-  if (!joined) return;
+  if (!joined || myState?.health <= 0) return;
   socket.emit("jump");
 }
 
@@ -616,6 +665,54 @@ function stopFiring() {
   }
 }
 
+function stopAllControls() {
+  stopFiring();
+  movement.forward = false;
+  movement.back = false;
+  movement.left = false;
+  movement.right = false;
+  joystick.forward = 0;
+  joystick.strafe = 0;
+  resetJoystick();
+}
+
+function showRespawnPanel() {
+  const panel = document.getElementById("respawnPanel");
+  const button = document.getElementById("respawnButton");
+  const text = document.getElementById("respawnText");
+  const touchUi = document.getElementById("touchUi");
+
+  panel?.classList.remove("hidden");
+  touchUi?.classList.add("hidden");
+  if (button) button.disabled = true;
+  if (respawnTimer) clearInterval(respawnTimer);
+
+  const target = Number(myState?.respawnAt) || (Date.now() + 5000);
+
+  const update = () => {
+    const remaining = Math.max(0, target - Date.now());
+    const seconds = Math.ceil(remaining / 1000);
+    if (text) text.textContent = seconds > 0 ? ("リスポーンまで " + seconds + "秒") : "リスポーンできます";
+    if (button) button.disabled = remaining > 0;
+    if (remaining <= 0) {
+      clearInterval(respawnTimer);
+      respawnTimer = null;
+    }
+  };
+
+  update();
+  respawnTimer = setInterval(update, 100);
+}
+
+function hideRespawnPanel() {
+  document.getElementById("respawnPanel")?.classList.add("hidden");
+  if (joined) document.getElementById("touchUi")?.classList.remove("hidden");
+  if (respawnTimer) {
+    clearInterval(respawnTimer);
+    respawnTimer = null;
+  }
+}
+
 function showMessage(text) {
   const el = document.getElementById("message");
   el.textContent = text;
@@ -652,6 +749,12 @@ function updateAmmoHud() {
   ammoEl.textContent = myState.reloading ? "RELOADING..." : `${ammo} / ∞`;
 }
 
+document.getElementById("respawnButton")?.addEventListener("click", () => {
+  if (!joined || !myState || myState.health > 0) return;
+  if (myState.respawnAt && Date.now() < myState.respawnAt) return;
+  socket.emit("respawn");
+});
+
 socket.on("world", buildWorld);
 
 socket.on("joined", ({ player }) => {
@@ -678,15 +781,36 @@ socket.on("state", (players) => {
   updateCamera();
 
   if (myState) {
-    document.getElementById("health").textContent = String(myState.health);
+    const hp = Math.max(0, Math.min(100, Number(myState.health) || 0));
+    const healthValue = document.getElementById("healthValue");
+    const healthFill = document.getElementById("healthBarFill");
+    if (healthValue) healthValue.textContent = String(Math.round(hp));
+    if (healthFill) {
+      healthFill.style.width = hp + "%";
+      healthFill.style.background = hp > 60 ? "#55d66f" : hp > 30 ? "#e6c84a" : "#e55a5a";
+    }
+
     document.getElementById("kills").textContent = String(myState.kills);
     document.getElementById("deaths").textContent = String(myState.deaths);
     updateAmmoHud();
 
-    if (myState.reloading) {
-      stopFiring();
+    if (myState.reloading) stopFiring();
+
+    if (hp <= 0) {
+      stopAllControls();
+      showRespawnPanel();
+    } else {
+      hideRespawnPanel();
     }
   }
+});
+
+socket.on("respawned", ({ player }) => {
+  myState = player;
+  yaw = player.yaw;
+  pitch = player.pitch;
+  hideRespawnPanel();
+  showMessage("リスポーンしました");
 });
 
 socket.on("shot", createTracer);
@@ -953,6 +1077,7 @@ function animate(now) {
 
   sendInput(now);
   updateCamera();
+  updateMinimap();
 
   for (let i = tracers.length - 1; i >= 0; i--) {
     if (now - tracers[i].born > 120) {
