@@ -324,16 +324,19 @@ function getGroundHeight(x, z, playerY = 0) {
 
 function movePlayer(p, dt) {
   const now = Date.now();
-  const groundBefore = getGroundHeight(p.x, p.z, p.y);
 
-  if (p.y <= groundBefore + 0.08 && p.velocityY < 0) {
-    p.velocityY = 0;
+  // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
+  const groundBefore = getGroundHeight(p.x, p.z, p.y);
+  const wasGrounded = p.grounded;
+
+  if (p.y <= groundBefore + 0.08 && p.velocityY <= 0) {
     p.y = groundBefore;
+    p.velocityY = 0;
     p.grounded = true;
     p.lastGroundedAt = now;
   }
 
-  // ジャンプ入力を短時間保持し、移動入力と同時に押した場合も取りこぼしにくくする。
+  // ジャンプ入力は短時間保持する。坂の上でも接地していればジャンプできる。
   if (p.jumpQueuedUntil >= now && (p.grounded || now - p.lastGroundedAt <= 140)) {
     p.velocityY = JUMP_SPEED;
     p.grounded = false;
@@ -343,18 +346,48 @@ function movePlayer(p, dt) {
   let forward = Number(p.input.forward || 0);
   let strafe = Number(p.input.strafe || 0);
   const len = Math.hypot(forward, strafe);
-  if (len > 1) { forward /= len; strafe /= len; }
+  if (len > 1) {
+    forward /= len;
+    strafe /= len;
+  }
 
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const dx = (-sin * forward + cos * strafe) * PLAYER_SPEED * dt;
   const dz = (-cos * forward - sin * strafe) * PLAYER_SPEED * dt;
-  const nextX = p.x + dx, nextZ = p.z + dz;
+  const nextX = p.x + dx;
+  const nextZ = p.z + dz;
 
-  if (!collides(nextX, p.z, Math.max(p.y, getGroundHeight(nextX, p.z, p.y)))) p.x = nextX;
-  if (!collides(p.x, nextZ, Math.max(p.y, getGroundHeight(p.x, nextZ, p.y)))) p.z = nextZ;
+  // 坂の上を歩いている場合は、坂の高さまで自然に追従させる。
+  // 空中にいる場合は現在のYをそのまま使って壁との衝突だけ判定する。
+  const nextGroundX = getGroundHeight(nextX, p.z, p.y);
+  const collisionY = wasGrounded && p.velocityY <= 0
+    ? Math.max(p.y, nextGroundX)
+    : p.y;
+
+  if (!collides(nextX, p.z, collisionY)) {
+    p.x = nextX;
+  }
+
+  const nextGroundZ = getGroundHeight(p.x, nextZ, p.y);
+  const collisionY2 = wasGrounded && p.velocityY <= 0
+    ? Math.max(p.y, nextGroundZ)
+    : p.y;
+
+  if (!collides(p.x, nextZ, collisionY2)) {
+    p.z = nextZ;
+  }
+
+  // ジャンプ中/空中では必ず重力を適用する。
+  if (!p.grounded) {
+    p.velocityY -= GRAVITY * dt;
+    p.y += p.velocityY * dt;
+  }
 
   const ground = getGroundHeight(p.x, p.z, p.y);
-  if (p.y <= ground) {
+
+  // 坂を上るときは地面の高さに追従する。
+  // 坂から外れた場合はground=0になり、重力で下へ落ちる。
+  if (p.velocityY <= 0 && p.y <= ground + 0.08) {
     p.y = ground;
     p.velocityY = 0;
     p.grounded = true;
