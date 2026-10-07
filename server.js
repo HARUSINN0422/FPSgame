@@ -84,7 +84,7 @@ const WEAPONS = {
     damage: 34,
     fireInterval: 400,
     range: 68,
-    spread: 0.012,
+    spread: 0.018,
     falloffStart: 16,
     minDamageMultiplier: 0.50,
     magazineSize: 12,
@@ -96,7 +96,7 @@ const WEAPONS = {
     damage: 18,
     fireInterval: 160,
     range: 78,
-    spread: 0.022,
+    spread: 0.032,
     falloffStart: 24,
     minDamageMultiplier: 0.55,
     magazineSize: 30,
@@ -109,7 +109,7 @@ const WEAPONS = {
     fireInterval: 750,
     range: 40,
     pellets: 8,
-    spread: 0.12,
+    spread: 0.15,
     falloffStart: 8,
     minDamageMultiplier: 0.25,
     magazineSize: 8,
@@ -595,8 +595,11 @@ function fireShot(shooter) {
     let pitch = shooter.pitch;
 
     if (weapon.spread) {
-      yaw += (Math.random() - 0.5) * weapon.spread;
-      pitch += (Math.random() - 0.5) * weapon.spread;
+      // 通常時も少しブレを大きくし、ジャンプ中はさらにブレる。
+      const spreadMultiplier = shooter.grounded ? 1 : 2.0;
+      const spread = weapon.spread * spreadMultiplier;
+      yaw += (Math.random() - 0.5) * spread;
+      pitch += (Math.random() - 0.5) * spread;
     }
 
     const dir = directionFromAngles(yaw, pitch);
