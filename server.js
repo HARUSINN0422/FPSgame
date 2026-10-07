@@ -233,12 +233,35 @@ const obstacles = [
   { x: 30, z: 10, w: 4, d: 8, h: 2.5 },
   { x: -30, z: -10, w: 4, d: 8, h: 2.5 },
   { x: 30, z: -10, w: 4, d: 8, h: 2.5 },
-  { x: -30, z: 10, w: 4, d: 8, h: 2.5 }
+  { x: -30, z: 10, w: 4, d: 8, h: 2.5 },
+  { x: 14, z: 27, w: 8, d: 3, h: 2.8 },
+  { x: -14, z: -27, w: 8, d: 3, h: 2.8 },
+  { x: 27, z: 14, w: 3, d: 8, h: 2.8 },
+  { x: -27, z: -14, w: 3, d: 8, h: 2.8 },
+  { x: 34, z: 0, w: 6, d: 3, h: 2.8 },
+  { x: -34, z: 0, w: 6, d: 3, h: 2.8 },
+  { x: 0, z: 34, w: 3, d: 6, h: 2.8 },
+  { x: 0, z: -34, w: 3, d: 6, h: 2.8 }
 ];
 
 const ramps = [
   { x: 0, z: -3, w: 12, d: 4, h: 3.5, direction: "north" },
-  { x: 0, z: 3, w: 12, d: 4, h: 3.5, direction: "south" }
+  { x: 0, z: 3, w: 12, d: 4, h: 3.5, direction: "south" },
+  { x: 14, z: 22, w: 8, d: 5, h: 2.8, direction: "north" },
+  { x: -14, z: -22, w: 8, d: 5, h: 2.8, direction: "south" },
+  { x: 22, z: 14, w: 5, d: 8, h: 2.8, direction: "east" },
+  { x: -22, z: -14, w: 5, d: 8, h: 2.8, direction: "west" },
+  { x: 34, z: -4, w: 6, d: 5, h: 2.8, direction: "north" },
+  { x: -34, z: 4, w: 6, d: 5, h: 2.8, direction: "south" }
+];
+
+const bridges = [
+  // z=18の壁をまたぐ東西方向の橋。橋の下は地上をそのまま通れる。
+  { x: 0, z: 18, w: 26, d: 4, y: 4.2, thickness: 0.55 },
+  // x=20の壁をまたぐ南北方向の橋。
+  { x: 20, z: 0, w: 4, d: 26, y: 4.2, thickness: 0.55 },
+  // 北側にも高架通路を追加。
+  { x: 0, z: -18, w: 26, d: 4, y: 3.8, thickness: 0.55 }
 ];
 
 function clamp(v, min, max) {
@@ -273,27 +296,70 @@ function pickSpawn() {
   return scored[0]?.spawn || [0, 0, 10];
 }
 
-function collides(x, z, y = 0) {
+function collides(x, z, y = 0, height = PLAYER_HEIGHT) {
   if (x < WORLD.minX + PLAYER_RADIUS || x > WORLD.maxX - PLAYER_RADIUS) return true;
   if (z < WORLD.minZ + PLAYER_RADIUS || z > WORLD.maxZ - PLAYER_RADIUS) return true;
-  return obstacles.some((o) => {
-    if (y >= o.h - 0.25) return false;
+
+  const bodyBottom = y;
+  const bodyTop = y + height;
+
+  if (obstacles.some((o) => {
+    if (bodyTop <= 0 || bodyBottom >= o.h) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
       z > o.z - o.d / 2 - PLAYER_RADIUS &&
       z < o.z + o.d / 2 + PLAYER_RADIUS;
-  });
+  })) return true;
+
+  // 橋は床から離れているため、下を通れる。
+  // プレイヤーの頭が橋の下面に当たる場合だけ水平移動を止める。
+  if (bridges.some((b) => {
+    const bottom = b.y;
+    const top = b.y + b.thickness;
+    if (bodyTop <= bottom + 0.02 || bodyBottom >= top) return false;
+    return x > b.x - b.w / 2 - PLAYER_RADIUS &&
+      x < b.x + b.w / 2 + PLAYER_RADIUS &&
+      z > b.z - b.d / 2 - PLAYER_RADIUS &&
+      z < b.z + b.d / 2 + PLAYER_RADIUS;
+  })) return true;
+
+  return false;
 }
 
-function getGroundHeight(x, z) {
-  let height = 0;
-  for (const ramp of ramps) {
-    const halfW = ramp.w / 2, halfD = ramp.d / 2;
-    if (Math.abs(x - ramp.x) > halfW || Math.abs(z - ramp.z) > halfD) continue;
-    const t = clamp((z - (ramp.z - halfD)) / ramp.d, 0, 1);
-    const h = ramp.direction === "north" ? t * ramp.h : (1 - t) * ramp.h;
-    height = Math.max(height, h);
+function getRampHeight(ramp, x, z) {
+  const halfW = ramp.w / 2, halfD = ramp.d / 2;
+  if (Math.abs(x - ramp.x) > halfW || Math.abs(z - ramp.z) > halfD) return null;
+
+  let t;
+  if (ramp.direction === "north") {
+    t = (z - (ramp.z - halfD)) / ramp.d;
+  } else if (ramp.direction === "south") {
+    t = 1 - (z - (ramp.z - halfD)) / ramp.d;
+  } else if (ramp.direction === "east") {
+    t = (x - (ramp.x - halfW)) / ramp.w;
+  } else {
+    t = 1 - (x - (ramp.x - halfW)) / ramp.w;
   }
+  return clamp(t, 0, 1) * ramp.h;
+}
+
+function getGroundHeight(x, z, playerY = 0) {
+  let height = 0;
+
+  for (const ramp of ramps) {
+    const rampHeight = getRampHeight(ramp, x, z);
+    if (rampHeight !== null) height = Math.max(height, rampHeight);
+  }
+
+  for (const b of bridges) {
+    const top = b.y + b.thickness;
+    const within = Math.abs(x - b.x) <= b.w / 2 - PLAYER_RADIUS &&
+      Math.abs(z - b.z) <= b.d / 2 - PLAYER_RADIUS;
+    // 地上のプレイヤーは橋の下面を床と誤認しない。
+    // 橋の高さまで上がっている場合だけ橋上を床として扱う。
+    if (within && playerY >= b.y - 0.35) height = Math.max(height, top);
+  }
+
   const center = obstacles[0];
   if (Math.abs(x - center.x) <= center.w / 2 - PLAYER_RADIUS &&
       Math.abs(z - center.z) <= center.d / 2 + PLAYER_RADIUS) {
@@ -303,8 +369,23 @@ function getGroundHeight(x, z) {
 }
 
 function movePlayer(p, dt) {
-  const groundBefore = getGroundHeight(p.x, p.z);
-  if (p.y <= groundBefore + 0.08 && p.velocityY < 0) p.velocityY = 0;
+  const now = Date.now();
+  const groundBefore = getGroundHeight(p.x, p.z, p.y);
+
+  if (p.y <= groundBefore + 0.08 && p.velocityY < 0) {
+    p.velocityY = 0;
+    p.y = groundBefore;
+    p.grounded = true;
+    p.lastGroundedAt = now;
+  }
+
+  // ジャンプ入力を短時間保持し、移動入力と同時に押した場合も取りこぼしにくくする。
+  if (p.jumpQueuedUntil >= now && (p.grounded || now - p.lastGroundedAt <= 140)) {
+    p.velocityY = JUMP_SPEED;
+    p.grounded = false;
+    p.jumpQueuedUntil = 0;
+  }
+
   p.velocityY -= GRAVITY * dt;
   p.y += p.velocityY * dt;
 
@@ -318,12 +399,18 @@ function movePlayer(p, dt) {
   const dz = (-cos * forward - sin * strafe) * PLAYER_SPEED * dt;
   const nextX = p.x + dx, nextZ = p.z + dz;
 
-  if (!collides(nextX, p.z, Math.max(p.y, getGroundHeight(nextX, p.z)))) p.x = nextX;
-  if (!collides(p.x, nextZ, Math.max(p.y, getGroundHeight(p.x, nextZ)))) p.z = nextZ;
+  if (!collides(nextX, p.z, Math.max(p.y, getGroundHeight(nextX, p.z, p.y)))) p.x = nextX;
+  if (!collides(p.x, nextZ, Math.max(p.y, getGroundHeight(p.x, nextZ, p.y)))) p.z = nextZ;
 
-  const ground = getGroundHeight(p.x, p.z);
-  if (p.y <= ground) { p.y = ground; p.velocityY = 0; p.grounded = true; }
-  else p.grounded = false;
+  const ground = getGroundHeight(p.x, p.z, p.y);
+  if (p.y <= ground) {
+    p.y = ground;
+    p.velocityY = 0;
+    p.grounded = true;
+    p.lastGroundedAt = now;
+  } else {
+    p.grounded = false;
+  }
 
   p.x = clamp(p.x, WORLD.minX + PLAYER_RADIUS, WORLD.maxX - PLAYER_RADIUS);
   p.z = clamp(p.z, WORLD.minZ + PLAYER_RADIUS, WORLD.maxZ - PLAYER_RADIUS);
@@ -639,7 +726,7 @@ function publicPlayer(p) {
 }
 
 io.on("connection", (socket) => {
-  socket.emit("world", { obstacles, ramps, world: WORLD, weapons: Object.fromEntries(
+  socket.emit("world", { obstacles, ramps, bridges, world: WORLD, weapons: Object.fromEntries(
     Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
   ) });
 
@@ -667,6 +754,8 @@ io.on("connection", (socket) => {
       lastFire: 0,
       velocityY: 0,
       grounded: true,
+      lastGroundedAt: Date.now(),
+      jumpQueuedUntil: 0,
       input: { forward: 0, strafe: 0 },
       respawnAt: 0
     });
@@ -687,9 +776,9 @@ io.on("connection", (socket) => {
 
   socket.on("jump", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || !p.grounded) return;
-    p.velocityY = JUMP_SPEED;
-    p.grounded = false;
+    if (!p || p.health <= 0) return;
+    // 120msだけ入力を保持し、移動中の同時入力でもジャンプを取りこぼさない。
+    p.jumpQueuedUntil = Date.now() + 120;
   });
 
   socket.on("fire", () => {
@@ -709,6 +798,8 @@ io.on("connection", (socket) => {
     p.z = spawn[2];
     p.velocityY = 0;
     p.grounded = true;
+    p.lastGroundedAt = Date.now();
+    p.jumpQueuedUntil = 0;
     p.health = 100;
     p.ammo = WEAPONS[p.weapon].magazineSize;
     p.reloadingUntil = 0;
