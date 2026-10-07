@@ -586,6 +586,11 @@ function buildWorld(data) {
     }
   }
 
+  // 橋の端を地面まで支える柱。橋が空中に浮いて見えないようにする。
+  for (const support of data.bridgeSupports || []) {
+    makeBox(support.w, support.h, support.d, support.x, support.h / 2, support.z, 0x626d78);
+  }
+
   makeBox(100, 3, 1, 0, 1.5, -50, 0x58636e);
   makeBox(100, 3, 1, 0, 1.5, 50, 0x58636e);
   makeBox(1, 3, 100, -50, 1.5, 0, 0x58636e);
