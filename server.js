@@ -334,6 +334,60 @@ function directionFromAngles(yaw, pitch) {
   };
 }
 
+function rayHitsObstacle(origin, direction, maxDistance) {
+  let nearest = Infinity;
+
+  for (const o of obstacles) {
+    // 壁を少し厚くして、弾が境界をすり抜けるのを防ぐ。
+    const minX = o.x - o.w / 2;
+    const maxX = o.x + o.w / 2;
+    const minY = 0;
+    const maxY = o.h;
+    const minZ = o.z - o.d / 2;
+    const maxZ = o.z + o.d / 2;
+
+    let tMin = 0;
+    let tMax = maxDistance;
+
+    const axes = [
+      [origin.x, direction.x, minX, maxX],
+      [origin.y, direction.y, minY, maxY],
+      [origin.z, direction.z, minZ, maxZ]
+    ];
+
+    let intersects = true;
+
+    for (const [originValue, directionValue, minValue, maxValue] of axes) {
+      if (Math.abs(directionValue) < 1e-8) {
+        if (originValue < minValue || originValue > maxValue) {
+          intersects = false;
+          break;
+        }
+        continue;
+      }
+
+      let t1 = (minValue - originValue) / directionValue;
+      let t2 = (maxValue - originValue) / directionValue;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+
+      tMin = Math.max(tMin, t1);
+      tMax = Math.min(tMax, t2);
+
+      if (tMin > tMax) {
+        intersects = false;
+        break;
+      }
+    }
+
+    if (intersects && tMin >= 0 && tMin <= maxDistance) {
+      nearest = Math.min(nearest, tMin);
+    }
+  }
+
+  return Number.isFinite(nearest) ? nearest : null;
+}
+
+
 function rayHitsPlayer(origin, direction, target) {
   const targetCenter = { x: target.x, y: target.y + 1.0, z: target.z };
   const ox = origin.x - targetCenter.x;
