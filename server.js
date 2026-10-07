@@ -564,6 +564,8 @@ io.on("connection", (socket) => {
       kills: 0,
       deaths: 0,
       weapon,
+      ammo: WEAPONS[weapon].magazineSize,
+      reloadingUntil: 0,
       lastFire: 0,
       velocityY: 0,
       grounded: true,
