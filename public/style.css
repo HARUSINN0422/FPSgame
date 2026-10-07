@@ -868,7 +868,8 @@ input {
 #hud.layout-editing #healthHud,
 #hud.layout-editing #minimap,
 #hud.layout-editing #fullscreenButton,
-#hud.layout-editing #reloadButton {
+#hud.layout-editing #reloadButton,
+#hud.layout-editing #ammoHud {
   pointer-events: auto !important;
   touch-action: none !important;
 }
@@ -882,4 +883,14 @@ input {
   cursor: move !important;
   user-select: none !important;
   -webkit-user-select: none !important;
+}
+
+
+/* 配置編集時は残弾表示とリロードボタンを一体としてドラッグする。 */
+#ammoHud.layout-editing-target {
+  cursor: move !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: auto !important;
+  touch-action: none !important;
 }
