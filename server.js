@@ -383,6 +383,8 @@ function fireShot(shooter) {
     if (result.target.health <= 0) {
         shooter.health = 100;
       result.target.health = 0;
+      result.target.respawnAt = Date.now() + 5000;
+      result.target.kills = result.target.kills || 0;
       shooter.kills += 1;
       result.target.deaths += 1;
 
@@ -393,19 +395,7 @@ function fireShot(shooter) {
         zone: result.zone
       });
 
-      setTimeout(() => {
-        if (!players.has(result.target.id)) return;
-        const respawn = pickSpawn();
-        result.target.x = respawn[0];
-        result.target.y = 0;
-        result.target.z = respawn[2];
-        result.target.velocityY = 0;
-        result.target.grounded = true;
-        result.target.health = 100;
-        result.target.ammo = WEAPONS[result.target.weapon].magazineSize;
-        result.target.reloadingUntil = 0;
-        result.target.lastFire = 0;
-      }, 900);
+
     }
   }
 
@@ -443,7 +433,8 @@ function publicPlayer(p) {
     deaths: p.deaths,
     weapon: p.weapon,
     ammo: p.ammo,
-    reloading: p.reloadingUntil > Date.now()
+    reloading: p.reloadingUntil > Date.now(),
+    respawnAt: p.respawnAt || 0
   };
 }
 
@@ -474,7 +465,8 @@ io.on("connection", (socket) => {
       lastFire: 0,
       velocityY: 0,
       grounded: true,
-      input: { forward: 0, strafe: 0 }
+      input: { forward: 0, strafe: 0 },
+      respawnAt: 0
     });
 
     socket.emit("joined", { player: publicPlayer(players.get(socket.id)) });
@@ -502,6 +494,27 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0) return;
     fireShot(p);
+  });
+
+  socket.on("respawn", () => {
+    const p = players.get(socket.id);
+    if (!p || p.health > 0) return;
+    if (!p.respawnAt || Date.now() < p.respawnAt) return;
+
+    const spawn = pickSpawn();
+    p.x = spawn[0];
+    p.y = 0;
+    p.z = spawn[2];
+    p.velocityY = 0;
+    p.grounded = true;
+    p.health = 100;
+    p.ammo = WEAPONS[p.weapon].magazineSize;
+    p.reloadingUntil = 0;
+    p.lastFire = 0;
+    p.respawnAt = 0;
+
+    socket.emit("respawned", { player: publicPlayer(p) });
+    io.emit("players", Array.from(players.values()).map(publicPlayer));
   });
 
   socket.on("reload", () => {
