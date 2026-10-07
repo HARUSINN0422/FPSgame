@@ -541,10 +541,19 @@ function makeRamp(ramp, color = 0x71808d) {
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
 
-  const mesh = new THREE.Mesh(
-    geometry,
-    new THREE.MeshStandardMaterial({ color, roughness: .9, metalness: .05 })
-  );
+  geometry.clearGroups();
+  geometry.addGroup(0, indices.length - 6, 0);
+  geometry.addGroup(indices.length - 6, 6, 1);
+
+  // スロープ側面は照明・影の影響を受けないようにする。
+  const sideMaterial = new THREE.MeshBasicMaterial({ color });
+  const topMaterial = new THREE.MeshStandardMaterial({
+    color,
+    roughness: .9,
+    metalness: .05
+  });
+
+  const mesh = new THREE.Mesh(geometry, [sideMaterial, topMaterial]);
   mesh.position.set(ramp.x, 0, ramp.z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -728,6 +737,22 @@ function createRemotePlayer() {
   root.add(torso, head, armL, armR, legL, legR, weapon);
   root.userData.weaponMesh = weapon;
   root.userData.weaponType = "pistol";
+
+  const invulnerabilityShield = new THREE.Mesh(
+    new THREE.SphereGeometry(1.15, 20, 14),
+    new THREE.MeshBasicMaterial({
+      color: 0x72c8ff,
+      transparent: true,
+      opacity: .18,
+      wireframe: true,
+      depthWrite: false
+    })
+  );
+  invulnerabilityShield.visible = false;
+  invulnerabilityShield.renderOrder = 20;
+  root.add(invulnerabilityShield);
+  root.userData.invulnerabilityShield = invulnerabilityShield;
+
   root.userData.targetPosition = new THREE.Vector3();
   root.userData.targetYaw = 0;
   root.userData.hasNetworkTransform = false;
@@ -760,6 +785,11 @@ function updateRemotePlayers(players) {
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
     obj.visible = p.health > 0;
+
+    const shield = obj.userData.invulnerabilityShield;
+    if (shield) {
+      shield.visible = p.health > 0 && Number(p.invulnerableUntil || 0) > Date.now();
+    }
 
     if (obj.userData.weaponType !== p.weapon) {
       const oldWeapon = obj.userData.weaponMesh;
@@ -1040,12 +1070,9 @@ function createTracer(event) {
     ? event.tracers
     : [{ yaw: event.yaw, pitch: event.pitch, distance: event.hit ? 18 : 12 }];
 
-  const weaponStyles = {
-    pistol: { color: 0xffe0a3, width: 2.0, life: 100 },
-    rifle: { color: 0x9fe0ff, width: 1.6, life: 85 },
-    shotgun: { color: 0xffc36b, width: 2.4, life: 115 }
-  };
-  const style = weaponStyles[event.weapon] || weaponStyles.pistol;
+  // 全武器で弾の色を統一する。
+  const bulletColor = 0xffe0a3;
+  const isRifle = event.weapon === "rifle";
 
   for (const pellet of entries) {
     const dir = directionFromAngles(pellet.yaw, pellet.pitch);
@@ -1056,25 +1083,37 @@ function createTracer(event) {
       pellet.z ?? (start.z + dir.z * distance)
     );
 
-    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-    const material = new THREE.LineBasicMaterial({
-      color: style.color,
-      transparent: true,
-      opacity: .9,
-      linewidth: style.width
-    });
-    const line = new THREE.Line(geometry, material);
-    scene.add(line);
+    let line = null;
 
-    // 弾頭を小さな光点として表示する。
+    // アサルトライフルは線を表示せず、弾頭の球だけを表示する。
+    if (!isRifle) {
+      const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+      const material = new THREE.LineBasicMaterial({
+        color: bulletColor,
+        transparent: true,
+        opacity: .9
+      });
+      line = new THREE.Line(geometry, material);
+      scene.add(line);
+    }
+
     const dot = new THREE.Mesh(
-      new THREE.SphereGeometry(event.weapon === "shotgun" ? .045 : .035, 6, 6),
-      new THREE.MeshBasicMaterial({ color: style.color })
+      new THREE.SphereGeometry(
+        isRifle ? .055 : event.weapon === "shotgun" ? .045 : .035,
+        8,
+        8
+      ),
+      new THREE.MeshBasicMaterial({ color: bulletColor })
     );
     dot.position.copy(start);
     scene.add(dot);
 
-    tracers.push({ line, dot, born: performance.now(), life: style.life });
+    tracers.push({
+      line,
+      dot,
+      born: performance.now(),
+      life: isRifle ? 110 : event.weapon === "shotgun" ? 115 : 100
+    });
   }
 }
 function directionFromAngles(y, p) {
@@ -1148,6 +1187,18 @@ socket.on("state", (players) => {
       showRespawnPanel();
     } else {
       hideRespawnPanel();
+    }
+
+    const invulnerabilityHud = document.getElementById("invulnerabilityHud");
+    const invulnerableUntil = Number(myState.invulnerableUntil || 0);
+    const invRemaining = Math.max(0, invulnerableUntil - Date.now());
+    if (invulnerabilityHud) {
+      if (invRemaining > 0) {
+        invulnerabilityHud.classList.remove("hidden");
+        invulnerabilityHud.textContent = "無敵 " + (invRemaining / 1000).toFixed(1) + "秒";
+      } else {
+        invulnerabilityHud.classList.add("hidden");
+      }
     }
   }
 });
@@ -1579,10 +1630,12 @@ function animate(now) {
 
   for (let i = tracers.length - 1; i >= 0; i--) {
     if (now - tracers[i].born > (tracers[i].life || 120)) {
-      scene.remove(tracers[i].line);
+      if (tracers[i].line) {
+        scene.remove(tracers[i].line);
+        tracers[i].line.geometry.dispose();
+        tracers[i].line.material.dispose();
+      }
       scene.remove(tracers[i].dot);
-      tracers[i].line.geometry.dispose();
-      tracers[i].line.material.dispose();
       tracers[i].dot.geometry.dispose();
       tracers[i].dot.material.dispose();
       tracers.splice(i, 1);
