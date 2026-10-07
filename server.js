@@ -385,10 +385,35 @@ function fireShot(shooter) {
       });
     }
 
-    hitResults.push({ target: bestHit.target, damage, zone: bestHit.zone });
+    hitResults.push({
+      target: bestHit.target,
+      damage,
+      zone: bestHit.zone,
+      x: origin.x + dir.x * bestHit.t,
+      y: origin.y + dir.y * bestHit.t,
+      z: origin.z + dir.z * bestHit.t
+    });
   }
 
   for (const result of damageByTarget.values()) {
+    const feedback = hitResults
+      .filter((hit) => hit.target.id === result.target.id)
+      .reduce((best, hit) => hit.damage > best.damage ? hit : best, hitResults.find((hit) => hit.target.id === result.target.id));
+
+    io.to(shooter.id).emit("damageDealt", {
+      targetId: result.target.id,
+      damage: Math.round(result.damage),
+      zone: result.zone,
+      x: feedback?.x ?? result.target.x,
+      y: feedback?.y ?? result.target.y + 1,
+      z: feedback?.z ?? result.target.z
+    });
+
+    io.to(result.target.id).emit("damageTaken", {
+      damage: Math.round(result.damage),
+      zone: result.zone
+    });
+
     if (result.target.health <= 0) {
         shooter.health = 100;
       result.target.health = 0;
@@ -399,7 +424,9 @@ function fireShot(shooter) {
 
       io.emit("elimination", {
         killerId: shooter.id,
+        killerName: shooter.name,
         victimId: result.target.id,
+        victimName: result.target.name,
         killerKills: shooter.kills,
         zone: result.zone
       });
