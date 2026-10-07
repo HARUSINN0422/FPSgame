@@ -172,13 +172,22 @@ function sanitizeName(value) {
 }
 
 function pickSpawn() {
-  const candidates = spawnPoints.filter(([x, _y, z]) => {
-    for (const p of players.values()) {
-      if (Math.hypot(p.x - x, p.z - z) < 4) return false;
-    }
-    return true;
+  const alivePlayers = Array.from(players.values()).filter((p) => p.health > 0);
+  const scored = spawnPoints.map((spawn) => {
+    const [x, _y, z] = spawn;
+    const nearestDistance = alivePlayers.length
+      ? Math.min(...alivePlayers.map((p) => Math.hypot(p.x - x, p.z - z)))
+      : Infinity;
+    return { spawn, nearestDistance };
   });
-  return candidates[Math.floor(Math.random() * (candidates.length || spawnPoints.length))] || [0, 0, 10];
+
+  const safe = scored.filter((entry) => entry.nearestDistance >= 16);
+  if (safe.length) {
+    return safe[Math.floor(Math.random() * safe.length)].spawn;
+  }
+
+  scored.sort((a, b) => b.nearestDistance - a.nearestDistance);
+  return scored[0]?.spawn || [0, 0, 10];
 }
 
 function collides(x, z) {
