@@ -37,6 +37,22 @@ async function requestLandscape() {
   } catch (_) {}
 }
 
+// Safari/iOS can still zoom on a rapid double tap even with the viewport meta tag.
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (event) => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) {
+    const target = event.target;
+    const isEditable = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+    if (!isEditable) event.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
+
+for (const eventName of ["gesturestart", "gesturechange", "gestureend"]) {
+  document.addEventListener(eventName, (event) => event.preventDefault(), { passive: false });
+}
+
 requestLandscape();
 
 const scene = new THREE.Scene();
@@ -380,8 +396,7 @@ function setupDraggableOffset(id, settingKey) {
   let startY = 0;
   let startOffsetX = 0;
   let startOffsetY = 0;
-  let baseLeft = 0;
-  let baseTop = 0;
+  let moved = false;
 
   const move = (e) => {
     if (!layoutEditing || e.pointerId !== pointerId) return;
@@ -390,13 +405,17 @@ function setupDraggableOffset(id, settingKey) {
     const dx = startOffsetX + (e.clientX - startX);
     const dy = startOffsetY + (e.clientY - startY);
 
+    if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true;
+
+    const rect = el.getBoundingClientRect();
+    const baseLeft = rect.left - startOffsetX;
+    const baseTop = rect.top - startOffsetY;
     const maxX = innerWidth - el.offsetWidth - baseLeft;
     const maxY = innerHeight - el.offsetHeight - baseTop;
     const clampedX = THREE.MathUtils.clamp(dx, -baseLeft, maxX);
     const clampedY = THREE.MathUtils.clamp(dy, -baseTop, maxY);
 
     el.style.transform = "translate(" + Math.round(clampedX) + "px, " + Math.round(clampedY) + "px)";
-
     gameSettings.layout[settingKey].x = Math.round(clampedX);
     gameSettings.layout[settingKey].y = Math.round(clampedY);
     saveGameSettings();
@@ -404,7 +423,12 @@ function setupDraggableOffset(id, settingKey) {
 
   const end = (e) => {
     if (e.pointerId !== pointerId) return;
+    try { el.releasePointerCapture?.(pointerId); } catch (_) {}
     pointerId = null;
+    if (moved) {
+      el.dataset.suppressClick = "1";
+      setTimeout(() => delete el.dataset.suppressClick, 0);
+    }
   };
 
   el.addEventListener("pointerdown", (e) => {
@@ -413,6 +437,7 @@ function setupDraggableOffset(id, settingKey) {
     e.stopPropagation();
 
     pointerId = e.pointerId;
+    moved = false;
     startX = e.clientX;
     startY = e.clientY;
 
@@ -420,16 +445,20 @@ function setupDraggableOffset(id, settingKey) {
     startOffsetX = Number(cfg.x) || 0;
     startOffsetY = Number(cfg.y) || 0;
 
-    const rect = el.getBoundingClientRect();
-    baseLeft = rect.left - startOffsetX;
-    baseTop = rect.top - startOffsetY;
-
     el.setPointerCapture?.(pointerId);
   });
 
   el.addEventListener("pointermove", move);
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+
+  el.addEventListener("click", (e) => {
+    if (el.dataset.suppressClick === "1") {
+      e.preventDefault();
+      e.stopPropagation();
+      delete el.dataset.suppressClick;
+    }
+  }, true);
 }
 function loadPlayerName() {
   const input = document.getElementById("playerName");
@@ -570,73 +599,6 @@ function createWeaponMesh(weapon) {
   return group;
 }
 
-function createPlayerLabel(name, health) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 640;
-  canvas.height = 112;
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false
-  });
-
-  const sprite = new THREE.Sprite(material);
-  sprite.position.set(0, 2.35, 0);
-  sprite.scale.set(3.1, .54, 1);
-  sprite.userData.canvas = canvas;
-  sprite.userData.texture = texture;
-
-  updatePlayerLabel(sprite, name, health);
-  return sprite;
-}
-
-function updatePlayerLabel(sprite, name, health) {
-  const canvas = sprite.userData.canvas;
-  const ctx = canvas.getContext("2d");
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const text = String(name || "Player");
-  const hp = Math.max(0, Math.round(Number(health) || 0));
-  const label = `${text}   HP ${hp}`;
-
-  ctx.font = "700 38px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const width = Math.min(canvas.width - 24, Math.max(180, ctx.measureText(label).width + 36));
-  const height = 72;
-  const x = (canvas.width - width) / 2;
-  const y = (canvas.height - height) / 2;
-  const radius = 18;
-
-  ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 1);
-
-  sprite.userData.texture.needsUpdate = true;
-}
-
 function createRemotePlayer() {
   const root = new THREE.Group();
 
@@ -671,13 +633,10 @@ function createRemotePlayer() {
   legR.castShadow = true;
 
   const weapon = createWeaponMesh("pistol");
-  const label = createPlayerLabel("Player", 100);
 
-  root.add(torso, head, armL, armR, legL, legR, weapon, label);
+  root.add(torso, head, armL, armR, legL, legR, weapon);
   root.userData.weaponMesh = weapon;
   root.userData.weaponType = "pistol";
-  root.userData.label = label;
-  root.userData.labelText = "";
   root.userData.targetPosition = new THREE.Vector3();
   root.userData.targetYaw = 0;
   root.userData.hasNetworkTransform = false;
@@ -710,12 +669,6 @@ function updateRemotePlayers(players) {
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
     obj.visible = p.health > 0;
-
-    const labelText = `${p.name || "Player"}|${Math.round(p.health || 0)}`;
-    if (obj.userData.labelText !== labelText) {
-      updatePlayerLabel(obj.userData.label, p.name, p.health);
-      obj.userData.labelText = labelText;
-    }
 
     if (obj.userData.weaponType !== p.weapon) {
       const oldWeapon = obj.userData.weaponMesh;
