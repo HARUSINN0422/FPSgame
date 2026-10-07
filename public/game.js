@@ -128,7 +128,7 @@ function loadGameSettings() {
     if (!raw) return cloneSettings(DEFAULT_SETTINGS);
     const saved = JSON.parse(raw);
     return {
-      sensitivity: THREE.MathUtils.clamp(Number(saved.sensitivity) || 1, 0.4, 2.5),
+      sensitivity: THREE.MathUtils.clamp(Number(saved.sensitivity) || 1, 0.4, 5.0),
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
         jumpButton: { ...DEFAULT_SETTINGS.layout.jumpButton, ...(saved.layout?.jumpButton || {}) },
@@ -196,17 +196,23 @@ function setupSettings() {
   const resetLayout = document.getElementById("layoutResetButton");
   const resetAll = document.getElementById("settingsResetButton");
   const status = document.getElementById("layoutEditStatus");
+  const editDone = document.getElementById("layoutEditDoneButton");
 
   const open = () => {
     updateSettingsUi();
     panel?.classList.remove("hidden");
   };
-  const closePanel = () => {
+  const stopLayoutEditing = () => {
     layoutEditing = false;
     status?.classList.add("hidden");
     document.getElementById("touchUi")?.classList.remove("layout-editing");
-    panel?.classList.add("hidden");
+    editDone?.classList.add("hidden");
     applyButtonLayout();
+  };
+
+  const closePanel = () => {
+    stopLayoutEditing();
+    panel?.classList.add("hidden");
   };
 
   settingsButton?.addEventListener("click", open);
@@ -220,9 +226,17 @@ function setupSettings() {
   });
 
   edit?.addEventListener("click", () => {
-    layoutEditing = !layoutEditing;
-    status?.classList.toggle("hidden", !layoutEditing);
-    document.getElementById("touchUi")?.classList.toggle("layout-editing", layoutEditing);
+    layoutEditing = true;
+    status?.classList.remove("hidden");
+    document.getElementById("touchUi")?.classList.add("layout-editing");
+    editDone?.classList.remove("hidden");
+    panel?.classList.add("hidden");
+    showMessage("配置編集中：ボタンをドラッグしてください");
+  });
+
+  editDone?.addEventListener("click", () => {
+    stopLayoutEditing();
+    showMessage("ボタン配置を保存しました");
   });
 
   resetLayout?.addEventListener("click", () => {
@@ -724,7 +738,7 @@ function resetJoystick() {
 }
 
 function updateJoystick(event) {
-  if (!movePad || event.pointerId !== movePointerId) return;
+  if (layoutEditing || !movePad || event.pointerId !== movePointerId) return;
 
   const rect = movePad.getBoundingClientRect();
   const centerX = rect.left + rect.width / 2;
@@ -750,6 +764,7 @@ function updateJoystick(event) {
 }
 
 movePad?.addEventListener("pointerdown", (e) => {
+  if (layoutEditing) return;
   e.preventDefault();
   movePointerId = e.pointerId;
   movePad.setPointerCapture?.(e.pointerId);
@@ -775,6 +790,7 @@ movePad?.addEventListener("pointercancel", (e) => {
 
 const jumpButton = document.getElementById("jumpButton");
 jumpButton.addEventListener("pointerdown", (e) => {
+  if (layoutEditing) return;
   e.preventDefault();
   jumpButton.setPointerCapture?.(e.pointerId);
   jump();
@@ -785,6 +801,7 @@ const reloadTouchButton = document.getElementById("reloadTouchButton");
 
 function bindReloadButton(button) {
   button?.addEventListener("pointerdown", (e) => {
+    if (layoutEditing) return;
     e.preventDefault();
     button.setPointerCapture?.(e.pointerId);
     reload();
@@ -801,17 +818,20 @@ setupDraggableButton("fireButton", "fireButton");
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
+  if (layoutEditing) return;
   e.preventDefault();
   fireButton.setPointerCapture?.(e.pointerId);
   startFiring();
 });
 
 fireButton.addEventListener("pointerup", (e) => {
+  if (layoutEditing) return;
   e.preventDefault();
   stopFiring();
 });
 
 fireButton.addEventListener("pointercancel", (e) => {
+  if (layoutEditing) return;
   e.preventDefault();
   stopFiring();
 });
