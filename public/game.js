@@ -393,55 +393,60 @@ function setupDraggableOffset(id, settingKey) {
   const el = document.getElementById(id);
   if (!el) return;
 
+  let dragging = false;
   let pointerId = null;
   let startX = 0;
   let startY = 0;
   let startOffsetX = 0;
   let startOffsetY = 0;
 
-  el.addEventListener("pointerdown", (e) => {
+  const begin = (e) => {
     if (!layoutEditing) return;
-    e.preventDefault();
-    e.stopPropagation();
 
+    const cfg = gameSettings.layout[settingKey] || { x: 0, y: 0 };
+    dragging = true;
     pointerId = e.pointerId;
     startX = e.clientX;
     startY = e.clientY;
-
-    const cfg = gameSettings.layout[settingKey] || { x: 0, y: 0 };
     startOffsetX = Number(cfg.x) || 0;
     startOffsetY = Number(cfg.y) || 0;
 
-    el.setPointerCapture?.(pointerId);
-  });
-
-  el.addEventListener("pointermove", (e) => {
-    if (!layoutEditing || e.pointerId !== pointerId) return;
     e.preventDefault();
     e.stopPropagation();
+
+    try { el.setPointerCapture(pointerId); } catch (_) {}
+  };
+
+  const move = (e) => {
+    if (!dragging || e.pointerId !== pointerId || !layoutEditing) return;
 
     const cfg = gameSettings.layout[settingKey];
     if (!cfg) return;
 
-    const nextX = Math.round(startOffsetX + (e.clientX - startX));
-    const nextY = Math.round(startOffsetY + (e.clientY - startY));
+    cfg.x = Math.round(startOffsetX + e.clientX - startX);
+    cfg.y = Math.round(startOffsetY + e.clientY - startY);
+    el.style.transform = "translate3d(" + cfg.x + "px, " + cfg.y + "px, 0)";
 
-    cfg.x = nextX;
-    cfg.y = nextY;
-
-    el.style.transform = "translate(" + nextX + "px, " + nextY + "px)";
+    e.preventDefault();
+    e.stopPropagation();
     saveGameSettings();
-  });
+  };
 
   const end = (e) => {
     if (e.pointerId !== pointerId) return;
-    try { el.releasePointerCapture?.(pointerId); } catch (_) {}
+    dragging = false;
     pointerId = null;
+    try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+    e.stopPropagation();
   };
 
-  el.addEventListener("pointerup", end);
-  el.addEventListener("pointercancel", end);
+  el.addEventListener("pointerdown", begin, { passive: false });
+  el.addEventListener("pointermove", move, { passive: false });
+  el.addEventListener("pointerup", end, { passive: false });
+  el.addEventListener("pointercancel", end, { passive: false });
 }
+
 
 function loadPlayerName() {
   const input = document.getElementById("playerName");
