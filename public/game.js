@@ -398,40 +398,6 @@ function setupDraggableOffset(id, settingKey) {
   let startY = 0;
   let startOffsetX = 0;
   let startOffsetY = 0;
-  let moved = false;
-
-  const move = (e) => {
-    if (!layoutEditing || e.pointerId !== pointerId) return;
-    e.preventDefault();
-
-    const dx = startOffsetX + (e.clientX - startX);
-    const dy = startOffsetY + (e.clientY - startY);
-
-    if (Math.abs(e.clientX - startX) > 3 || Math.abs(e.clientY - startY) > 3) moved = true;
-
-    const rect = el.getBoundingClientRect();
-    const baseLeft = rect.left - startOffsetX;
-    const baseTop = rect.top - startOffsetY;
-    const maxX = innerWidth - el.offsetWidth - baseLeft;
-    const maxY = innerHeight - el.offsetHeight - baseTop;
-    const clampedX = THREE.MathUtils.clamp(dx, -baseLeft, maxX);
-    const clampedY = THREE.MathUtils.clamp(dy, -baseTop, maxY);
-
-    el.style.transform = "translate(" + Math.round(clampedX) + "px, " + Math.round(clampedY) + "px)";
-    gameSettings.layout[settingKey].x = Math.round(clampedX);
-    gameSettings.layout[settingKey].y = Math.round(clampedY);
-    saveGameSettings();
-  };
-
-  const end = (e) => {
-    if (e.pointerId !== pointerId) return;
-    try { el.releasePointerCapture?.(pointerId); } catch (_) {}
-    pointerId = null;
-    if (moved) {
-      el.dataset.suppressClick = "1";
-      setTimeout(() => delete el.dataset.suppressClick, 0);
-    }
-  };
 
   el.addEventListener("pointerdown", (e) => {
     if (!layoutEditing) return;
@@ -439,7 +405,6 @@ function setupDraggableOffset(id, settingKey) {
     e.stopPropagation();
 
     pointerId = e.pointerId;
-    moved = false;
     startX = e.clientX;
     startY = e.clientY;
 
@@ -450,18 +415,34 @@ function setupDraggableOffset(id, settingKey) {
     el.setPointerCapture?.(pointerId);
   });
 
-  el.addEventListener("pointermove", move);
+  el.addEventListener("pointermove", (e) => {
+    if (!layoutEditing || e.pointerId !== pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const cfg = gameSettings.layout[settingKey];
+    if (!cfg) return;
+
+    const nextX = Math.round(startOffsetX + (e.clientX - startX));
+    const nextY = Math.round(startOffsetY + (e.clientY - startY));
+
+    cfg.x = nextX;
+    cfg.y = nextY;
+
+    el.style.transform = "translate(" + nextX + "px, " + nextY + "px)";
+    saveGameSettings();
+  });
+
+  const end = (e) => {
+    if (e.pointerId !== pointerId) return;
+    try { el.releasePointerCapture?.(pointerId); } catch (_) {}
+    pointerId = null;
+  };
+
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
-
-  el.addEventListener("click", (e) => {
-    if (el.dataset.suppressClick === "1") {
-      e.preventDefault();
-      e.stopPropagation();
-      delete el.dataset.suppressClick;
-    }
-  }, true);
 }
+
 function loadPlayerName() {
   const input = document.getElementById("playerName");
   if (input) input.value = getCookie("fps_player_name");
