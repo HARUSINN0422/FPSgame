@@ -677,7 +677,7 @@ function publicPlayer(p) {
 }
 
 io.on("connection", (socket) => {
-  socket.emit("world", { obstacles, ramps, bridges, world: WORLD, weapons: Object.fromEntries(
+  socket.emit("world", { obstacles, ramps, world: WORLD, weapons: Object.fromEntries(
     Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
   ) });
 
