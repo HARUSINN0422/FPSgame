@@ -1111,6 +1111,8 @@ function createTracer(event) {
     tracers.push({
       line,
       dot,
+      start: start.clone(),
+      end: end.clone(),
       born: performance.now(),
       life: isRifle ? 110 : event.weapon === "shotgun" ? 115 : 100
     });
@@ -1629,7 +1631,14 @@ function animate(now) {
   }
 
   for (let i = tracers.length - 1; i >= 0; i--) {
-    if (now - tracers[i].born > (tracers[i].life || 120)) {
+    const tracer = tracers[i];
+    const life = tracer.life || 120;
+    const progress = THREE.MathUtils.clamp((now - tracer.born) / life, 0, 1);
+    if (tracer.dot && tracer.start && tracer.end) {
+      tracer.dot.position.lerpVectors(tracer.start, tracer.end, progress);
+    }
+
+    if (now - tracer.born > life) {
       if (tracers[i].line) {
         scene.remove(tracers[i].line);
         tracers[i].line.geometry.dispose();
