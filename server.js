@@ -378,9 +378,42 @@ function movePlayer(p, dt) {
   }
 
   // ジャンプ中/空中では必ず重力を適用する。
+  const previousY = p.y;
   if (!p.grounded) {
     p.velocityY -= GRAVITY * dt;
     p.y += p.velocityY * dt;
+  }
+
+  // 台の上からゆっくり降りるときに、1tickの間に台を突き抜けないようにする。
+  // プレイヤーの足元が台の上面を上から下へ横切った瞬間に、台の上面へ固定する。
+  if (!p.grounded && p.velocityY <= 0 && p.y <= previousY) {
+    for (const obstacle of obstacles) {
+      const insideX =
+        p.x > obstacle.x - obstacle.w / 2 - PLAYER_RADIUS &&
+        p.x < obstacle.x + obstacle.w / 2 + PLAYER_RADIUS;
+      const insideZ =
+        p.z > obstacle.z - obstacle.d / 2 - PLAYER_RADIUS &&
+        p.z < obstacle.z + obstacle.d / 2 + PLAYER_RADIUS;
+
+      if (!insideX || !insideZ) continue;
+
+      if (previousY >= obstacle.h && p.y <= obstacle.h) {
+        p.y = obstacle.h;
+        p.velocityY = 0;
+        p.grounded = true;
+        p.lastGroundedAt = now;
+        break;
+      }
+
+      // 何らかの理由で台の中へ入った状態も、台の上面へ戻す。
+      if (p.y < obstacle.h && p.y + PLAYER_HEIGHT > obstacle.h && previousY >= obstacle.h) {
+        p.y = obstacle.h;
+        p.velocityY = 0;
+        p.grounded = true;
+        p.lastGroundedAt = now;
+        break;
+      }
+    }
   }
 
   const ground = getGroundHeight(p.x, p.z, p.y);
