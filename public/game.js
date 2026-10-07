@@ -123,7 +123,12 @@ const DEFAULT_SETTINGS = {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
     jumpButton: { x: 128, y: 48, side: "right", size: 72 },
     reloadTouchButton: { x: 128, y: 128, side: "right", size: 72 },
-    fireButton: { x: 14, y: 18, side: "right", size: 100 }
+    fireButton: { x: 14, y: 18, side: "right", size: 100 },
+    minimap: { x: 0, y: 0 },
+    healthHud: { x: 0, y: 0 },
+    fullscreenButton: { x: 0, y: 0 },
+    settingsButton: { x: 0, y: 0 },
+    reloadButton: { x: 0, y: 0 }
   }
 };
 
@@ -145,7 +150,12 @@ function loadGameSettings() {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
         jumpButton: { ...DEFAULT_SETTINGS.layout.jumpButton, ...(saved.layout?.jumpButton || {}) },
         reloadTouchButton: { ...DEFAULT_SETTINGS.layout.reloadTouchButton, ...(saved.layout?.reloadTouchButton || {}) },
-        fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) }
+        fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
+        minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
+        healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
+        fullscreenButton: { ...DEFAULT_SETTINGS.layout.fullscreenButton, ...(saved.layout?.fullscreenButton || {}) },
+        settingsButton: { ...DEFAULT_SETTINGS.layout.settingsButton, ...(saved.layout?.settingsButton || {}) },
+        reloadButton: { ...DEFAULT_SETTINGS.layout.reloadButton, ...(saved.layout?.reloadButton || {}) }
       }
     };
   } catch (_) {
@@ -183,6 +193,22 @@ function applyButtonLayout() {
     el.style.bottom = cfg.y + "px";
   }
 
+  const offsetTargets = [
+    ["minimap", gameSettings.layout.minimap],
+    ["healthHud", gameSettings.layout.healthHud],
+    ["fullscreenButton", gameSettings.layout.fullscreenButton],
+    ["settingsButton", gameSettings.layout.settingsButton],
+    ["reloadButton", gameSettings.layout.reloadButton]
+  ];
+
+  for (const [id, cfg] of offsetTargets) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const x = Number(cfg?.x) || 0;
+    const y = Number(cfg?.y) || 0;
+    el.style.transform = "translate(" + x + "px, " + y + "px)";
+  }
+
   const knob = document.getElementById("moveKnob");
   if (knob) {
     const size = Math.max(48, Math.round(gameSettings.layout.movePad.size * 0.387));
@@ -218,6 +244,11 @@ function setupSettings() {
     layoutEditing = false;
     status?.classList.add("hidden");
     document.getElementById("touchUi")?.classList.remove("layout-editing");
+
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "reloadButton"]) {
+      document.getElementById(id)?.classList.remove("layout-editing-target");
+    }
+
     editDone?.classList.add("hidden");
     applyButtonLayout();
   };
@@ -241,9 +272,14 @@ function setupSettings() {
     layoutEditing = true;
     status?.classList.remove("hidden");
     document.getElementById("touchUi")?.classList.add("layout-editing");
+
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "reloadButton"]) {
+      document.getElementById(id)?.classList.add("layout-editing-target");
+    }
+
     editDone?.classList.remove("hidden");
     panel?.classList.add("hidden");
-    showMessage("配置編集中：ボタンをドラッグしてください");
+    showMessage("配置編集中：各UIをドラッグしてください");
   });
 
   editDone?.addEventListener("click", () => {
@@ -313,6 +349,63 @@ function setupDraggableButton(id, settingKey) {
   const end = (e) => {
     if (e.pointerId === pointerId) pointerId = null;
   };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+
+function setupDraggableOffset(id, settingKey) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let startOffsetX = 0;
+  let startOffsetY = 0;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (!layoutEditing) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    pointerId = e.pointerId;
+    el.setPointerCapture?.(pointerId);
+    startX = e.clientX;
+    startY = e.clientY;
+
+    const cfg = gameSettings.layout[settingKey] || { x: 0, y: 0 };
+    startOffsetX = Number(cfg.x) || 0;
+    startOffsetY = Number(cfg.y) || 0;
+  });
+
+  el.addEventListener("pointermove", (e) => {
+    if (!layoutEditing || e.pointerId !== pointerId) return;
+    e.preventDefault();
+
+    const dx = startOffsetX + (e.clientX - startX);
+    const dy = startOffsetY + (e.clientY - startY);
+
+    const rect = el.getBoundingClientRect();
+    const baseLeft = rect.left - startOffsetX;
+    const baseTop = rect.top - startOffsetY;
+    const minX = -baseLeft;
+    const maxX = innerWidth - el.offsetWidth - baseLeft;
+    const minY = -baseTop;
+    const maxY = innerHeight - el.offsetHeight - baseTop;
+
+    const clampedX = THREE.MathUtils.clamp(dx, minX, maxX);
+    const clampedY = THREE.MathUtils.clamp(dy, minY, maxY);
+
+    el.style.transform = "translate(" + clampedX + "px, " + clampedY + "px)";
+    gameSettings.layout[settingKey].x = Math.round(clampedX);
+    gameSettings.layout[settingKey].y = Math.round(clampedY);
+    saveGameSettings();
+  });
+
+  const end = (e) => {
+    if (e.pointerId === pointerId) pointerId = null;
+  };
+
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
 }
@@ -1067,6 +1160,11 @@ setupDraggableButton("movePad", "movePad");
 setupDraggableButton("jumpButton", "jumpButton");
 setupDraggableButton("reloadTouchButton", "reloadTouchButton");
 setupDraggableButton("fireButton", "fireButton");
+setupDraggableOffset("minimap", "minimap");
+setupDraggableOffset("healthHud", "healthHud");
+setupDraggableOffset("fullscreenButton", "fullscreenButton");
+setupDraggableOffset("settingsButton", "settingsButton");
+setupDraggableOffset("reloadButton", "reloadButton");
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
