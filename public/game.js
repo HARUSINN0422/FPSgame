@@ -214,7 +214,7 @@ function applyButtonLayout() {
     ["healthHud", gameSettings.layout.healthHud],
     ["fullscreenButton", gameSettings.layout.fullscreenButton],
     ["settingsButton", gameSettings.layout.settingsButton],
-    ["reloadButton", gameSettings.layout.reloadButton]
+    ["ammoHud", gameSettings.layout.reloadButton]
   ];
 
   for (const [id, cfg] of offsetTargets) {
@@ -268,7 +268,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.remove("layout-editing");
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "reloadButton"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -309,7 +309,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "reloadButton"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -1133,7 +1133,9 @@ setupDraggableOffset("healthHud", "healthHud");
 (function setupHudLayoutDragFallback() {
   const targets = new Map([
     ["minimap", "minimap"],
-    ["healthHud", "healthHud"]
+    ["healthHud", "healthHud"],
+    ["settingsButton", "settingsButton"],
+    ["ammoHud", "reloadButton"]
   ]);
 
   let active = null;
@@ -1197,7 +1199,7 @@ setupDraggableOffset("healthHud", "healthHud");
 
 setupDraggableOffset("fullscreenButton", "fullscreenButton");
 setupDraggableOffset("settingsButton", "settingsButton");
-setupDraggableOffset("reloadButton", "reloadButton");
+setupDraggableOffset("ammoHud", "reloadButton");
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
