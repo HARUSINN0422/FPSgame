@@ -22,7 +22,7 @@
 
       <label class="setting-row">
         <span>視点感度 <strong id="sensitivityValue">1.00</strong></span>
-        <input id="sensitivitySlider" type="range" min="0.40" max="2.50" step="0.05" value="1">
+        <input id="sensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
       </label>
 
       <div class="setting-section">
@@ -32,11 +32,12 @@
           <button id="layoutEditButton">配置を編集</button>
           <button id="layoutResetButton">配置を初期化</button>
         </div>
-        <div id="layoutEditStatus" class="setting-status hidden">配置編集中：ボタンをドラッグしてください</div>
+        <div id="layoutEditStatus" class="setting-status hidden">配置編集を開始すると設定画面が閉じます。ボタンをドラッグして動かしてください。</div>
       </div>
 
       <div class="settings-actions">
         <button id="settingsResetButton">設定をすべて初期化</button>
+        <button id="layoutEditDoneButton" class="hidden">配置編集を完了</button>
         <button id="settingsDoneButton">完了</button>
       </div>
     </div>
