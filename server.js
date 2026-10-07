@@ -83,31 +83,33 @@ const WEAPONS = {
     name: "Pistol",
     damage: 34,
     fireInterval: 400,
-    range: 70,
-    falloffStart: 18,
-    minDamageMultiplier: 0.55,
+    range: 68,
+    spread: 0.012,
+    falloffStart: 16,
+    minDamageMultiplier: 0.50,
     magazineSize: 12,
     reloadTime: 1000,
     automatic: false
   },
   rifle: {
     name: "Rifle",
-    damage: 20,
-    fireInterval: 140,
-    range: 90,
-    falloffStart: 30,
-    minDamageMultiplier: 0.65,
+    damage: 18,
+    fireInterval: 160,
+    range: 78,
+    spread: 0.022,
+    falloffStart: 24,
+    minDamageMultiplier: 0.55,
     magazineSize: 30,
     reloadTime: 1500,
     automatic: true
   },
   shotgun: {
     name: "Shotgun",
-    damage: 12,
-    fireInterval: 700,
-    range: 42,
+    damage: 10,
+    fireInterval: 750,
+    range: 40,
     pellets: 8,
-    spread: 0.075,
+    spread: 0.12,
     falloffStart: 8,
     minDamageMultiplier: 0.25,
     magazineSize: 8,
@@ -215,7 +217,7 @@ const spawnPoints = [
 ];
 
 const obstacles = [
-  { x: 0, z: 0, w: 12, d: 4, h: 3.5 },
+  { x: 0, z: 0, w: 12, d: 2, h: 3.5 },
   { x: 0, z: 18, w: 18, d: 4, h: 3 },
   { x: 0, z: -18, w: 18, d: 4, h: 3 },
   { x: 20, z: 0, w: 4, d: 18, h: 3 },
@@ -223,7 +225,20 @@ const obstacles = [
   { x: 22, z: 25, w: 10, d: 4, h: 3 },
   { x: -22, z: -25, w: 10, d: 4, h: 3 },
   { x: 22, z: -25, w: 10, d: 4, h: 3 },
-  { x: -22, z: 25, w: 10, d: 4, h: 3 }
+  { x: -22, z: 25, w: 10, d: 4, h: 3 },
+  { x: 10, z: 10, w: 8, d: 3, h: 2.2 },
+  { x: -10, z: 10, w: 8, d: 3, h: 2.2 },
+  { x: 10, z: -10, w: 8, d: 3, h: 2.2 },
+  { x: -10, z: -10, w: 8, d: 3, h: 2.2 },
+  { x: 30, z: 10, w: 4, d: 8, h: 2.5 },
+  { x: -30, z: -10, w: 4, d: 8, h: 2.5 },
+  { x: 30, z: -10, w: 4, d: 8, h: 2.5 },
+  { x: -30, z: 10, w: 4, d: 8, h: 2.5 }
+];
+
+const ramps = [
+  { x: 0, z: -3, w: 12, d: 4, h: 3.5, direction: "north" },
+  { x: 0, z: 3, w: 12, d: 4, h: 3.5, direction: "south" }
 ];
 
 function clamp(v, min, max) {
@@ -258,54 +273,57 @@ function pickSpawn() {
   return scored[0]?.spawn || [0, 0, 10];
 }
 
-function collides(x, z) {
+function collides(x, z, y = 0) {
   if (x < WORLD.minX + PLAYER_RADIUS || x > WORLD.maxX - PLAYER_RADIUS) return true;
   if (z < WORLD.minZ + PLAYER_RADIUS || z > WORLD.maxZ - PLAYER_RADIUS) return true;
-
   return obstacles.some((o) => {
-    return (
-      x > o.x - o.w / 2 - PLAYER_RADIUS &&
+    if (y >= o.h - 0.25) return false;
+    return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
       z > o.z - o.d / 2 - PLAYER_RADIUS &&
-      z < o.z + o.d / 2 + PLAYER_RADIUS
-    );
+      z < o.z + o.d / 2 + PLAYER_RADIUS;
   });
 }
 
+function getGroundHeight(x, z) {
+  let height = 0;
+  for (const ramp of ramps) {
+    const halfW = ramp.w / 2, halfD = ramp.d / 2;
+    if (Math.abs(x - ramp.x) > halfW || Math.abs(z - ramp.z) > halfD) continue;
+    const t = clamp((z - (ramp.z - halfD)) / ramp.d, 0, 1);
+    const h = ramp.direction === "north" ? t * ramp.h : (1 - t) * ramp.h;
+    height = Math.max(height, h);
+  }
+  const center = obstacles[0];
+  if (Math.abs(x - center.x) <= center.w / 2 - PLAYER_RADIUS &&
+      Math.abs(z - center.z) <= center.d / 2 + PLAYER_RADIUS) {
+    height = Math.max(height, center.h);
+  }
+  return height;
+}
+
 function movePlayer(p, dt) {
+  const groundBefore = getGroundHeight(p.x, p.z);
+  if (p.y <= groundBefore + 0.08 && p.velocityY < 0) p.velocityY = 0;
   p.velocityY -= GRAVITY * dt;
   p.y += p.velocityY * dt;
-
-  if (p.y <= 0) {
-    p.y = 0;
-    p.velocityY = 0;
-    p.grounded = true;
-  } else {
-    p.grounded = false;
-  }
 
   let forward = Number(p.input.forward || 0);
   let strafe = Number(p.input.strafe || 0);
   const len = Math.hypot(forward, strafe);
-  if (len > 1) {
-    forward /= len;
-    strafe /= len;
-  }
+  if (len > 1) { forward /= len; strafe /= len; }
 
-  const sin = Math.sin(p.yaw);
-  const cos = Math.cos(p.yaw);
-
-  // Three.jsのカメラと同じ座標系を使う。
-  // カメラの前方 = (-sin(yaw), 0, -cos(yaw))
-  // カメラの右方 = ( cos(yaw), 0, -sin(yaw))
+  const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const dx = (-sin * forward + cos * strafe) * PLAYER_SPEED * dt;
   const dz = (-cos * forward - sin * strafe) * PLAYER_SPEED * dt;
+  const nextX = p.x + dx, nextZ = p.z + dz;
 
-  const nextX = p.x + dx;
-  const nextZ = p.z + dz;
+  if (!collides(nextX, p.z, Math.max(p.y, getGroundHeight(nextX, p.z)))) p.x = nextX;
+  if (!collides(p.x, nextZ, Math.max(p.y, getGroundHeight(p.x, nextZ)))) p.z = nextZ;
 
-  if (!collides(nextX, p.z)) p.x = nextX;
-  if (!collides(p.x, nextZ)) p.z = nextZ;
+  const ground = getGroundHeight(p.x, p.z);
+  if (p.y <= ground) { p.y = ground; p.velocityY = 0; p.grounded = true; }
+  else p.grounded = false;
 
   p.x = clamp(p.x, WORLD.minX + PLAYER_RADIUS, WORLD.maxX - PLAYER_RADIUS);
   p.z = clamp(p.z, WORLD.minZ + PLAYER_RADIUS, WORLD.maxZ - PLAYER_RADIUS);
@@ -567,15 +585,37 @@ function fireShot(shooter) {
       }
     : null;
 
+  const visualTracers = [];
+  for (let pellet = 0; pellet < pelletCount; pellet++) {
+    let visualYaw = shooter.yaw;
+    let visualPitch = shooter.pitch;
+    if (weapon.spread) {
+      visualYaw += (Math.random() - 0.5) * weapon.spread;
+      visualPitch += (Math.random() - 0.5) * weapon.spread;
+    }
+    const visualDir = directionFromAngles(visualYaw, visualPitch);
+    const wallDistance = rayHitsObstacle(origin, visualDir, weapon.range);
+    const distance = wallDistance ?? weapon.range;
+    visualTracers.push({
+      yaw: visualYaw,
+      pitch: visualPitch,
+      distance,
+      x: origin.x + visualDir.x * distance,
+      y: origin.y + visualDir.y * distance,
+      z: origin.z + visualDir.z * distance
+    });
+  }
+
   io.emit("shot", {
     id: shooter.id,
-    x: shooter.x,
-    y: shooter.y + PLAYER_HEIGHT - 0.15,
-    z: shooter.z,
+    x: origin.x,
+    y: origin.y,
+    z: origin.z,
     yaw: shooter.yaw,
     pitch: shooter.pitch,
     weapon: shooter.weapon,
-    hit
+    hit,
+    tracers: visualTracers
   });
 }
 
@@ -599,7 +639,7 @@ function publicPlayer(p) {
 }
 
 io.on("connection", (socket) => {
-  socket.emit("world", { obstacles, world: WORLD, weapons: Object.fromEntries(
+  socket.emit("world", { obstacles, ramps, world: WORLD, weapons: Object.fromEntries(
     Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
   ) });
 
