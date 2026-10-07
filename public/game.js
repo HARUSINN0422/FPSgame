@@ -81,6 +81,10 @@ scene.add(worldGroup);
 
 const remotePlayers = new Map();
 const tracers = [];
+let activeGamepad = null;
+let controllerMode = false;
+let gamepadJumpHeld = false;
+let gamepadReloadHeld = false;
 const clock = new THREE.Clock();
 
 let worldData = null;
@@ -114,9 +118,9 @@ let lastLookY = 0;
 let pointerLocked = false;
 
 const weaponConfig = {
-  pistol: { fireInterval: 330, automatic: false },
-  rifle: { fireInterval: 110, automatic: true },
-  shotgun: { fireInterval: 600, automatic: false }
+  pistol: { fireInterval: 400, automatic: false },
+  rifle: { fireInterval: 160, automatic: true },
+  shotgun: { fireInterval: 750, automatic: false }
 };
 
 let localLastFire = 0;
@@ -474,6 +478,7 @@ function savePlayerName() {
 
 loadPlayerName();
 setupSettings();
+updateGamepadStatus();
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
@@ -481,6 +486,50 @@ function makeBox(w, h, d, x, y, z, color = 0x647080) {
     new THREE.MeshStandardMaterial({ color, roughness: .9, metalness: .05 })
   );
   mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  worldGroup.add(mesh);
+  return mesh;
+}
+
+function makeRamp(ramp, color = 0x71808d) {
+  const hw = ramp.w / 2;
+  const hd = ramp.d / 2;
+  const zLow = ramp.z - hd;
+  const zHigh = ramp.z + hd;
+  const yLow = 0;
+  const yHigh = ramp.h;
+
+  const highAtZHigh = ramp.direction === "north";
+  const aY = highAtZHigh ? yLow : yHigh;
+  const bY = highAtZHigh ? yHigh : yLow;
+
+  const vertices = new Float32Array([
+    -hw, yLow, zLow,   hw, yLow, zLow,
+    -hw, yLow, zHigh,  hw, yLow, zHigh,
+    -hw, aY, zLow,     hw, aY, zLow,
+    -hw, bY, zHigh,    hw, bY, zHigh
+  ]);
+
+  const indices = [
+    0,1,3, 0,3,2,
+    0,4,5, 0,5,1,
+    2,3,7, 2,7,6,
+    0,2,6, 0,6,4,
+    1,5,7, 1,7,3,
+    4,6,7, 4,7,5
+  ];
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshStandardMaterial({ color, roughness: .9, metalness: .05 })
+  );
+  mesh.position.set(ramp.x, 0, ramp.z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   worldGroup.add(mesh);
@@ -505,12 +554,15 @@ function buildWorld(data) {
     makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
   }
 
+  for (const ramp of data.ramps || []) {
+    makeRamp(ramp);
+  }
+
   makeBox(100, 3, 1, 0, 1.5, -50, 0x58636e);
   makeBox(100, 3, 1, 0, 1.5, 50, 0x58636e);
   makeBox(1, 3, 100, -50, 1.5, 0, 0x58636e);
   makeBox(1, 3, 100, 50, 1.5, 0, 0x58636e);
 }
-
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
   if (!canvas || !myState || !worldData?.world) return;
@@ -684,6 +736,82 @@ function updateCamera() {
   camera.rotation.set(pitch, yaw, 0);
 }
 
+function applyControllerMode(enabled) {
+  controllerMode = enabled;
+  document.body.classList.toggle("controller-mode", enabled);
+  document.getElementById("touchUi")?.classList.toggle("hidden", enabled);
+  document.getElementById("gamepadStatus")?.replaceChildren(
+    document.createTextNode(enabled && activeGamepad ? ("接続中: " + (activeGamepad.id || "Gamepad")) : "未接続")
+  );
+}
+
+function findGamepad() {
+  if (!navigator.getGamepads) return null;
+  const pads = navigator.getGamepads();
+  return Array.from(pads || []).find((pad) => pad && pad.connected) || null;
+}
+
+function updateGamepadStatus() {
+  const pad = findGamepad();
+  activeGamepad = pad;
+  applyControllerMode(Boolean(pad));
+  return pad;
+}
+
+function pollGamepad(now) {
+  const pad = findGamepad();
+  if (!pad) {
+    if (activeGamepad || controllerMode) {
+      activeGamepad = null;
+      applyControllerMode(false);
+    }
+    return;
+  }
+
+  activeGamepad = pad;
+  if (!controllerMode) applyControllerMode(true);
+
+  const deadzone = .16;
+  const axis = (value) => Math.abs(value) < deadzone ? 0 : (value - Math.sign(value) * deadzone) / (1 - deadzone);
+
+  const lx = axis(pad.axes?.[0] || 0);
+  const ly = axis(pad.axes?.[1] || 0);
+  const rx = axis(pad.axes?.[2] || 0);
+  const ry = axis(pad.axes?.[3] || 0);
+
+  joystick.strafe = lx;
+  joystick.forward = -ly;
+
+  const lookSpeed = .045 * gameSettings.sensitivity;
+  yaw += rx * lookSpeed;
+  pitch += ry * lookSpeed;
+  pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
+
+  const jumpPressed = Boolean(pad.buttons?.[0]?.pressed);
+  const reloadPressed = Boolean(pad.buttons?.[1]?.pressed);
+  const firePressed = Boolean(pad.buttons?.[7]?.pressed);
+
+  if (jumpPressed && !gamepadJumpHeld) jump();
+  if (reloadPressed && !gamepadReloadHeld) reload();
+  gamepadJumpHeld = jumpPressed;
+  gamepadReloadHeld = reloadPressed;
+
+  if (firePressed) {
+    if (weaponConfig[selectedWeapon]?.automatic) {
+      if (!autoFireTimer) startFiring();
+    } else {
+      fire();
+    }
+  } else if (autoFireTimer) {
+    stopFiring();
+  }
+
+  if (now - lastInputSent >= 33) {
+    socket.emit("input", { forward: joystick.forward, strafe: joystick.strafe, yaw, pitch });
+    lastInputSent = now;
+  }
+}
+
 function sendInput(now) {
   if (!joined || myState?.health <= 0 || now - lastInputSent < 33) return;
 
@@ -851,17 +979,48 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
-  const start = new THREE.Vector3(event.x, event.y + (event.yOffset || 0), event.z);
-  const dir = directionFromAngles(event.yaw, event.pitch);
-  const end = start.clone().add(dir.multiplyScalar(event.hit ? 18 : 12));
+  const start = new THREE.Vector3(event.x, event.y, event.z);
+  const entries = Array.isArray(event.tracers) && event.tracers.length
+    ? event.tracers
+    : [{ yaw: event.yaw, pitch: event.pitch, distance: event.hit ? 18 : 12 }];
 
-  const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-  const material = new THREE.LineBasicMaterial({ color: 0xffc86b });
-  const line = new THREE.Line(geometry, material);
-  scene.add(line);
-  tracers.push({ line, born: performance.now() });
+  const weaponStyles = {
+    pistol: { color: 0xffe0a3, width: 2.0, life: 100 },
+    rifle: { color: 0x9fe0ff, width: 1.6, life: 85 },
+    shotgun: { color: 0xffc36b, width: 2.4, life: 115 }
+  };
+  const style = weaponStyles[event.weapon] || weaponStyles.pistol;
+
+  for (const pellet of entries) {
+    const dir = directionFromAngles(pellet.yaw, pellet.pitch);
+    const distance = Number(pellet.distance) || 12;
+    const end = new THREE.Vector3(
+      pellet.x ?? (start.x + dir.x * distance),
+      pellet.y ?? (start.y + dir.y * distance),
+      pellet.z ?? (start.z + dir.z * distance)
+    );
+
+    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+    const material = new THREE.LineBasicMaterial({
+      color: style.color,
+      transparent: true,
+      opacity: .9,
+      linewidth: style.width
+    });
+    const line = new THREE.Line(geometry, material);
+    scene.add(line);
+
+    // 弾頭を小さな光点として表示する。
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(event.weapon === "shotgun" ? .045 : .035, 6, 6),
+      new THREE.MeshBasicMaterial({ color: style.color })
+    );
+    dot.position.copy(start);
+    scene.add(dot);
+
+    tracers.push({ line, dot, born: performance.now(), life: style.life });
+  }
 }
-
 function directionFromAngles(y, p) {
   // Three.jsのカメラが実際に向いている方向（ローカル-Z）と同じ計算にする。
   // yaw=0 のとき前方は -Z、右方向は +X。
@@ -1322,6 +1481,15 @@ window.addEventListener("blur", () => {
   movement.right = false;
 });
 
+window.addEventListener("gamepadconnected", () => updateGamepadStatus());
+window.addEventListener("gamepaddisconnected", () => updateGamepadStatus());
+
+document.getElementById("gamepadConnectButton")?.addEventListener("click", () => {
+  const pad = updateGamepadStatus();
+  if (pad) showMessage("コントローラーを検出しました");
+  else showMessage("コントローラーが見つかりません");
+});
+
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -1336,6 +1504,7 @@ function animate(now) {
   lastFrameTime = now;
   clock.getDelta();
 
+  pollGamepad(now);
   sendInput(now);
   updateCamera();
   updateMinimap();
@@ -1353,10 +1522,13 @@ function animate(now) {
   }
 
   for (let i = tracers.length - 1; i >= 0; i--) {
-    if (now - tracers[i].born > 120) {
+    if (now - tracers[i].born > (tracers[i].life || 120)) {
       scene.remove(tracers[i].line);
+      scene.remove(tracers[i].dot);
       tracers[i].line.geometry.dispose();
       tracers[i].line.material.dispose();
+      tracers[i].dot.geometry.dispose();
+      tracers[i].dot.material.dispose();
       tracers.splice(i, 1);
     }
   }
