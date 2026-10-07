@@ -1,4 +1,5 @@
 const path = require("path");
+const fs = require("fs");
 const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
@@ -14,6 +15,68 @@ const PLAYER_RADIUS = 0.45;
 const PLAYER_HEIGHT = 1.7;
 const GRAVITY = 22;
 const JUMP_SPEED = 8.5;
+
+const LOG_DIR = path.join(__dirname, "logs");
+const ERROR_LOG_FILE = path.join(LOG_DIR, "error.log");
+
+try {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+} catch (error) {
+  process.stderr.write("[ErrorLog] ログフォルダを作成できません: " + error.message + "\n");
+}
+
+function formatError(error) {
+  if (error instanceof Error) {
+    return error.stack || error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error, null, 2);
+  } catch {
+    return String(error);
+  }
+}
+
+function saveLatestError(error, source = "Unknown") {
+  const timestamp = new Date().toISOString();
+  const content =
+    "=== FPSgame Error Log ===\n" +
+    "発生日時: " + timestamp + "\n" +
+    "発生元: " + source + "\n\n" +
+    formatError(error) +
+    "\n";
+
+  try {
+    fs.writeFileSync(ERROR_LOG_FILE, content, "utf8");
+  } catch (writeError) {
+    process.stderr.write("[ErrorLog] エラーログを書き込めません: " + writeError.message + "\n");
+  }
+}
+
+// 常に「最後に発生したエラー」1件だけを保存する。
+// 新しいエラーが発生すると error.log を上書きするため、2個前のログは残らない。
+const originalConsoleError = console.error.bind(console);
+console.error = (...args) => {
+  originalConsoleError(...args);
+
+  const message = args.map((arg) => formatError(arg)).join(" ");
+  saveLatestError(message, "console.error");
+};
+
+process.on("uncaughtException", (error) => {
+  saveLatestError(error, "uncaughtException");
+  originalConsoleError("[Fatal] 未処理の例外:", error);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  saveLatestError(reason, "unhandledRejection");
+  originalConsoleError("[Fatal] 未処理のPromise拒否:", reason);
+});
 
 const WEAPONS = {
   pistol: {
@@ -129,6 +192,11 @@ function checkForUpdates() {
 
 const server = http.createServer(app);
 const io = new Server(server);
+
+server.on("error", (error) => {
+  saveLatestError(error, "http.Server");
+  originalConsoleError("[Server Error]", error);
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -415,7 +483,7 @@ function fireShot(shooter) {
     });
 
     if (result.target.health <= 0) {
-        shooter.health = 100;
+      shooter.health = 100;
       result.target.health = 0;
       result.target.respawnAt = Date.now() + 5000;
       result.target.kills = result.target.kills || 0;
