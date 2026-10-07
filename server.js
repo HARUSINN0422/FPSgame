@@ -532,6 +532,9 @@ function fireShot(shooter) {
   const weapon = WEAPONS[shooter.weapon];
   const now = Date.now();
 
+  // リスポーン直後3秒間は攻撃できない。
+  if (shooter.invulnerableUntil > now) return;
+
   finishReload(shooter, now);
   if (shooter.reloadingUntil > now) return;
   if (now - shooter.lastFire < weapon.fireInterval) return;
@@ -568,6 +571,8 @@ function fireShot(shooter) {
 
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0) continue;
+      // リスポーン直後3秒間は被弾しない。
+      if (target.invulnerableUntil > now) continue;
 
       const hitInfo = rayHitsPlayer(origin, dir, target);
       if (hitInfo === null || hitInfo.t > weapon.range) continue;
@@ -705,7 +710,8 @@ function publicPlayer(p) {
     weapon: p.weapon,
     ammo: p.ammo,
     reloading: p.reloadingUntil > Date.now(),
-    respawnAt: p.respawnAt || 0
+    respawnAt: p.respawnAt || 0,
+    invulnerableUntil: p.invulnerableUntil || 0
   };
 }
 
@@ -741,7 +747,8 @@ io.on("connection", (socket) => {
       lastGroundedAt: Date.now(),
       jumpQueuedUntil: 0,
       input: { forward: 0, strafe: 0 },
-      respawnAt: 0
+      respawnAt: 0,
+      invulnerableUntil: 0
     });
 
     socket.emit("joined", { player: publicPlayer(players.get(socket.id)) });
@@ -789,6 +796,8 @@ io.on("connection", (socket) => {
     p.reloadingUntil = 0;
     p.lastFire = 0;
     p.respawnAt = 0;
+    // リスポーン後3秒間は攻撃・被弾ともに無効。
+    p.invulnerableUntil = Date.now() + 3000;
 
     socket.emit("respawned", { player: publicPlayer(p) });
     io.emit("players", Array.from(players.values()).map(publicPlayer));
