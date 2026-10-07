@@ -1,6 +1,15 @@
 import * as THREE from "three";
 
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 5000,
+  timeout: 10000
+});
+
+let wasJoinedBeforeDisconnect = false;
+let reconnecting = false;
 
 // iPhone/iPad等で誤ってブラウザズームされた場合の復旧ボタン。
 const zoomResetButton = document.getElementById("zoomResetButton");
@@ -555,6 +564,9 @@ function createRemotePlayer() {
   root.userData.weaponType = "pistol";
   root.userData.label = label;
   root.userData.labelText = "";
+  root.userData.targetPosition = new THREE.Vector3();
+  root.userData.targetYaw = 0;
+  root.userData.hasNetworkTransform = false;
   scene.add(root);
   return root;
 }
@@ -575,8 +587,14 @@ function updateRemotePlayers(players) {
       remotePlayers.set(p.id, obj);
     }
 
-    obj.position.set(p.x, p.y || 0, p.z);
-    obj.rotation.y = p.yaw;
+    if (!obj.userData.hasNetworkTransform) {
+      obj.position.set(p.x, p.y || 0, p.z);
+      obj.rotation.y = p.yaw || 0;
+      obj.userData.hasNetworkTransform = true;
+    }
+
+    obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
+    obj.userData.targetYaw = p.yaw || 0;
     obj.visible = p.health > 0;
 
     const labelText = `${p.name || "Player"}|${Math.round(p.health || 0)}`;
@@ -759,6 +777,8 @@ socket.on("world", buildWorld);
 
 socket.on("joined", ({ player }) => {
   joined = true;
+  wasJoinedBeforeDisconnect = true;
+  reconnecting = false;
   playerName = player.name || playerName;
   setCookie("fps_player_name", playerName);
   selectedWeapon = player.weapon || selectedWeapon;
@@ -771,7 +791,9 @@ socket.on("joined", ({ player }) => {
   document.getElementById("hud").classList.remove("hidden");
   document.getElementById("touchUi").classList.remove("hidden");
   document.getElementById("settingsButton")?.classList.remove("hidden");
+  setConnectionStatus("接続済み", true);
   updateAmmoHud();
+  if (reconnecting) showMessage("サーバーに再接続しました");
 });
 
 socket.on("players", updateRemotePlayers);
@@ -820,8 +842,46 @@ socket.on("elimination", (event) => {
   if (event.victimId === myId) showMessage("リスポーン");
 });
 
+function setConnectionStatus(text, connected = false) {
+  const el = document.getElementById("connectionStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("connected", connected);
+  el.classList.toggle("disconnected", !connected);
+}
+
 socket.on("connect", () => {
-  showMessage("サーバー接続済み");
+  setConnectionStatus("接続済み", true);
+
+  if (wasJoinedBeforeDisconnect && playerName) {
+    reconnecting = true;
+    socket.emit("join", { name: playerName, weapon: selectedWeapon });
+  } else {
+    showMessage("サーバー接続済み");
+  }
+});
+
+socket.on("disconnect", () => {
+  setConnectionStatus("接続中…", false);
+
+  if (joined) {
+    wasJoinedBeforeDisconnect = true;
+    joined = false;
+    stopAllControls();
+    showMessage("サーバーとの接続が切れました。再接続しています…");
+  }
+});
+
+socket.io.on("reconnect_attempt", () => {
+  setConnectionStatus("接続中…", false);
+});
+
+socket.io.on("reconnect_error", () => {
+  setConnectionStatus("接続を再試行中…", false);
+});
+
+socket.io.on("reconnect_failed", () => {
+  setConnectionStatus("再接続できません", false);
 });
 
 for (const button of document.querySelectorAll(".weapon-card")) {
@@ -1078,6 +1138,18 @@ function animate(now) {
   sendInput(now);
   updateCamera();
   updateMinimap();
+
+  // サーバーから受け取った他プレイヤーの位置を補間して滑らかに表示する。
+  const interpolation = 1 - Math.exp(-18 * dt);
+  for (const obj of remotePlayers.values()) {
+    if (!obj.userData.hasNetworkTransform) continue;
+    obj.position.lerp(obj.userData.targetPosition, interpolation);
+
+    const currentYaw = obj.rotation.y;
+    const targetYaw = obj.userData.targetYaw;
+    const deltaYaw = Math.atan2(Math.sin(targetYaw - currentYaw), Math.cos(targetYaw - currentYaw));
+    obj.rotation.y = currentYaw + deltaYaw * interpolation;
+  }
 
   for (let i = tracers.length - 1; i >= 0; i--) {
     if (now - tracers[i].born > 120) {
