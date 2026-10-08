@@ -320,7 +320,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
