@@ -145,6 +145,7 @@ const DEFAULT_SETTINGS = {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
     jumpButton: { x: 128, y: 48, side: "right", size: 72 },
     reloadTouchButton: { x: 128, y: 128, side: "right", size: 72 },
+    crouchButton: { x: 220, y: 48, side: "right", size: 72 },
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
@@ -172,6 +173,7 @@ function loadGameSettings() {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
         jumpButton: { ...DEFAULT_SETTINGS.layout.jumpButton, ...(saved.layout?.jumpButton || {}) },
         reloadTouchButton: { ...DEFAULT_SETTINGS.layout.reloadTouchButton, ...(saved.layout?.reloadTouchButton || {}) },
+        crouchButton: { ...DEFAULT_SETTINGS.layout.crouchButton, ...(saved.layout?.crouchButton || {}) },
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
@@ -194,6 +196,7 @@ function applyButtonLayout() {
     ["movePad", gameSettings.layout.movePad],
     ["jumpButton", gameSettings.layout.jumpButton],
     ["reloadTouchButton", gameSettings.layout.reloadTouchButton],
+    ["crouchButton", gameSettings.layout.crouchButton],
     ["fireButton", gameSettings.layout.fireButton]
   ];
 
