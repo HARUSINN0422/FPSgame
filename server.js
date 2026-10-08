@@ -11,8 +11,10 @@ const AUTO_UPDATE_BRANCH = "main";
 const TICK_RATE = 20;
 const WORLD = { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
 const PLAYER_SPEED = 6.5;
+const CROUCH_SPEED = 4.2;
 const PLAYER_RADIUS = 0.45;
 const PLAYER_HEIGHT = 1.7;
+const CROUCH_HEIGHT = 1.0;
 const GRAVITY = 22;
 const JUMP_SPEED = 8.5;
 
@@ -322,8 +324,25 @@ function getGroundHeight(x, z, playerY = 0) {
   return height;
 }
 
+function canStand(p) {
+  return !collides(p.x, p.z, p.y, PLAYER_HEIGHT);
+}
+
+function updateCrouchState(p) {
+  if (p.input.crouch) {
+    p.crouched = true;
+    return;
+  }
+
+  // 頭上に障害物がある場合は立ち上がれない。
+  if (canStand(p)) {
+    p.crouched = false;
+  }
+}
+
 function movePlayer(p, dt) {
   const now = Date.now();
+  updateCrouchState(p);
 
   // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
   const groundBefore = getGroundHeight(p.x, p.z, p.y);
@@ -352,8 +371,9 @@ function movePlayer(p, dt) {
   }
 
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
-  const dx = (-sin * forward + cos * strafe) * PLAYER_SPEED * dt;
-  const dz = (-cos * forward - sin * strafe) * PLAYER_SPEED * dt;
+  const moveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
+  const dx = (-sin * forward + cos * strafe) * moveSpeed * dt;
+  const dz = (-cos * forward - sin * strafe) * moveSpeed * dt;
   const nextX = p.x + dx;
   const nextZ = p.z + dz;
 
@@ -739,6 +759,7 @@ function publicPlayer(p) {
     z: p.z,
     yaw: p.yaw,
     pitch: p.pitch,
+    crouched: Boolean(p.crouched),
     name: p.name,
     health: p.health,
     kills: p.kills,
@@ -782,7 +803,8 @@ io.on("connection", (socket) => {
       grounded: true,
       lastGroundedAt: Date.now(),
       jumpQueuedUntil: 0,
-      input: { forward: 0, strafe: 0 },
+      input: { forward: 0, strafe: 0, crouch: false },
+      crouched: false,
       respawnAt: 0,
       invulnerableUntil: 0
     });
@@ -797,6 +819,7 @@ io.on("connection", (socket) => {
 
     p.input.forward = clamp(Number(input.forward) || 0, -1, 1);
     p.input.strafe = clamp(Number(input.strafe) || 0, -1, 1);
+    p.input.crouch = Boolean(input.crouch);
     if (Number.isFinite(Number(input.yaw))) p.yaw = Number(input.yaw);
     if (Number.isFinite(Number(input.pitch))) p.pitch = clamp(Number(input.pitch), -1.35, 1.35);
   });
