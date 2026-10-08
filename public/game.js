@@ -255,6 +255,17 @@ function updateSettingsUi() {
   const movePadSize = Number(gameSettings.layout.movePad.size) || DEFAULT_SETTINGS.layout.movePad.size;
   if (movePadSizeSlider) movePadSizeSlider.value = String(movePadSize);
   if (movePadSizeValue) movePadSizeValue.textContent = Math.round(movePadSize) + "px";
+
+  const fireButtonSizeSlider = document.getElementById("fireButtonSizeSlider");
+  const fireButtonSizeValue = document.getElementById("fireButtonSizeValue");
+  const fireButtonSize = THREE.MathUtils.clamp(
+    Number(gameSettings.layout.fireButton.size) || DEFAULT_SETTINGS.layout.fireButton.size,
+    60,
+    180
+  );
+  gameSettings.layout.fireButton.size = Math.round(fireButtonSize);
+  if (fireButtonSizeSlider) fireButtonSizeSlider.value = String(fireButtonSize);
+  if (fireButtonSizeValue) fireButtonSizeValue.textContent = Math.round(fireButtonSize) + "px";
 }
 
 function setupSettings() {
@@ -309,6 +320,15 @@ function setupSettings() {
   movePadSizeSlider?.addEventListener("input", () => {
     const size = THREE.MathUtils.clamp(Number(movePadSizeSlider.value) || 150, 90, 240);
     gameSettings.layout.movePad.size = Math.round(size);
+    applyButtonLayout();
+    updateSettingsUi();
+    saveGameSettings();
+  });
+
+  const fireButtonSizeSlider = document.getElementById("fireButtonSizeSlider");
+  fireButtonSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(fireButtonSizeSlider.value) || 100, 60, 180);
+    gameSettings.layout.fireButton.size = Math.round(size);
     applyButtonLayout();
     updateSettingsUi();
     saveGameSettings();
