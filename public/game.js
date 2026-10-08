@@ -112,6 +112,8 @@ const joystick = {
   strafe: 0
 };
 
+let crouchHeld = false;
+
 let yaw = 0;
 let pitch = 0;
 let lookPointerId = null;
@@ -873,6 +875,7 @@ function pollGamepad(now) {
 
   const jumpPressed = Boolean(pad.buttons?.[0]?.pressed);
   const reloadPressed = Boolean(pad.buttons?.[1]?.pressed);
+  const crouchPressed = Boolean(pad.buttons?.[2]?.pressed);
   const firePressed = Boolean(pad.buttons?.[7]?.pressed);
 
   if (jumpPressed && !gamepadJumpHeld) {
@@ -883,6 +886,7 @@ function pollGamepad(now) {
     }
   }
   if (reloadPressed && !gamepadReloadHeld) reload();
+  crouchHeld = crouchPressed;
   gamepadJumpHeld = jumpPressed;
   gamepadReloadHeld = reloadPressed;
 
@@ -897,7 +901,7 @@ function pollGamepad(now) {
   gamepadFireHeld = firePressed;
 
   if (now - lastInputSent >= 33) {
-    socket.emit("input", { forward: joystick.forward, strafe: joystick.strafe, yaw, pitch });
+    socket.emit("input", { forward: joystick.forward, strafe: joystick.strafe, crouch: crouchHeld, yaw, pitch });
     lastInputSent = now;
   }
 }
@@ -911,13 +915,18 @@ function sendInput(now) {
   const forward = THREE.MathUtils.clamp(keyboardForward + joystick.forward, -1, 1);
   const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1);
 
-  socket.emit("input", { forward, strafe, yaw, pitch });
+  socket.emit("input", { forward, strafe, crouch: crouchHeld, yaw, pitch });
   lastInputSent = now;
 }
 
 function jump() {
   if (!joined || myState?.health <= 0) return;
   socket.emit("jump");
+}
+
+function setCrouch(held) {
+  if (!joined || myState?.health <= 0) return;
+  crouchHeld = Boolean(held);
 }
 
 function fire() {
