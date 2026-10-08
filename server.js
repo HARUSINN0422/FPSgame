@@ -548,7 +548,6 @@ function rayHitsPlayer(origin, direction, target) {
   const t = t1 >= 0 ? t1 : t2;
   if (t < 0) return null;
 
-  const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const hitY = origin.y + direction.y * t - target.y;
   let multiplier = 1.0;
   let zone = "body";
