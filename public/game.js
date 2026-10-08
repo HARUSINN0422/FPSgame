@@ -789,6 +789,8 @@ function updateRemotePlayers(players) {
 
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
+    obj.userData.crouched = Boolean(p.crouched);
+    obj.scale.y = obj.userData.crouched ? 0.62 : 1;
     obj.visible = p.health > 0;
 
     const shield = obj.userData.invulnerabilityShield;
@@ -818,7 +820,10 @@ function updateRemotePlayers(players) {
 
 function updateCamera() {
   if (!myState) return;
-  camera.position.set(myState.x, 1.62 + (myState.y || 0), myState.z);
+  const targetCameraHeight = myState.crouched ? 1.0 : 1.62;
+  const currentCameraY = camera.position.y - (myState.y || 0);
+  const cameraHeight = THREE.MathUtils.lerp(currentCameraY, targetCameraHeight, 0.35);
+  camera.position.set(myState.x, cameraHeight + (myState.y || 0), myState.z);
   camera.rotation.set(pitch, yaw, 0);
 }
 
@@ -1408,12 +1413,28 @@ movePad?.addEventListener("pointercancel", (e) => {
 });
 
 const jumpButton = document.getElementById("jumpButton");
+const crouchButton = document.getElementById("crouchButton");
 jumpButton.addEventListener("pointerdown", (e) => {
   if (layoutEditing) return;
   e.preventDefault();
   jumpButton.setPointerCapture?.(e.pointerId);
   jump();
 });
+
+crouchButton?.addEventListener("pointerdown", (e) => {
+  if (layoutEditing) return;
+  e.preventDefault();
+  crouchButton.setPointerCapture?.(e.pointerId);
+  setCrouch(true);
+});
+
+crouchButton?.addEventListener("pointerup", (e) => {
+  if (layoutEditing) return;
+  e.preventDefault();
+  setCrouch(false);
+});
+
+crouchButton?.addEventListener("pointercancel", () => setCrouch(false));
 
 const reloadButton = document.getElementById("reloadButton");
 const reloadTouchButton = document.getElementById("reloadTouchButton");
@@ -1433,6 +1454,7 @@ bindReloadButton(reloadTouchButton);
 setupDraggableButton("movePad", "movePad");
 setupDraggableButton("jumpButton", "jumpButton");
 setupDraggableButton("reloadTouchButton", "reloadTouchButton");
+setupDraggableButton("crouchButton", "crouchButton");
 setupDraggableButton("fireButton", "fireButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
@@ -1605,6 +1627,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyS" || e.code === "ArrowDown") movement.back = true;
   if (e.code === "KeyA" || e.code === "ArrowLeft") movement.left = true;
   if (e.code === "KeyD" || e.code === "ArrowRight") movement.right = true;
+  if (e.code === "KeyC") setCrouch(true);
 
   if (e.code === "Space") {
     e.preventDefault();
@@ -1626,6 +1649,7 @@ window.addEventListener("keyup", (e) => {
   if (e.code === "KeyS" || e.code === "ArrowDown") movement.back = false;
   if (e.code === "KeyA" || e.code === "ArrowLeft") movement.left = false;
   if (e.code === "KeyD" || e.code === "ArrowRight") movement.right = false;
+  if (e.code === "KeyC") setCrouch(false);
 });
 
 window.addEventListener("blur", () => {
@@ -1633,6 +1657,7 @@ window.addEventListener("blur", () => {
   movement.back = false;
   movement.left = false;
   movement.right = false;
+  setCrouch(false);
 });
 
 window.addEventListener("gamepadconnected", () => updateGamepadStatus());
