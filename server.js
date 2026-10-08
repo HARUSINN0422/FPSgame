@@ -17,6 +17,9 @@ const PLAYER_HEIGHT = 1.7;
 const CROUCH_HEIGHT = 1.0;
 const GRAVITY = 22;
 const JUMP_SPEED = 8.5;
+const DAMAGE_HITSTOP_MS = 100;
+const DAMAGE_SLOW_MS = 700;
+const DAMAGE_SLOW_MULTIPLIER = 0.45;
 
 const LOG_DIR = path.join(__dirname, "logs");
 const ERROR_LOG_FILE = path.join(LOG_DIR, "error.log");
@@ -371,7 +374,13 @@ function movePlayer(p, dt) {
   }
 
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
-  const moveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
+  const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
+  let moveSpeed = baseMoveSpeed;
+  if (p.damageHitstopUntil > now) {
+    moveSpeed = 0;
+  } else if (p.damageSlowUntil > now) {
+    moveSpeed *= DAMAGE_SLOW_MULTIPLIER;
+  }
   const dx = (-sin * forward + cos * strafe) * moveSpeed * dt;
   const dz = (-cos * forward - sin * strafe) * moveSpeed * dt;
   const nextX = p.x + dx;
@@ -687,9 +696,18 @@ function fireShot(shooter) {
       z: feedback?.z ?? result.target.z
     });
 
+    // 被弾時に短いヒットストップを入れ、その後しばらく移動速度を低下させる。
+    // 同時に複数回被弾した場合は効果時間を更新する。
+    const damageNow = Date.now();
+    result.target.damageHitstopUntil = damageNow + DAMAGE_HITSTOP_MS;
+    result.target.damageSlowUntil = damageNow + DAMAGE_SLOW_MS;
+
     io.to(result.target.id).emit("damageTaken", {
       damage: Math.round(result.damage),
-      zone: result.zone
+      zone: result.zone,
+      hitstopMs: DAMAGE_HITSTOP_MS,
+      slowMs: DAMAGE_SLOW_MS,
+      slowMultiplier: DAMAGE_SLOW_MULTIPLIER
     });
 
     if (result.target.health <= 0) {
@@ -770,7 +788,9 @@ function publicPlayer(p) {
     ammo: p.ammo,
     reloading: p.reloadingUntil > Date.now(),
     respawnAt: p.respawnAt || 0,
-    invulnerableUntil: p.invulnerableUntil || 0
+    invulnerableUntil: p.invulnerableUntil || 0,
+    damageHitstopUntil: p.damageHitstopUntil || 0,
+    damageSlowUntil: p.damageSlowUntil || 0
   };
 }
 
@@ -808,7 +828,9 @@ io.on("connection", (socket) => {
       input: { forward: 0, strafe: 0, crouch: false },
       crouched: false,
       respawnAt: 0,
-      invulnerableUntil: 0
+      invulnerableUntil: 0,
+      damageHitstopUntil: 0,
+      damageSlowUntil: 0
     });
 
     socket.emit("joined", { player: publicPlayer(players.get(socket.id)) });
@@ -861,6 +883,8 @@ io.on("connection", (socket) => {
     p.respawnAt = 0;
     // リスポーン後3秒間は攻撃・被弾ともに無効。
     p.invulnerableUntil = Date.now() + 3000;
+    p.damageHitstopUntil = 0;
+    p.damageSlowUntil = 0;
 
     socket.emit("respawned", { player: publicPlayer(p) });
     io.emit("players", Array.from(players.values()).map(publicPlayer));
