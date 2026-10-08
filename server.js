@@ -856,6 +856,8 @@ io.on("connection", (socket) => {
     p.ammo = WEAPONS[p.weapon].magazineSize;
     p.reloadingUntil = 0;
     p.lastFire = 0;
+    p.input.crouch = false;
+    p.crouched = false;
     p.respawnAt = 0;
     // リスポーン後3秒間は攻撃・被弾ともに無効。
     p.invulnerableUntil = Date.now() + 3000;
