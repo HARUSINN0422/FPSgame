@@ -284,6 +284,24 @@ p {
 
 #jumpButton:active { background: rgba(60,110,170,.9); }
 
+#crouchButton {
+  position: absolute;
+  right: 228px;
+  bottom: calc(58px + env(safe-area-inset-bottom));
+  width: 82px;
+  height: 82px;
+  border: 2px solid rgba(255,255,255,.24);
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(70,70,85,.80);
+  font-weight: 800;
+  letter-spacing: .04em;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+#crouchButton:active { background: rgba(95,95,115,.92); }
+
 #reloadTouchButton {
   position: absolute;
   right: 162px;
@@ -449,6 +467,13 @@ p {
     height: 72px;
   }
 
+  #crouchButton {
+    right: 208px;
+    bottom: calc(48px + env(safe-area-inset-bottom));
+    width: 72px;
+    height: 72px;
+  }
+
   #reloadTouchButton {
     right: 128px;
     bottom: calc(128px + env(safe-area-inset-bottom));
@@ -477,6 +502,10 @@ p {
   #movePad { left: 28px; bottom: 28px; width: 170px; height: 170px; }
   #jumpButton { right: 160px; bottom: 58px; }
   #reloadTouchButton { display: none; }
+  #crouchButton {
+    right: 238px;
+    bottom: 58px;
+  }
   #fireButton { right: 28px; bottom: 28px; }
 }
 
