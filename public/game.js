@@ -980,6 +980,7 @@ function stopAllControls() {
   movement.right = false;
   joystick.forward = 0;
   joystick.strafe = 0;
+  crouchHeld = false;
   resetJoystick();
 }
 
