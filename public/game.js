@@ -279,7 +279,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.remove("layout-editing");
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
