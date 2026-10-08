@@ -380,11 +380,12 @@ function movePlayer(p, dt) {
   // 坂の上を歩いている場合は、坂の高さまで自然に追従させる。
   // 空中にいる場合は現在のYをそのまま使って壁との衝突だけ判定する。
   const nextGroundX = getGroundHeight(nextX, p.z, p.y);
+  const currentHeight = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const collisionY = wasGrounded && p.velocityY <= 0
     ? Math.max(p.y, nextGroundX)
     : p.y;
 
-  if (!collides(nextX, p.z, collisionY)) {
+  if (!collides(nextX, p.z, collisionY, currentHeight)) {
     p.x = nextX;
   }
 
@@ -393,7 +394,7 @@ function movePlayer(p, dt) {
     ? Math.max(p.y, nextGroundZ)
     : p.y;
 
-  if (!collides(p.x, nextZ, collisionY2)) {
+  if (!collides(p.x, nextZ, collisionY2, currentHeight)) {
     p.z = nextZ;
   }
 
@@ -426,7 +427,7 @@ function movePlayer(p, dt) {
       }
 
       // 何らかの理由で台の中へ入った状態も、台の上面へ戻す。
-      if (p.y < obstacle.h && p.y + PLAYER_HEIGHT > obstacle.h && previousY >= obstacle.h) {
+      if (p.y < obstacle.h && p.y + currentHeight > obstacle.h && previousY >= obstacle.h) {
         p.y = obstacle.h;
         p.velocityY = 0;
         p.grounded = true;
@@ -531,7 +532,8 @@ function rayHitsObstacle(origin, direction, maxDistance) {
 
 
 function rayHitsPlayer(origin, direction, target) {
-  const targetCenter = { x: target.x, y: target.y + 1.0, z: target.z };
+  const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
   const ox = origin.x - targetCenter.x;
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
@@ -546,6 +548,7 @@ function rayHitsPlayer(origin, direction, target) {
   const t = t1 >= 0 ? t1 : t2;
   if (t < 0) return null;
 
+  const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const hitY = origin.y + direction.y * t - target.y;
   let multiplier = 1.0;
   let zone = "body";
