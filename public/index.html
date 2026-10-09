@@ -39,6 +39,11 @@
         <span class="setting-value"><strong id="fireButtonSizeValue">100px</strong></span>
         <input id="fireButtonSizeSlider" type="range" min="60" max="180" step="5" value="100">
       </div>
+      <div class="setting-section">
+        <strong>武器切替ボタンのサイズ</strong>
+        <span class="setting-value"><strong id="switchWeaponButtonSizeValue">76px</strong></span>
+        <input id="switchWeaponButtonSizeSlider" type="range" min="60" max="180" step="5" value="76">
+      </div>
 
       <div class="setting-section">
         <strong>Bluetoothコントローラー</strong>
@@ -92,6 +97,14 @@
           <strong>ショットガン</strong>
           <span>単発 / 8発の散弾 / 近距離で高火力・距離減衰が大きい</span>
         </button>
+        <button class="weapon-card" data-weapon="marksman">
+          <strong>マークスマン</strong>
+          <span>即着弾 / 高精度 / 中〜長距離向け</span>
+        </button>
+        <button class="weapon-card" data-weapon="sniper">
+          <strong>スナイパーライフル</strong>
+          <span>即着弾 / 高威力 / 装弾数5発・連射は遅い</span>
+        </button>
       </div>
     </div>
   </div>
@@ -114,7 +127,8 @@
     </div>
     <div id="crosshair">+</div>
     <div id="ammoHud">
-      <span id="ammoCount">12 / 60</span>
+      <span id="weaponName">ハンドガン · 1/2</span>
+      <span id="ammoCount">12 / ∞</span>
       <button id="reloadButton" aria-label="リロード">RELOAD</button>
     </div>
     <button id="fullscreenButton" aria-label="全画面">全画面</button>
@@ -136,6 +150,8 @@
     <button id="jumpButton" aria-label="ジャンプ">JUMP</button>
     <button id="crouchButton" aria-label="しゃがむ">CROUCH</button>
     <button id="reloadTouchButton" aria-label="リロード">RELOAD</button>
+    <button id="switchWeaponButton" aria-label="武器切替">武器切替
+1/2</button>
     <button id="fireButton" aria-label="発射">FIRE</button>
   </div>
 
