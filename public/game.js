@@ -96,6 +96,8 @@ let joined = false;
 let myId = null;
 let myState = null;
 let selectedWeapon = "pistol";
+let weaponSlots = ["pistol", "rifle"];
+let activeWeaponSlot = 0;
 let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
@@ -124,7 +126,9 @@ let pointerLocked = false;
 const weaponConfig = {
   pistol: { fireInterval: 400, automatic: false },
   rifle: { fireInterval: 160, automatic: true },
-  shotgun: { fireInterval: 750, automatic: false }
+  shotgun: { fireInterval: 750, automatic: false },
+  marksman: { fireInterval: 500, automatic: false },
+  sniper: { fireInterval: 1200, automatic: false }
 };
 
 let localLastFire = 0;
@@ -149,6 +153,7 @@ const DEFAULT_SETTINGS = {
     reloadTouchButton: { x: 128, y: 128, side: "right", size: 72 },
     crouchButton: { x: 220, y: 48, side: "right", size: 72 },
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
+    switchWeaponButton: { x: 220, y: 140, side: "right", size: 76 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
     fullscreenButton: { x: 0, y: 0 },
@@ -177,6 +182,7 @@ function loadGameSettings() {
         reloadTouchButton: { ...DEFAULT_SETTINGS.layout.reloadTouchButton, ...(saved.layout?.reloadTouchButton || {}) },
         crouchButton: { ...DEFAULT_SETTINGS.layout.crouchButton, ...(saved.layout?.crouchButton || {}) },
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
+        switchWeaponButton: { ...DEFAULT_SETTINGS.layout.switchWeaponButton, ...(saved.layout?.switchWeaponButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
         fullscreenButton: { ...DEFAULT_SETTINGS.layout.fullscreenButton, ...(saved.layout?.fullscreenButton || {}) },
@@ -199,7 +205,8 @@ function applyButtonLayout() {
     ["jumpButton", gameSettings.layout.jumpButton],
     ["reloadTouchButton", gameSettings.layout.reloadTouchButton],
     ["crouchButton", gameSettings.layout.crouchButton],
-    ["fireButton", gameSettings.layout.fireButton]
+    ["fireButton", gameSettings.layout.fireButton],
+    ["switchWeaponButton", gameSettings.layout.switchWeaponButton]
   ];
 
   for (const [id, cfg] of configs) {
@@ -266,6 +273,13 @@ function updateSettingsUi() {
   gameSettings.layout.fireButton.size = Math.round(fireButtonSize);
   if (fireButtonSizeSlider) fireButtonSizeSlider.value = String(fireButtonSize);
   if (fireButtonSizeValue) fireButtonSizeValue.textContent = Math.round(fireButtonSize) + "px";
+
+  const switchSizeSlider = document.getElementById("switchWeaponButtonSizeSlider");
+  const switchSizeValue = document.getElementById("switchWeaponButtonSizeValue");
+  const switchSize = THREE.MathUtils.clamp(Number(gameSettings.layout.switchWeaponButton.size) || 76, 60, 180);
+  gameSettings.layout.switchWeaponButton.size = Math.round(switchSize);
+  if (switchSizeSlider) switchSizeSlider.value = String(switchSize);
+  if (switchSizeValue) switchSizeValue.textContent = Math.round(switchSize) + "px";
 }
 
 function setupSettings() {
@@ -290,7 +304,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.remove("layout-editing");
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -334,13 +348,22 @@ function setupSettings() {
     saveGameSettings();
   });
 
+  const switchSizeSlider = document.getElementById("switchWeaponButtonSizeSlider");
+  switchSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(switchSizeSlider.value) || 76, 60, 180);
+    gameSettings.layout.switchWeaponButton.size = Math.round(size);
+    applyButtonLayout();
+    updateSettingsUi();
+    saveGameSettings();
+  });
+
   edit?.addEventListener("click", () => {
     layoutEditing = true;
     status?.classList.remove("hidden");
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -696,12 +719,14 @@ function updateMinimap() {
 function createWeaponMesh(weapon) {
   const group = new THREE.Group();
   const material = new THREE.MeshStandardMaterial({
-    color: weapon === "shotgun" ? 0x9a9a9a : weapon === "rifle" ? 0x4d6b4f : 0x303030,
+    color: weapon === "shotgun" ? 0x9a9a9a : weapon === "rifle" ? 0x4d6b4f
+      : weapon === "marksman" ? 0x647b89 : weapon === "sniper" ? 0x7b6247 : 0x303030,
     roughness: .7,
     metalness: .25
   });
 
-  const barrelLength = weapon === "shotgun" ? .55 : weapon === "rifle" ? .7 : .42;
+  const barrelLength = weapon === "sniper" ? 1.0 : weapon === "marksman" ? .82
+    : weapon === "shotgun" ? .55 : weapon === "rifle" ? .7 : .42;
   const barrel = new THREE.Mesh(new THREE.BoxGeometry(.10, .10, barrelLength), material);
   barrel.position.z = -barrelLength / 2;
   group.add(barrel);
@@ -717,6 +742,16 @@ function createWeaponMesh(weapon) {
     const pump = new THREE.Mesh(new THREE.BoxGeometry(.16, .12, .24), material);
     pump.position.set(0, -.07, -.12);
     group.add(pump);
+  }
+
+  if (weapon === "marksman" || weapon === "sniper") {
+    const scope = new THREE.Mesh(
+      new THREE.CylinderGeometry(.055, .055, weapon === "sniper" ? .42 : .32, 10),
+      new THREE.MeshStandardMaterial({ color: 0x202020, metalness: .35, roughness: .4 })
+    );
+    scope.rotation.x = Math.PI / 2;
+    scope.position.set(0, .095, -.18);
+    group.add(scope);
   }
 
   group.position.set(.34, 1.02, -.22);
@@ -978,6 +1013,36 @@ function reload() {
   socket.emit("reload");
 }
 
+function weaponDisplayName(id) {
+  return ({ pistol: "ハンドガン", rifle: "ライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+}
+
+function updateWeaponSwitchButton() {
+  const button = document.getElementById("switchWeaponButton");
+  if (!button) return;
+  button.textContent = "武器切替\n" + (activeWeaponSlot + 1) + "/2";
+  button.setAttribute("aria-label", "武器切替。現在 " + weaponDisplayName(selectedWeapon));
+  button.title = weaponDisplayName(selectedWeapon);
+}
+
+function selectWeaponSlot(slot) {
+  if (!joined || myState?.health <= 0) return;
+  const nextSlot = Number(slot);
+  const slots = Array.isArray(myState?.weaponSlots) ? myState.weaponSlots : weaponSlots;
+  if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot > 1 || !slots[nextSlot]) return;
+  if (nextSlot === activeWeaponSlot && selectedWeapon === slots[nextSlot]) return;
+  stopFiring();
+  activeWeaponSlot = nextSlot;
+  weaponSlots = [...slots];
+  selectedWeapon = weaponSlots[nextSlot];
+  socket.emit("switchWeapon", nextSlot);
+  updateWeaponSwitchButton();
+}
+
+function switchWeapon() {
+  selectWeaponSlot(activeWeaponSlot === 0 ? 1 : 0);
+}
+
 function startFiring() {
   fire();
   const cfg = weaponConfig[selectedWeapon];
@@ -1125,7 +1190,7 @@ function createTracer(event) {
 
   // 全武器で弾の色を統一する。
   const bulletColor = 0xffe0a3;
-  const isRifle = event.weapon === "rifle";
+  const isRifle = ["rifle", "marksman", "sniper"].includes(event.weapon);
 
   for (const pellet of entries) {
     const dir = directionFromAngles(pellet.yaw, pellet.pitch);
@@ -1198,6 +1263,9 @@ function updateAmmoHud() {
 
   const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
   ammoEl.textContent = myState.reloading ? "RELOADING..." : `${ammo} / ∞`;
+  const nameEl = document.getElementById("weaponName");
+  if (nameEl) nameEl.textContent = weaponDisplayName(myState.weapon) + " · " + (Number(myState.activeWeaponSlot || 0) + 1) + "/2";
+  updateWeaponSwitchButton();
 }
 
 document.getElementById("respawnButton")?.addEventListener("click", () => {
@@ -1215,6 +1283,8 @@ socket.on("joined", ({ player }) => {
   playerName = player.name || playerName;
   setCookie("fps_player_name", playerName);
   selectedWeapon = player.weapon || selectedWeapon;
+  weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
+  activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   myId = player.id;
   myState = player;
   yaw = player.yaw;
@@ -1226,6 +1296,7 @@ socket.on("joined", ({ player }) => {
   document.getElementById("settingsButton")?.classList.remove("hidden");
   setConnectionStatus("接続済み", true);
   updateAmmoHud();
+  updateWeaponSwitchButton();
   if (reconnecting) showMessage("サーバーに再接続しました");
 });
 
@@ -1472,11 +1543,19 @@ function bindReloadButton(button) {
 bindReloadButton(reloadButton);
 bindReloadButton(reloadTouchButton);
 
+document.getElementById("switchWeaponButton")?.addEventListener("pointerdown", (e) => {
+  if (layoutEditing) return;
+  e.preventDefault();
+  e.stopPropagation();
+  switchWeapon();
+});
+
 setupDraggableButton("movePad", "movePad");
 setupDraggableButton("jumpButton", "jumpButton");
 setupDraggableButton("reloadTouchButton", "reloadTouchButton");
 setupDraggableButton("crouchButton", "crouchButton");
 setupDraggableButton("fireButton", "fireButton");
+setupDraggableButton("switchWeaponButton", "switchWeaponButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
 
@@ -1663,6 +1742,12 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     reload();
   }
+  if (e.code === "KeyQ") {
+    e.preventDefault();
+    switchWeapon();
+  }
+  if (e.code === "Digit1") selectWeaponSlot(0);
+  if (e.code === "Digit2") selectWeaponSlot(1);
 });
 
 window.addEventListener("keyup", (e) => {
