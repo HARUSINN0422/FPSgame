@@ -807,10 +807,13 @@ io.on("connection", (socket) => {
     if (players.has(socket.id)) return;
 
     const weapon = sanitizeWeapon(data.weapon);
-    const secondaryWeapon = weapon === "sniper" ? "rifle"
-      : weapon === "marksman" ? "shotgun"
-      : weapon === "shotgun" ? "rifle"
-      : weapon === "rifle" ? "shotgun" : "rifle";
+    let secondaryWeapon = sanitizeWeapon(data.secondaryWeapon);
+    if (secondaryWeapon === weapon) {
+      secondaryWeapon = weapon === "sniper" ? "rifle"
+        : weapon === "marksman" ? "shotgun"
+        : weapon === "shotgun" ? "rifle"
+        : weapon === "rifle" ? "shotgun" : "rifle";
+    }
     const weaponSlots = [weapon, secondaryWeapon];
     const name = sanitizeName(data.name);
     const spawn = pickSpawn();
