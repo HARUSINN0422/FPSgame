@@ -1420,7 +1420,7 @@ socket.on("connect", () => {
 
   if (wasJoinedBeforeDisconnect && playerName) {
     reconnecting = true;
-    socket.emit("join", { name: playerName, weapon: selectedWeapon, secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon });
+    socket.emit("join", { name: playerName, weapon: weaponSlots[0] || selectedWeapon, secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon });
   } else {
     showMessage("サーバー接続済み");
   }
