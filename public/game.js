@@ -98,6 +98,10 @@ let myState = null;
 let selectedWeapon = "pistol";
 let weaponSlots = ["pistol", "rifle"];
 let activeWeaponSlot = 0;
+let selectedPrimaryWeapon = "pistol";
+let selectedSecondaryWeapon = "rifle";
+let loadoutSlotToEdit = 0;
+let scopeEnabled = false;
 let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
@@ -153,7 +157,8 @@ const DEFAULT_SETTINGS = {
     reloadTouchButton: { x: 128, y: 128, side: "right", size: 72 },
     crouchButton: { x: 220, y: 48, side: "right", size: 72 },
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
-    switchWeaponButton: { x: 220, y: 140, side: "right", size: 76 },
+    switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
+    scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
     fullscreenButton: { x: 0, y: 0 },
@@ -183,6 +188,7 @@ function loadGameSettings() {
         crouchButton: { ...DEFAULT_SETTINGS.layout.crouchButton, ...(saved.layout?.crouchButton || {}) },
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
         switchWeaponButton: { ...DEFAULT_SETTINGS.layout.switchWeaponButton, ...(saved.layout?.switchWeaponButton || {}) },
+        scopeButton: { ...DEFAULT_SETTINGS.layout.scopeButton, ...(saved.layout?.scopeButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
         fullscreenButton: { ...DEFAULT_SETTINGS.layout.fullscreenButton, ...(saved.layout?.fullscreenButton || {}) },
@@ -206,7 +212,8 @@ function applyButtonLayout() {
     ["reloadTouchButton", gameSettings.layout.reloadTouchButton],
     ["crouchButton", gameSettings.layout.crouchButton],
     ["fireButton", gameSettings.layout.fireButton],
-    ["switchWeaponButton", gameSettings.layout.switchWeaponButton]
+    ["switchWeaponButton", gameSettings.layout.switchWeaponButton],
+    ["scopeButton", gameSettings.layout.scopeButton]
   ];
 
   for (const [id, cfg] of configs) {
@@ -280,6 +287,12 @@ function updateSettingsUi() {
   gameSettings.layout.switchWeaponButton.size = Math.round(switchSize);
   if (switchSizeSlider) switchSizeSlider.value = String(switchSize);
   if (switchSizeValue) switchSizeValue.textContent = Math.round(switchSize) + "px";
+  const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
+  const scopeSizeValue = document.getElementById("scopeButtonSizeValue");
+  const scopeSize = THREE.MathUtils.clamp(Number(gameSettings.layout.scopeButton.size) || 68, 60, 180);
+  gameSettings.layout.scopeButton.size = Math.round(scopeSize);
+  if (scopeSizeSlider) scopeSizeSlider.value = String(scopeSize);
+  if (scopeSizeValue) scopeSizeValue.textContent = Math.round(scopeSize) + "px";
 }
 
 function setupSettings() {
@@ -304,7 +317,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.remove("layout-editing");
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -352,9 +365,13 @@ function setupSettings() {
   switchSizeSlider?.addEventListener("input", () => {
     const size = THREE.MathUtils.clamp(Number(switchSizeSlider.value) || 76, 60, 180);
     gameSettings.layout.switchWeaponButton.size = Math.round(size);
-    applyButtonLayout();
-    updateSettingsUi();
-    saveGameSettings();
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+  const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
+  scopeSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(scopeSizeSlider.value) || 68, 60, 180);
+    gameSettings.layout.scopeButton.size = Math.round(size);
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
   });
 
   edit?.addEventListener("click", () => {
@@ -363,7 +380,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton"]) {
+    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -1019,10 +1036,25 @@ function weaponDisplayName(id) {
 
 function updateWeaponSwitchButton() {
   const button = document.getElementById("switchWeaponButton");
+  if (button) {
+    button.textContent = "武器切替\n" + (activeWeaponSlot + 1) + "/2";
+    button.setAttribute("aria-label", "武器切替。現在 " + weaponDisplayName(selectedWeapon));
+    button.title = weaponDisplayName(selectedWeapon);
+  }
+  updateScopeButton();
+}
+function updateScopeButton() {
+  const button = document.getElementById("scopeButton");
   if (!button) return;
-  button.textContent = "武器切替\n" + (activeWeaponSlot + 1) + "/2";
-  button.setAttribute("aria-label", "武器切替。現在 " + weaponDisplayName(selectedWeapon));
-  button.title = weaponDisplayName(selectedWeapon);
+  button.classList.toggle("hidden", !(joined && selectedWeapon === "sniper"));
+  button.textContent = scopeEnabled ? "スコープ\n解除" : "スコープ\n覗く";
+  button.setAttribute("aria-label", scopeEnabled ? "スコープを解除" : "スコープを覗く");
+}
+function setScopeEnabled(enabled) {
+  scopeEnabled = Boolean(enabled) && selectedWeapon === "sniper";
+  camera.fov = scopeEnabled ? 24 : 76;
+  camera.updateProjectionMatrix();
+  updateScopeButton();
 }
 
 function selectWeaponSlot(slot) {
@@ -1035,6 +1067,7 @@ function selectWeaponSlot(slot) {
   activeWeaponSlot = nextSlot;
   weaponSlots = [...slots];
   selectedWeapon = weaponSlots[nextSlot];
+  if (selectedWeapon !== "sniper") setScopeEnabled(false);
   socket.emit("switchWeapon", nextSlot);
   updateWeaponSwitchButton();
 }
@@ -1284,7 +1317,10 @@ socket.on("joined", ({ player }) => {
   setCookie("fps_player_name", playerName);
   selectedWeapon = player.weapon || selectedWeapon;
   weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
+  selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
+  selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
+  setScopeEnabled(false);
   myId = player.id;
   myState = player;
   yaw = player.yaw;
@@ -1384,7 +1420,7 @@ socket.on("connect", () => {
 
   if (wasJoinedBeforeDisconnect && playerName) {
     reconnecting = true;
-    socket.emit("join", { name: playerName, weapon: selectedWeapon });
+    socket.emit("join", { name: playerName, weapon: selectedWeapon, secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon });
   } else {
     showMessage("サーバー接続済み");
   }
@@ -1413,17 +1449,44 @@ socket.io.on("reconnect_failed", () => {
   setConnectionStatus("再接続できません", false);
 });
 
+function updateLoadoutSelectionUi() {
+  document.querySelectorAll(".weapon-card").forEach((card) => {
+    const id = card.dataset.weapon;
+    card.classList.toggle("selected-primary", id === selectedPrimaryWeapon);
+    card.classList.toggle("selected-secondary", id === selectedSecondaryWeapon);
+    card.classList.toggle("editing-slot", (loadoutSlotToEdit === 0 && id === selectedPrimaryWeapon) || (loadoutSlotToEdit === 1 && id === selectedSecondaryWeapon));
+  });
+  document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
+  const status = document.getElementById("loadoutSelectionStatus");
+  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + "　（" + (loadoutSlotToEdit + 1) + "個目を選択中）";
+}
+document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEventListener("click", () => {
+  loadoutSlotToEdit = Number(button.dataset.loadoutSlot) === 1 ? 1 : 0;
+  updateLoadoutSelectionUi();
+}));
 for (const button of document.querySelectorAll(".weapon-card")) {
   button.addEventListener("click", () => {
     if (joined) return;
-
-    const name = savePlayerName();
-    if (!name) return;
-
-    selectedWeapon = button.dataset.weapon;
-    socket.emit("join", { name, weapon: selectedWeapon });
+    const weapon = button.dataset.weapon;
+    if (loadoutSlotToEdit === 0) {
+      if (weapon === selectedSecondaryWeapon) selectedSecondaryWeapon = selectedPrimaryWeapon;
+      selectedPrimaryWeapon = weapon;
+    } else {
+      if (weapon === selectedPrimaryWeapon) { showMessage("1個目と2個目は別の武器を選んでください"); return; }
+      selectedSecondaryWeapon = weapon;
+    }
+    updateLoadoutSelectionUi();
   });
 }
+document.getElementById("startGameButton")?.addEventListener("click", () => {
+  if (joined) return;
+  if (selectedPrimaryWeapon === selectedSecondaryWeapon) { showMessage("1個目と2個目に別の武器を選んでください"); return; }
+  const name = savePlayerName();
+  selectedWeapon = selectedPrimaryWeapon;
+  weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  socket.emit("join", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon });
+});
+updateLoadoutSelectionUi();
 
 const fullscreenButton = document.getElementById("fullscreenButton");
 async function toggleFullscreen() {
@@ -1545,9 +1608,11 @@ bindReloadButton(reloadTouchButton);
 
 document.getElementById("switchWeaponButton")?.addEventListener("pointerdown", (e) => {
   if (layoutEditing) return;
-  e.preventDefault();
-  e.stopPropagation();
-  switchWeapon();
+  e.preventDefault(); e.stopPropagation(); switchWeapon();
+});
+document.getElementById("scopeButton")?.addEventListener("pointerdown", (e) => {
+  if (layoutEditing || selectedWeapon !== "sniper") return;
+  e.preventDefault(); e.stopPropagation(); setScopeEnabled(!scopeEnabled);
 });
 
 setupDraggableButton("movePad", "movePad");
@@ -1556,6 +1621,7 @@ setupDraggableButton("reloadTouchButton", "reloadTouchButton");
 setupDraggableButton("crouchButton", "crouchButton");
 setupDraggableButton("fireButton", "fireButton");
 setupDraggableButton("switchWeaponButton", "switchWeaponButton");
+setupDraggableButton("scopeButton", "scopeButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
 
