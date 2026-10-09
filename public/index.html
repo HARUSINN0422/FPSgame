@@ -44,6 +44,11 @@
         <span class="setting-value"><strong id="switchWeaponButtonSizeValue">76px</strong></span>
         <input id="switchWeaponButtonSizeSlider" type="range" min="60" max="180" step="5" value="76">
       </div>
+      <div class="setting-section">
+        <strong>スコープボタンのサイズ</strong>
+        <span class="setting-value"><strong id="scopeButtonSizeValue">68px</strong></span>
+        <input id="scopeButtonSizeSlider" type="range" min="60" max="180" step="5" value="68">
+      </div>
 
       <div class="setting-section">
         <strong>Bluetoothコントローラー</strong>
@@ -84,6 +89,11 @@
       <p>名前は任意です。空欄なら自動で名前を付けます。入力した名前はこの端末のCookieに保存されます。</p>
       <label class="name-label" for="playerName">プレイヤー名（任意）</label>
       <input id="playerName" class="name-input" type="text" maxlength="16" autocomplete="nickname" placeholder="空欄でもスタートできます">
+      <div class="loadout-slot-picker">
+        <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
+        <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
+      </div>
+      <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル</div>
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pistol">
           <strong>ハンドガン</strong>
@@ -106,6 +116,7 @@
           <span>即着弾 / 高威力 / 装弾数5発・連射は遅い</span>
         </button>
       </div>
+      <button id="startGameButton" class="start-game-button" type="button">この武器構成でスタート</button>
     </div>
   </div>
 
@@ -152,6 +163,8 @@
     <button id="reloadTouchButton" aria-label="リロード">RELOAD</button>
     <button id="switchWeaponButton" aria-label="武器切替">武器切替
 1/2</button>
+    <button id="scopeButton" class="hidden" aria-label="スコープを覗く">スコープ
+覗く</button>
     <button id="fireButton" aria-label="発射">FIRE</button>
   </div>
 
