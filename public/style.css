@@ -318,6 +318,26 @@ p {
   touch-action: none;
 }
 
+#switchWeaponButton {
+  position: absolute;
+  right: 220px;
+  bottom: calc(140px + env(safe-area-inset-bottom));
+  width: 76px;
+  height: 76px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 14px;
+  background: rgba(38, 52, 70, .72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: pre-line;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#switchWeaponButton:active { background: rgba(65, 95, 130, .95); }
+
 #fireButton {
   position: absolute;
   right: 20px;
@@ -338,6 +358,7 @@ p {
   #touchUi { opacity: .38; }
   #movePad { left: 28px; bottom: 28px; }
   #jumpButton { right: 160px; bottom: 58px; }
+  #switchWeaponButton { right: 220px; bottom: 140px; }
   #fireButton { right: 28px; bottom: 28px; }
 }
 
@@ -453,6 +474,11 @@ p {
     height: 58px;
   }
 
+  #switchWeaponButton {
+    right: 220px;
+    bottom: calc(140px + env(safe-area-inset-bottom));
+  }
+
   #fireButton {
     right: 14px;
     bottom: calc(18px + env(safe-area-inset-bottom));
@@ -506,6 +532,7 @@ p {
     right: 238px;
     bottom: 58px;
   }
+  #switchWeaponButton { right: 220px; bottom: 140px; }
   #fireButton { right: 28px; bottom: 28px; }
 }
 
