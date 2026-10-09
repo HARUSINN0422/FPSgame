@@ -109,17 +109,19 @@ const WEAPONS = {
     automatic: true
   },
   shotgun: {
-    name: "Shotgun",
-    damage: 10,
-    fireInterval: 750,
-    range: 40,
-    pellets: 8,
-    spread: 0.15,
-    falloffStart: 8,
-    minDamageMultiplier: 0.25,
-    magazineSize: 8,
-    reloadTime: 1400,
-    automatic: false
+    name: "Shotgun", damage: 10, fireInterval: 750, range: 40, pellets: 8,
+    spread: 0.15, falloffStart: 8, minDamageMultiplier: 0.25,
+    magazineSize: 8, reloadTime: 1400, automatic: false
+  },
+  marksman: {
+    name: "Marksman", damage: 42, fireInterval: 500, range: 100, spread: 0.006,
+    falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 10,
+    reloadTime: 1300, automatic: false
+  },
+  sniper: {
+    name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
+    falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 5,
+    reloadTime: 1900, automatic: false
   }
 };
 
@@ -785,6 +787,8 @@ function publicPlayer(p) {
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
+    weaponSlots: Array.isArray(p.weaponSlots) ? [...p.weaponSlots] : [p.weapon],
+    activeWeaponSlot: Number(p.activeWeaponSlot) || 0,
     ammo: p.ammo,
     reloading: p.reloadingUntil > Date.now(),
     respawnAt: p.respawnAt || 0,
@@ -803,6 +807,11 @@ io.on("connection", (socket) => {
     if (players.has(socket.id)) return;
 
     const weapon = sanitizeWeapon(data.weapon);
+    const secondaryWeapon = weapon === "sniper" ? "rifle"
+      : weapon === "marksman" ? "shotgun"
+      : weapon === "shotgun" ? "rifle"
+      : weapon === "rifle" ? "shotgun" : "rifle";
+    const weaponSlots = [weapon, secondaryWeapon];
     const name = sanitizeName(data.name);
     const spawn = pickSpawn();
 
@@ -818,6 +827,8 @@ io.on("connection", (socket) => {
       kills: 0,
       deaths: 0,
       weapon,
+      weaponSlots,
+      activeWeaponSlot: 0,
       ammo: WEAPONS[weapon].magazineSize,
       reloadingUntil: 0,
       lastFire: 0,
@@ -899,10 +910,24 @@ io.on("connection", (socket) => {
   socket.on("changeWeapon", (weapon) => {
     const p = players.get(socket.id);
     if (!p) return;
-
     const nextWeapon = sanitizeWeapon(weapon);
     if (p.weapon === nextWeapon) return;
+    if (!Array.isArray(p.weaponSlots)) p.weaponSlots = [p.weapon, nextWeapon];
+    p.weaponSlots[p.activeWeaponSlot || 0] = nextWeapon;
+    p.weapon = nextWeapon;
+    p.ammo = WEAPONS[nextWeapon].magazineSize;
+    p.reloadingUntil = 0;
+    p.lastFire = 0;
+  });
 
+  socket.on("switchWeapon", (slotIndex) => {
+    const p = players.get(socket.id);
+    if (!p || p.health <= 0 || !Array.isArray(p.weaponSlots)) return;
+    const nextSlot = Number(slotIndex);
+    if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
+    const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
+    if (nextSlot === p.activeWeaponSlot && nextWeapon === p.weapon) return;
+    p.activeWeaponSlot = nextSlot;
     p.weapon = nextWeapon;
     p.ammo = WEAPONS[nextWeapon].magazineSize;
     p.reloadingUntil = 0;
