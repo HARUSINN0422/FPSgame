@@ -1536,13 +1536,26 @@ for (const button of document.querySelectorAll(".weapon-card")) {
     updateLoadoutSelectionUi();
   });
 }
-document.getElementById("startGameButton")?.addEventListener("click", () => {
+document.getElementById("confirmLoadoutButton")?.addEventListener("click", () => {
   if (joined) return;
   if (selectedPrimaryWeapon === selectedSecondaryWeapon) { showMessage("1個目と2個目に別の武器を選んでください"); return; }
+  savePlayerName();
+  document.getElementById("weaponScreen")?.classList.add("hidden");
+  document.getElementById("modeScreen")?.classList.remove("hidden");
+});
+
+document.getElementById("backToLoadoutButton")?.addEventListener("click", () => {
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("weaponScreen")?.classList.remove("hidden");
+});
+
+document.getElementById("freeForAllModeButton")?.addEventListener("click", () => {
+  if (joined) return;
   const name = savePlayerName();
   selectedWeapon = selectedPrimaryWeapon;
   weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
-  socket.emit("join", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon });
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  socket.emit("join", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, mode: "free-for-all" });
 });
 updateLoadoutSelectionUi();
 
