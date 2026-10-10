@@ -325,8 +325,22 @@ function updateBot(p, now) {
 
   const targets = Array.from(players.values()).filter((other) => !other.isBot && other.health > 0);
   if (!targets.length) {
-    p.input.forward = 0;
-    p.input.strafe = 0;
+    // 相手がいない間も巡回する。壁が近い場合は向きを変えて進路を探す。
+    if (!p.botWanderTurnAt || now >= p.botWanderTurnAt) {
+      p.yaw += (Math.random() - 0.5) * 1.8;
+      p.botWanderTurnAt = now + 1200 + Math.random() * 2200;
+    }
+    p.pitch = 0;
+    const wanderOrigin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
+    const wanderDir = directionFromAngles(p.yaw, 0);
+    const wanderWall = rayHitsObstacle(wanderOrigin, wanderDir, 3.2);
+    if (wanderWall !== null && wanderWall < 2.4) {
+      p.yaw += (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 1.1);
+      p.botWanderTurnAt = now + 500;
+    }
+    p.input.forward = 0.42;
+    p.input.strafe = Math.sin(now / 1100) * 0.22;
+    p.input.crouch = false;
     return;
   }
 
@@ -356,7 +370,16 @@ function updateBot(p, now) {
 
   const visible = distance <= WEAPONS[p.weapon].range && (wallDistance === null || wallDistance >= distance - 0.7);
   if (visible && Math.abs(yawDelta) < 0.12 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval) {
+    // 約半分の発射で意図的に照準をずらし、BOTの命中率を下げる。
+    const originalYaw = p.yaw;
+    const originalPitch = p.pitch;
+    if (Math.random() < 0.5) {
+      p.yaw += (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.18);
+      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * 0.24, -1.0, 1.0);
+    }
     fireShot(p);
+    p.yaw = originalYaw;
+    p.pitch = originalPitch;
   }
 }
 
