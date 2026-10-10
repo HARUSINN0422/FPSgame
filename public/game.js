@@ -413,7 +413,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -1784,6 +1784,7 @@ document.addEventListener("pointerdown", (e) => {
 }, true);
 document.addEventListener("pointerup", (e) => activeActionPointers.delete(e.pointerId), true);
 document.addEventListener("pointercancel", (e) => activeActionPointers.delete(e.pointerId), true);
+window.addEventListener("blur", () => activeActionPointers.clear());
 
 lookSurface.addEventListener("pointerdown", (e) => {
   if (!joined || e.pointerType === "mouse") return;
