@@ -280,6 +280,100 @@ function pickSpawn() {
   return scored[0]?.spawn || [0, 0, 10];
 }
 
+function syncBots() {
+  const humanPlayers = Array.from(players.values()).filter((p) => !p.isBot);
+  const bots = Array.from(players.values()).filter((p) => p.isBot);
+
+  if (humanPlayers.length !== 1) {
+    for (const bot of bots) players.delete(bot.id);
+    return;
+  }
+  if (bots.length) return;
+
+  const spawn = pickSpawn();
+  const id = "bot:arena";
+  players.set(id, {
+    id,
+    name: "BOT",
+    isBot: true,
+    x: spawn[0], y: 0, z: spawn[2],
+    yaw: 0, pitch: 0,
+    health: 100, kills: 0, deaths: 0,
+    weapon: "rifle",
+    weaponSlots: ["rifle", "marksman"],
+    activeWeaponSlot: 0,
+    ammo: WEAPONS.rifle.magazineSize,
+    reloadingUntil: 0,
+    lastFire: 0,
+    velocityY: 0,
+    grounded: true,
+    lastGroundedAt: Date.now(),
+    jumpQueuedUntil: 0,
+    input: { forward: 0, strafe: 0, crouch: false },
+    crouched: false,
+    respawnAt: 0,
+    invulnerableUntil: 0,
+    damageHitstopUntil: 0,
+    damageSlowUntil: 0,
+    botThinkAt: 0
+  });
+}
+
+function updateBot(p, now) {
+  if (!p.isBot || p.health <= 0 || now < p.botThinkAt) return;
+  p.botThinkAt = now + 100 + Math.random() * 80;
+
+  const targets = Array.from(players.values()).filter((other) => !other.isBot && other.health > 0);
+  if (!targets.length) {
+    p.input.forward = 0;
+    p.input.strafe = 0;
+    return;
+  }
+
+  targets.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  const target = targets[0];
+  const dx = target.x - p.x;
+  const dz = target.z - p.z;
+  const distance = Math.max(0.001, Math.hypot(dx, dz));
+  const targetYaw = Math.atan2(-dx, -dz);
+  const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
+  p.yaw += clamp(yawDelta, -0.16, 0.16);
+  const targetY = target.y + (target.crouched ? 0.75 : 1.0);
+  p.pitch = clamp(Math.atan2(targetY - (p.y + PLAYER_HEIGHT - 0.15), distance), -1.0, 1.0);
+
+  // 射線が壁に遮られているときは、横移動しながら射線を探す。
+  const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
+  const dir = directionFromAngles(p.yaw, p.pitch);
+  const wallDistance = rayHitsObstacle(origin, dir, Math.min(distance, WEAPONS[p.weapon].range));
+  if (distance > 5) {
+    p.input.forward = wallDistance !== null && wallDistance < distance - 1 ? 0.12 : 0.45;
+    p.input.strafe = Math.sin(now / 850) * 0.35;
+  } else {
+    p.input.forward = -0.08;
+    p.input.strafe = Math.sin(now / 500) * 0.5;
+  }
+  p.input.crouch = false;
+
+  const visible = wallDistance === null || wallDistance >= distance - 0.7;
+  if (visible && Math.abs(yawDelta) < 0.12 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval) {
+    fireShot(p);
+  }
+}
+
+function respawnBot(p, now) {
+  const spawn = pickSpawn();
+  p.x = spawn[0]; p.y = 0; p.z = spawn[2];
+  p.yaw = 0; p.pitch = 0;
+  p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
+  p.health = 100;
+  p.ammo = WEAPONS[p.weapon].magazineSize;
+  p.reloadingUntil = 0; p.lastFire = 0;
+  p.input = { forward: 0, strafe: 0, crouch: false };
+  p.crouched = false; p.respawnAt = 0;
+  p.invulnerableUntil = now + 1500;
+  p.damageHitstopUntil = 0; p.damageSlowUntil = 0;
+}
+
 function collides(x, z, y = 0, height = PLAYER_HEIGHT) {
   if (x < WORLD.minX + PLAYER_RADIUS || x > WORLD.maxX - PLAYER_RADIUS) return true;
   if (z < WORLD.minZ + PLAYER_RADIUS || z > WORLD.maxZ - PLAYER_RADIUS) return true;
@@ -794,7 +888,8 @@ function publicPlayer(p) {
     respawnAt: p.respawnAt || 0,
     invulnerableUntil: p.invulnerableUntil || 0,
     damageHitstopUntil: p.damageHitstopUntil || 0,
-    damageSlowUntil: p.damageSlowUntil || 0
+    damageSlowUntil: p.damageSlowUntil || 0,
+    isBot: Boolean(p.isBot)
   };
 }
 
@@ -821,6 +916,7 @@ io.on("connection", (socket) => {
     players.set(socket.id, {
       id: socket.id,
       name,
+      isBot: false,
       x: spawn[0],
       y: 0,
       z: spawn[2],
@@ -847,6 +943,7 @@ io.on("connection", (socket) => {
       damageSlowUntil: 0
     });
 
+    syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id)) });
     io.emit("players", Array.from(players.values()).map(publicPlayer));
   });
@@ -939,6 +1036,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     players.delete(socket.id);
+    syncBots();
     io.emit("players", Array.from(players.values()).map(publicPlayer));
   });
 });
@@ -947,7 +1045,11 @@ setInterval(() => {
   const dt = 1 / TICK_RATE;
   const now = Date.now();
   for (const p of players.values()) {
+    if (p.isBot && p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
+      respawnBot(p, now);
+    }
     if (p.health > 0) {
+      if (p.isBot) updateBot(p, now);
       finishReload(p, now);
       movePlayer(p, dt);
     }
