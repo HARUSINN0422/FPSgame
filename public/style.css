@@ -34,18 +34,30 @@ body {
 .hidden { display: none !important; }
 
 .overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   display: grid;
-  place-items: center;
-  padding: 18px;
+  place-items: start center;
+  padding: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   background: radial-gradient(circle at center, rgba(25, 30, 40, .6), rgba(4, 6, 9, .94));
   z-index: 20;
 }
 
 .panel {
   width: min(680px, 100%);
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  margin: auto 0;
   padding: 26px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   border: 1px solid rgba(255,255,255,.12);
   border-radius: 24px;
   background: rgba(14, 18, 24, .92);
@@ -96,6 +108,12 @@ p {
 .weapon-grid {
   display: grid;
   gap: 12px;
+  max-height: 42vh;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 2px;
 }
 
 .weapon-card {
@@ -414,21 +432,23 @@ p {
 
 @media (max-width: 900px) {
   .overlay {
-    padding: 10px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    padding: 8px;
     place-items: start center;
-    touch-action: pan-y;
-    -webkit-overflow-scrolling: touch;
   }
 
   .panel {
-    width: min(760px, calc(100vw - 20px));
-    max-height: none;
+    width: min(760px, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
     padding: 14px;
-    margin: auto 0;
+    margin: 0 auto;
     border-radius: 18px;
-    overflow: visible;
+    overflow-y: auto;
+  }
+
+  .weapon-grid {
+    max-height: 36vh;
+    gap: 6px;
   }
 
   h1 {
@@ -493,7 +513,7 @@ p {
     bottom: calc(140px + env(safe-area-inset-bottom));
   }
   #scopeButton { right: 220px; bottom: calc(220px + env(safe-area-inset-bottom)); }
-  #fireButton {}
+  #fireButton {
     right: 14px;
     bottom: calc(18px + env(safe-area-inset-bottom));
     width: 100px;
