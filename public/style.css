@@ -192,6 +192,26 @@ p {
   transition: width .12s linear, background .12s linear;
 }
 
+#scopeOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0 10.5%, rgba(0,0,0,.92) 11.2% 100%);
+}
+#scopeOverlay::after {
+  content: "";
+  position: absolute;
+  width: min(58vmin, 76vw);
+  aspect-ratio: 1;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(0,0,0,.95);
+  border-radius: 50%;
+  box-shadow: 0 0 0 200vmax rgba(0,0,0,.08);
+}
+
 #crosshair {
   position: absolute;
   top: 50%;
@@ -664,8 +684,29 @@ input {
   margin-bottom: 8px;
 }
 
-#sensitivitySlider {
+#sensitivitySlider,
+#jumpButtonSizeSlider,
+#movePadSizeSlider,
+#fireButtonSizeSlider,
+#switchWeaponButtonSizeSlider,
+#scopeButtonSizeSlider {
   width: 100%;
+  accent-color: #6ea8ff;
+}
+
+.look-toggle-row {
+  cursor: pointer;
+}
+.look-toggle-row > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.look-toggle-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
   accent-color: #6ea8ff;
 }
 
