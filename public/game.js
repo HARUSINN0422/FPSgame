@@ -1027,7 +1027,12 @@ function pollGamepad(now) {
   gamepadFireHeld = firePressed;
 
   if (now - lastInputSent >= 33) {
-    socket.emit("input", { forward: joystick.forward, strafe: joystick.strafe, crouch: crouchHeld, yaw, pitch });
+    const scopeMoveMultiplier = scopeEnabled ? 0.5 : 1;
+    socket.emit("input", {
+      forward: joystick.forward * scopeMoveMultiplier,
+      strafe: joystick.strafe * scopeMoveMultiplier,
+      crouch: crouchHeld, yaw, pitch
+    });
     lastInputSent = now;
   }
 }
@@ -1038,8 +1043,10 @@ function sendInput(now) {
   const keyboardForward = (movement.forward ? 1 : 0) + (movement.back ? -1 : 0);
   const keyboardStrafe = (movement.right ? 1 : 0) + (movement.left ? -1 : 0);
 
-  const forward = THREE.MathUtils.clamp(keyboardForward + joystick.forward, -1, 1);
-  const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1);
+  // スコープを覗いている間は移動速度を落とす。
+  const scopeMoveMultiplier = scopeEnabled ? 0.5 : 1;
+  const forward = THREE.MathUtils.clamp(keyboardForward + joystick.forward, -1, 1) * scopeMoveMultiplier;
+  const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1) * scopeMoveMultiplier;
 
   socket.emit("input", { forward, strafe, crouch: crouchHeld, yaw, pitch });
   lastInputSent = now;
