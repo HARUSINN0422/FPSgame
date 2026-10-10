@@ -151,6 +151,7 @@ function setCookie(name, value, days = 365) {
 
 const DEFAULT_SETTINGS = {
   sensitivity: 1,
+  allowLookWhileActionHeld: true,
   layout: {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
     jumpButton: { x: 128, y: 48, side: "right", size: 72 },
@@ -161,6 +162,7 @@ const DEFAULT_SETTINGS = {
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
+    kdHud: { x: 0, y: 0 },
     fullscreenButton: { x: 0, y: 0 },
     settingsButton: { x: 0, y: 0 },
     reloadButton: { x: 0, y: 0 }
@@ -181,6 +183,7 @@ function loadGameSettings() {
     const saved = JSON.parse(raw);
     return {
       sensitivity: THREE.MathUtils.clamp(Number(saved.sensitivity) || 1, 0.4, 5.0),
+      allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
         jumpButton: { ...DEFAULT_SETTINGS.layout.jumpButton, ...(saved.layout?.jumpButton || {}) },
@@ -191,6 +194,7 @@ function loadGameSettings() {
         scopeButton: { ...DEFAULT_SETTINGS.layout.scopeButton, ...(saved.layout?.scopeButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
+        kdHud: { ...DEFAULT_SETTINGS.layout.kdHud, ...(saved.layout?.kdHud || {}) },
         fullscreenButton: { ...DEFAULT_SETTINGS.layout.fullscreenButton, ...(saved.layout?.fullscreenButton || {}) },
         settingsButton: { ...DEFAULT_SETTINGS.layout.settingsButton, ...(saved.layout?.settingsButton || {}) },
         reloadButton: { ...DEFAULT_SETTINGS.layout.reloadButton, ...(saved.layout?.reloadButton || {}) }
@@ -237,6 +241,7 @@ function applyButtonLayout() {
   const offsetTargets = [
     ["minimap", gameSettings.layout.minimap],
     ["healthHud", gameSettings.layout.healthHud],
+    ["kdHud", gameSettings.layout.kdHud],
     ["fullscreenButton", gameSettings.layout.fullscreenButton],
     ["settingsButton", gameSettings.layout.settingsButton],
     ["ammoHud", gameSettings.layout.reloadButton]
@@ -287,6 +292,16 @@ function updateSettingsUi() {
   gameSettings.layout.switchWeaponButton.size = Math.round(switchSize);
   if (switchSizeSlider) switchSizeSlider.value = String(switchSize);
   if (switchSizeValue) switchSizeValue.textContent = Math.round(switchSize) + "px";
+  const jumpSizeSlider = document.getElementById("jumpButtonSizeSlider");
+  const jumpSizeValue = document.getElementById("jumpButtonSizeValue");
+  const jumpSize = THREE.MathUtils.clamp(Number(gameSettings.layout.jumpButton.size) || 72, 48, 160);
+  gameSettings.layout.jumpButton.size = Math.round(jumpSize);
+  if (jumpSizeSlider) jumpSizeSlider.value = String(jumpSize);
+  if (jumpSizeValue) jumpSizeValue.textContent = Math.round(jumpSize) + "px";
+
+  const allowLookToggle = document.getElementById("allowLookWhileActionHeldToggle");
+  if (allowLookToggle) allowLookToggle.checked = gameSettings.allowLookWhileActionHeld !== false;
+
   const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
   const scopeSizeValue = document.getElementById("scopeButtonSizeValue");
   const scopeSize = THREE.MathUtils.clamp(Number(gameSettings.layout.scopeButton.size) || 68, 60, 180);
@@ -317,7 +332,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.remove("layout-editing");
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -367,6 +382,18 @@ function setupSettings() {
     gameSettings.layout.switchWeaponButton.size = Math.round(size);
     applyButtonLayout(); updateSettingsUi(); saveGameSettings();
   });
+  const jumpSizeSlider = document.getElementById("jumpButtonSizeSlider");
+  jumpSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(jumpSizeSlider.value) || 72, 48, 160);
+    gameSettings.layout.jumpButton.size = Math.round(size);
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+
+  document.getElementById("allowLookWhileActionHeldToggle")?.addEventListener("change", (event) => {
+    gameSettings.allowLookWhileActionHeld = Boolean(event.target.checked);
+    saveGameSettings();
+  });
+
   const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
   scopeSizeSlider?.addEventListener("input", () => {
     const size = THREE.MathUtils.clamp(Number(scopeSizeSlider.value) || 68, 60, 180);
@@ -837,6 +864,15 @@ function createRemotePlayer() {
   return root;
 }
 
+function playerClothingColor(name) {
+  let hash = 2166136261;
+  for (const char of String(name || "Player")) {
+    hash ^= char.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return new THREE.Color().setHSL(((hash >>> 0) % 360) / 360, 0.62, 0.48);
+}
+
 function updateRemotePlayers(players) {
   const alive = new Set();
 
@@ -859,6 +895,13 @@ function updateRemotePlayers(players) {
       obj.userData.hasNetworkTransform = true;
     }
 
+    const clothingColor = playerClothingColor(p.name);
+    for (const mesh of obj.children) {
+      if (mesh.isMesh && (mesh.geometry.type === "BoxGeometry" || mesh.geometry.type === "CapsuleGeometry") && mesh.position.y > 0.65 && mesh.position.y < 1.5) {
+        const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        if (material?.color) material.color.copy(clothingColor);
+      }
+    }
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
     obj.userData.crouched = Boolean(p.crouched);
@@ -1054,6 +1097,7 @@ function setScopeEnabled(enabled) {
   scopeEnabled = Boolean(enabled) && selectedWeapon === "sniper";
   camera.fov = scopeEnabled ? 24 : 76;
   camera.updateProjectionMatrix();
+  document.getElementById("scopeOverlay")?.classList.toggle("hidden", !scopeEnabled);
   updateScopeButton();
 }
 
@@ -1216,6 +1260,7 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
+  if (event.weapon === "marksman") return;
   const start = new THREE.Vector3(event.x, event.y, event.z);
   const entries = Array.isArray(event.tracers) && event.tracers.length
     ? event.tracers
@@ -1624,6 +1669,7 @@ setupDraggableButton("switchWeaponButton", "switchWeaponButton");
 setupDraggableButton("scopeButton", "scopeButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
+setupDraggableOffset("kdHud", "kdHud");
 
 // MAP/HPバーは親要素やCanvasのイベント状態に左右されないよう、
 // 配置編集中だけdocument側でもドラッグを拾う。
@@ -1724,8 +1770,17 @@ fireButton.addEventListener("pointerleave", (e) => {
 
 const lookSurface = renderer.domElement;
 
+const activeActionPointers = new Set();
+document.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "mouse") return;
+  if (e.target.closest?.("#touchUi button")) activeActionPointers.add(e.pointerId);
+}, true);
+document.addEventListener("pointerup", (e) => activeActionPointers.delete(e.pointerId), true);
+document.addEventListener("pointercancel", (e) => activeActionPointers.delete(e.pointerId), true);
+
 lookSurface.addEventListener("pointerdown", (e) => {
   if (!joined || e.pointerType === "mouse") return;
+  if (gameSettings.allowLookWhileActionHeld === false && activeActionPointers.size > 0) return;
   if (e.clientX < innerWidth * .42 || e.clientX > innerWidth * .58) {
     lookPointerId = e.pointerId;
     lastLookX = e.clientX;
@@ -1736,6 +1791,7 @@ lookSurface.addEventListener("pointerdown", (e) => {
 
 lookSurface.addEventListener("pointermove", (e) => {
   if (e.pointerId !== lookPointerId) return;
+  if (gameSettings.allowLookWhileActionHeld === false && activeActionPointers.size > 0) return;
 
   const dx = e.clientX - lastLookX;
   const dy = e.clientY - lastLookY;
