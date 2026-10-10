@@ -300,7 +300,11 @@ function updateSettingsUi() {
   if (jumpSizeValue) jumpSizeValue.textContent = Math.round(jumpSize) + "px";
 
   const allowLookToggle = document.getElementById("allowLookWhileActionHeldToggle");
-  if (allowLookToggle) allowLookToggle.checked = gameSettings.allowLookWhileActionHeld !== false;
+  if (allowLookToggle) {
+    allowLookToggle.checked = gameSettings.allowLookWhileActionHeld !== false;
+    const label = document.getElementById("allowLookToggleValue");
+    if (label) label.textContent = allowLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
+  }
 
   const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
   const scopeSizeValue = document.getElementById("scopeButtonSizeValue");
@@ -391,6 +395,8 @@ function setupSettings() {
 
   document.getElementById("allowLookWhileActionHeldToggle")?.addEventListener("change", (event) => {
     gameSettings.allowLookWhileActionHeld = Boolean(event.target.checked);
+    const label = document.getElementById("allowLookToggleValue");
+    if (label) label.textContent = event.target.checked ? "ON（許可）" : "OFF（禁止）";
     saveGameSettings();
   });
 
@@ -1677,6 +1683,7 @@ setupDraggableOffset("kdHud", "kdHud");
   const targets = new Map([
     ["minimap", "minimap"],
     ["healthHud", "healthHud"],
+    ["kdHud", "kdHud"],
     ["settingsButton", "settingsButton"],
     ["ammoHud", "reloadButton"]
   ]);
