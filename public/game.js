@@ -991,12 +991,13 @@ function pollGamepad(now) {
   const rx = axis(pad.axes?.[2] || 0);
   const ry = axis(pad.axes?.[3] || 0);
 
-  joystick.strafe = lx;
-  joystick.forward = -ly;
+  // コントローラーの入力方向を反転して、上下左右が正しくなるようにする。
+  joystick.strafe = -lx;
+  joystick.forward = ly;
 
   const lookSpeed = .045 * gameSettings.sensitivity;
-  yaw += rx * lookSpeed;
-  pitch += ry * lookSpeed;
+  yaw -= rx * lookSpeed;
+  pitch -= ry * lookSpeed;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 
   const jumpPressed = Boolean(pad.buttons?.[0]?.pressed);
