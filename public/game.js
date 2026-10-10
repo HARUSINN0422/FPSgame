@@ -991,9 +991,9 @@ function pollGamepad(now) {
   const rx = axis(pad.axes?.[2] || 0);
   const ry = axis(pad.axes?.[3] || 0);
 
-  // コントローラーの入力方向を反転して、上下左右が正しくなるようにする。
-  joystick.strafe = -lx;
-  joystick.forward = ly;
+  // 左スティックはタッチ操作と同じ向きに対応させる。
+  joystick.strafe = lx;
+  joystick.forward = -ly;
 
   const lookSpeed = .045 * gameSettings.sensitivity;
   yaw -= rx * lookSpeed;
@@ -1017,12 +1017,10 @@ function pollGamepad(now) {
   gamepadJumpHeld = jumpPressed;
   gamepadReloadHeld = reloadPressed;
 
-  if (firePressed && !gamepadFireHeld) {
-    if (!weaponConfig[selectedWeapon]?.automatic) fire();
-  }
-  if (firePressed && weaponConfig[selectedWeapon]?.automatic) {
-    if (!autoFireTimer) startFiring();
-  } else if (!firePressed && autoFireTimer) {
+  // コントローラーの射撃ボタンは、長押し中に武器の発射間隔で連射する。
+  if (firePressed) {
+    if (!gamepadFireHeld || !autoFireTimer) startFiring(true);
+  } else if (gamepadFireHeld && autoFireTimer) {
     stopFiring();
   }
   gamepadFireHeld = firePressed;
@@ -1134,10 +1132,10 @@ function switchWeapon() {
   selectWeaponSlot(activeWeaponSlot === 0 ? 1 : 0);
 }
 
-function startFiring() {
+function startFiring(forceRepeat = false) {
   fire();
   const cfg = weaponConfig[selectedWeapon];
-  if (!cfg.automatic || autoFireTimer) return;
+  if ((!cfg.automatic && !forceRepeat) || autoFireTimer) return;
   autoFireTimer = setInterval(fire, cfg.fireInterval);
 }
 
