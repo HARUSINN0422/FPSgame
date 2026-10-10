@@ -1061,3 +1061,20 @@ body.controller-mode #settingsButton {
   display: block !important;
   pointer-events: auto !important;
 }
+
+
+/* Mode selection screen */
+.mode-grid { display: grid; gap: 12px; margin: 18px 0; }
+.mode-card {
+  display: block; width: 100%; min-height: 112px; padding: 20px;
+  border: 1px solid rgba(255,255,255,.18); border-radius: 16px;
+  color: #fff; background: #171c23; text-align: left; font: inherit;
+}
+.mode-card:active { transform: scale(.99); }
+.mode-card strong, .mode-card span { display: block; }
+.mode-card strong { font-size: 22px; margin-bottom: 8px; }
+.mode-card span { opacity: .72; line-height: 1.5; }
+.mode-back-button {
+  width: 100%; min-height: 44px; border: 1px solid rgba(255,255,255,.16);
+  border-radius: 12px; color: #fff; background: #252c35; font: inherit; font-weight: 700;
+}
