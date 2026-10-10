@@ -354,7 +354,7 @@ function updateBot(p, now) {
   }
   p.input.crouch = false;
 
-  const visible = wallDistance === null || wallDistance >= distance - 0.7;
+  const visible = distance <= WEAPONS[p.weapon].range && (wallDistance === null || wallDistance >= distance - 0.7);
   if (visible && Math.abs(yawDelta) < 0.12 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval) {
     fireShot(p);
   }
