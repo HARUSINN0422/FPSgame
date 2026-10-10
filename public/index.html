@@ -128,7 +128,22 @@
           <span>即着弾 / 高威力 / 装弾数5発・連射は遅い</span>
         </button>
       </div>
-      <button id="startGameButton" class="start-game-button" type="button">この武器構成でスタート</button>
+      <button id="confirmLoadoutButton" class="start-game-button" type="button">この武器構成に決定</button>
+    </div>
+  </div>
+
+  <div id="modeScreen" class="overlay hidden">
+    <div class="panel mode-panel">
+      <div class="eyebrow">ONLINE FPS</div>
+      <h1>ゲームモード選択</h1>
+      <p>プレイするモードを選択してください。</p>
+      <div class="mode-grid">
+        <button id="freeForAllModeButton" class="mode-card" type="button">
+          <strong>乱闘モード</strong>
+          <span>全員が敵の通常対戦。これまでと同じルールで開始します。</span>
+        </button>
+      </div>
+      <button id="backToLoadoutButton" class="mode-back-button" type="button">武器構成に戻る</button>
     </div>
   </div>
 
