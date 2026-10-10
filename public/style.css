@@ -197,7 +197,7 @@ p {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(circle at center, transparent 0 10.5%, rgba(0,0,0,.92) 11.2% 100%);
+  background: radial-gradient(circle min(29vmin, 38vw) at center, transparent 0 98%, rgba(0,0,0,.92) 100%);
 }
 #scopeOverlay::after {
   content: "";
