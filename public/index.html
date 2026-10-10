@@ -35,6 +35,12 @@
       </div>
 
       <div class="setting-section">
+        <strong>ジャンプボタンのサイズ</strong>
+        <span class="setting-value"><strong id="jumpButtonSizeValue">72px</strong></span>
+        <input id="jumpButtonSizeSlider" type="range" min="48" max="160" step="4" value="72">
+      </div>
+
+      <div class="setting-section">
         <strong>発射ボタンのサイズ</strong>
         <span class="setting-value"><strong id="fireButtonSizeValue">100px</strong></span>
         <input id="fireButtonSizeSlider" type="range" min="60" max="180" step="5" value="100">
@@ -49,6 +55,12 @@
         <span class="setting-value"><strong id="scopeButtonSizeValue">68px</strong></span>
         <input id="scopeButtonSizeSlider" type="range" min="60" max="180" step="5" value="68">
       </div>
+
+      <label class="setting-section look-toggle-row">
+        <strong>他のボタンを押しながら視点を動かす</strong>
+        <span><input id="allowLookWhileActionHeldToggle" type="checkbox" checked> ON（許可）</span>
+        <p>OFFにすると、移動スティック以外のボタンを押している間は視点が動きません。</p>
+      </label>
 
       <div class="setting-section">
         <strong>Bluetoothコントローラー</strong>
@@ -128,7 +140,7 @@
         <span id="healthValue">100</span>
       </div>
       <div>PLAYERS <span id="playerCount">0</span></div>
-      <div>K <span id="kills">0</span> / D <span id="deaths">0</span></div>
+      <div id="kdHud">K <span id="kills">0</span> / D <span id="deaths">0</span></div>
     </div>
     <div id="connectionStatus" class="disconnected">接続中…</div>
     <div id="invulnerabilityHud" class="hidden">無敵 3.0秒</div>
@@ -137,6 +149,7 @@
       <span>MAP</span>
     </div>
     <div id="crosshair">+</div>
+    <div id="scopeOverlay" class="hidden" aria-hidden="true"></div>
     <div id="ammoHud">
       <span id="weaponName">ハンドガン · 1/2</span>
       <span id="ammoCount">12 / ∞</span>
