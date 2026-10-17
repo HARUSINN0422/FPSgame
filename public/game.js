@@ -1512,9 +1512,22 @@ document.getElementById("respawnButton")?.addEventListener("click", () => {
 socket.on("world", buildWorld);
 
 window.applyPlayerSkinToServer = (skinDataUrl) => {
-  if (joined && socket.connected && typeof skinDataUrl === "string") {
-    socket.emit("updateSkin", skinDataUrl);
+  if (!joined || !socket.connected || typeof skinDataUrl !== "string") {
+    return Promise.resolve({ ok: false, notInGame: true });
   }
+
+  return new Promise((resolve) => {
+    let finished = false;
+    const finish = (result) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeoutId);
+      if (result?.ok) showMessage("スキンを変更しました");
+      resolve(result || { ok: false, reason: "no-response" });
+    };
+    const timeoutId = setTimeout(() => finish({ ok: false, reason: "timeout" }), 5000);
+    socket.emit("updateSkin", skinDataUrl, finish);
+  });
 };
 
 socket.on("joined", ({ player }) => {
