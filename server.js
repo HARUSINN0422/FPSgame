@@ -261,6 +261,14 @@ function sanitizeName(value) {
   return name.slice(0, 16) || "Player";
 }
 
+function sanitizeSkin(value) {
+  if (typeof value !== "string") return "";
+  // 64x64 PNG data URL only; reject other content and keep Socket.IO messages bounded.
+  if (value.length > 40000) return "";
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value)) return "";
+  return value;
+}
+
 function pickSpawn() {
   const alivePlayers = Array.from(players.values()).filter((p) => p.health > 0);
   const scored = spawnPoints.map((spawn) => {
@@ -890,7 +898,7 @@ function fireShot(shooter) {
   });
 }
 
-function publicPlayer(p) {
+function publicPlayer(p, includeSkin = false) {
   return {
     id: p.id,
     x: p.x,
@@ -912,7 +920,8 @@ function publicPlayer(p) {
     invulnerableUntil: p.invulnerableUntil || 0,
     damageHitstopUntil: p.damageHitstopUntil || 0,
     damageSlowUntil: p.damageSlowUntil || 0,
-    isBot: Boolean(p.isBot)
+    isBot: Boolean(p.isBot),
+    ...(includeSkin && p.skin ? { skin: p.skin } : {})
   };
 }
 
@@ -934,11 +943,13 @@ io.on("connection", (socket) => {
     }
     const weaponSlots = [weapon, secondaryWeapon];
     const name = sanitizeName(data.name);
+    const skin = sanitizeSkin(data.skin);
     const spawn = pickSpawn();
 
     players.set(socket.id, {
       id: socket.id,
       name,
+      skin,
       isBot: false,
       x: spawn[0],
       y: 0,
@@ -967,8 +978,17 @@ io.on("connection", (socket) => {
     });
 
     syncBots();
-    socket.emit("joined", { player: publicPlayer(players.get(socket.id)) });
-    io.emit("players", Array.from(players.values()).map(publicPlayer));
+    socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
+    io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
+  });
+
+  socket.on("updateSkin", (skinDataUrl) => {
+    const p = players.get(socket.id);
+    if (!p || p.isBot) return;
+    const safeSkin = sanitizeSkin(skinDataUrl);
+    if (!safeSkin) return;
+    p.skin = safeSkin;
+    io.emit("playerSkin", { id: p.id, skin: p.skin });
   });
 
   socket.on("input", (input = {}) => {
