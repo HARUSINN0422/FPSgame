@@ -1078,3 +1078,212 @@ body.controller-mode #settingsButton {
   width: 100%; min-height: 44px; border: 1px solid rgba(255,255,255,.16);
   border-radius: 12px; color: #fff; background: #252c35; font: inherit; font-weight: 700;
 }
+
+
+/* Pixel-art player skin editor */
+.skin-editor-launch {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 12px 0 18px;
+  border: 1px solid rgba(115, 190, 255, .55);
+  border-radius: 12px;
+  color: #f4f8ff;
+  background: linear-gradient(135deg, #174d78, #233d62);
+  font: inherit;
+  font-weight: 800;
+}
+.skin-editor-launch:active { transform: scale(.99); }
+
+.skin-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+           max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: rgba(5, 8, 13, .94);
+  color: #f2f5fa;
+  overflow: auto;
+}
+.skin-editor-overlay.hidden { display: none !important; }
+.skin-editor-panel {
+  width: min(900px, 100%);
+  max-height: 96dvh;
+  overflow: auto;
+  padding: clamp(10px, 2vw, 20px);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px;
+  background: #141a22;
+  box-shadow: 0 16px 60px rgba(0,0,0,.45);
+}
+.skin-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.skin-editor-header h2 {
+  margin: 3px 0 0;
+  font-size: clamp(18px, 3vh, 26px);
+}
+.skin-editor-header button,
+.skin-tool-buttons button,
+.skin-utility-buttons button {
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 9px;
+  color: #eff4fa;
+  background: #28313d;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+.skin-editor-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(190px, .9fr);
+  align-items: start;
+  gap: clamp(12px, 2vw, 22px);
+}
+.skin-editor-drawing { min-width: 0; }
+.skin-canvas-stack {
+  position: relative;
+  width: min(46vh, 300px, 42vw);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #657486;
+  border-radius: 4px;
+  background-color: #d3d9df;
+  background-image: linear-gradient(45deg, #aeb8c4 25%, transparent 25%),
+                    linear-gradient(-45deg, #aeb8c4 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, #aeb8c4 75%),
+                    linear-gradient(-45deg, transparent 75%, #aeb8c4 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+#skinCanvas, #skinGuideCanvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+#skinCanvas { touch-action: none; cursor: crosshair; }
+#skinGuideCanvas { pointer-events: none; }
+.skin-canvas-caption {
+  margin-top: 6px;
+  text-align: center;
+  color: #aab7c6;
+  font-size: 11px;
+}
+.skin-editor-status {
+  min-height: 32px;
+  margin: 8px 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  color: #d9e8f8;
+  background: rgba(98, 161, 220, .12);
+  font-size: 12px;
+}
+.skin-atlas-help {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 8px;
+  color: #aebac8;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.skin-atlas-help strong,
+.skin-atlas-help span:last-child { grid-column: 1 / -1; }
+.skin-atlas-help strong { color: #eef4fc; font-size: 11px; }
+.skin-editor-tools { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.skin-tool-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 10px;
+  background: rgba(255,255,255,.025);
+}
+.skin-tool-section > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #e9eef5;
+  font-size: 12px;
+}
+.skin-tool-section > strong span { color: #9fbedf; }
+.skin-tool-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.skin-tool-buttons button { padding: 6px 3px; }
+.skin-tool-buttons button.active {
+  border-color: #7cc4ff;
+  background: #23547d;
+  box-shadow: inset 0 0 0 1px rgba(124,196,255,.2);
+}
+.skin-color-row { flex-direction: row; align-items: center; justify-content: space-between; }
+#skinColor {
+  width: 54px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 7px;
+  background: #202833;
+}
+#skinBrushSize { width: 100%; accent-color: #76bfff; }
+.skin-preview-section { align-items: center; }
+.skin-preview-section strong { align-self: stretch; }
+#skinPreview {
+  display: block;
+  width: 96px;
+  height: 144px;
+  image-rendering: pixelated;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 5px;
+  background-color: #26313d;
+  background-image: linear-gradient(45deg, #303d4c 25%, transparent 25%),
+                    linear-gradient(-45deg, #303d4c 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, #303d4c 75%),
+                    linear-gradient(-45deg, transparent 75%, #303d4c 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+.skin-utility-buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.skin-save-button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #6cb9ff;
+  border-radius: 10px;
+  color: #fff;
+  background: #1c5e91;
+  font: inherit;
+  font-weight: 850;
+}
+.skin-save-button:active { transform: scale(.99); }
+
+@media (max-width: 620px) {
+  .skin-editor-panel { padding: 9px; }
+  .skin-editor-workspace { grid-template-columns: minmax(0, 1fr) minmax(140px, .85fr); gap: 8px; }
+  .skin-canvas-stack { width: min(44vh, 260px, 43vw); }
+  .skin-tool-section { padding: 6px; gap: 5px; }
+  .skin-tool-buttons button { font-size: 10px; }
+  .skin-atlas-help { font-size: 9px; }
+}
+@media (max-height: 480px) {
+  .skin-editor-header { margin-bottom: 6px; }
+  .skin-editor-header h2 { font-size: 17px; }
+  .skin-editor-workspace { gap: 8px; }
+  .skin-canvas-stack { width: min(40vh, 240px, 40vw); }
+  .skin-editor-tools { gap: 5px; }
+  .skin-tool-section { padding: 5px 7px; }
+  #skinPreview { width: 64px; height: 96px; }
+  .skin-atlas-help { font-size: 8px; gap: 1px 6px; }
+  .skin-editor-status { min-height: 24px; margin: 4px 0; padding: 4px 6px; font-size: 10px; }
+}
