@@ -1041,7 +1041,7 @@ io.on("connection", (socket) => {
     p.damageSlowUntil = 0;
 
     socket.emit("respawned", { player: publicPlayer(p) });
-    io.emit("players", Array.from(players.values()).map(publicPlayer));
+    io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
   });
 
   socket.on("reload", () => {
@@ -1080,7 +1080,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     players.delete(socket.id);
     syncBots();
-    io.emit("players", Array.from(players.values()).map(publicPlayer));
+    io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
   });
 });
 
