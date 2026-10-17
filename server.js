@@ -264,7 +264,7 @@ function sanitizeName(value) {
 function sanitizeSkin(value) {
   if (typeof value !== "string") return "";
   // 64x64 PNG data URL only; reject other content and keep Socket.IO messages bounded.
-  if (value.length > 40000) return "";
+  if (value.length > 100000) return "";
   if (!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value)) return "";
   return value;
 }
@@ -982,13 +982,23 @@ io.on("connection", (socket) => {
     io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
   });
 
-  socket.on("updateSkin", (skinDataUrl) => {
+  socket.on("updateSkin", (skinDataUrl, acknowledge) => {
+    const reply = typeof acknowledge === "function" ? acknowledge : () => {};
     const p = players.get(socket.id);
-    if (!p || p.isBot) return;
+    if (!p || p.isBot) {
+      reply({ ok: false, notInGame: true });
+      return;
+    }
     const safeSkin = sanitizeSkin(skinDataUrl);
-    if (!safeSkin) return;
+    if (!safeSkin) {
+      reply({ ok: false, reason: "invalid-skin" });
+      return;
+    }
+
     p.skin = safeSkin;
+    // Broadcast the new skin to every connected player and confirm it to the editor.
     io.emit("playerSkin", { id: p.id, skin: p.skin });
+    reply({ ok: true });
   });
 
   socket.on("input", (input = {}) => {
