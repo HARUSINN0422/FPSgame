@@ -809,6 +809,122 @@ function createWeaponMesh(weapon) {
   return group;
 }
 
+const SKIN_FACE_ORDER = ["right", "left", "top", "bottom", "front", "back"];
+
+const SKIN_BASE_RECTS = {
+  head: {
+    right:[0,8,8,8], left:[16,8,8,8], top:[8,0,8,8], bottom:[16,0,8,8], front:[8,8,8,8], back:[24,8,8,8]
+  },
+  torso: {
+    right:[16,20,4,12], left:[28,20,4,12], top:[20,16,8,4], bottom:[28,16,8,4], front:[20,20,8,12], back:[32,20,8,12]
+  },
+  armR: {
+    right:[40,20,4,12], left:[48,20,4,12], top:[44,16,4,4], bottom:[48,16,4,4], front:[44,20,4,12], back:[52,20,4,12]
+  },
+  legR: {
+    right:[0,20,4,12], left:[8,20,4,12], top:[4,16,4,4], bottom:[8,16,4,4], front:[4,20,4,12], back:[12,20,4,12]
+  },
+  armL: {
+    right:[32,52,4,12], left:[40,52,4,12], top:[36,48,4,4], bottom:[40,48,4,4], front:[36,52,4,12], back:[44,52,4,12]
+  },
+  legL: {
+    right:[16,52,4,12], left:[24,52,4,12], top:[20,48,4,4], bottom:[24,48,4,4], front:[20,52,4,12], back:[28,52,4,12]
+  }
+};
+
+const SKIN_OVERLAY_RECTS = {
+  head: {
+    right:[32,8,8,8], left:[48,8,8,8], top:[40,0,8,8], bottom:[48,0,8,8], front:[40,8,8,8], back:[56,8,8,8]
+  },
+  torso: {
+    right:[16,36,4,12], left:[28,36,4,12], top:[20,32,8,4], bottom:[28,32,8,4], front:[20,36,8,12], back:[32,36,8,12]
+  },
+  armR: {
+    right:[40,36,4,12], left:[48,36,4,12], top:[44,32,4,4], bottom:[48,32,4,4], front:[44,36,4,12], back:[52,36,4,12]
+  },
+  legR: {
+    right:[0,36,4,12], left:[8,36,4,12], top:[4,32,4,4], bottom:[8,32,4,4], front:[4,36,4,12], back:[12,36,4,12]
+  },
+  armL: {
+    right:[48,52,4,12], left:[56,52,4,12], top:[52,48,4,4], bottom:[56,48,4,4], front:[52,52,4,12], back:[60,52,4,12]
+  },
+  legL: {
+    right:[0,52,4,12], left:[8,52,4,12], top:[4,48,4,4], bottom:[8,48,4,4], front:[4,52,4,12], back:[12,52,4,12]
+  }
+};
+
+const skinImageCache = new Map();
+const skinMaterialCache = new Map();
+
+function loadSkinAtlas(dataUrl) {
+  if (skinImageCache.has(dataUrl)) return skinImageCache.get(dataUrl);
+  const promise = new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = dataUrl;
+  });
+  skinImageCache.set(dataUrl, promise);
+  return promise;
+}
+
+function getSkinFaceMaterial(dataUrl, image, rect, transparent) {
+  const region = rect.join(",");
+  const key = dataUrl + "|" + region + "|" + (transparent ? "overlay" : "base");
+  if (skinMaterialCache.has(key)) return skinMaterialCache.get(key);
+
+  const [x, y, w, h] = rect;
+  const faceCanvas = document.createElement("canvas");
+  faceCanvas.width = Math.max(1, w);
+  faceCanvas.height = Math.max(1, h);
+  const context = faceCanvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, x, y, w, h, 0, 0, w, h);
+
+  const texture = new THREE.CanvasTexture(faceCanvas);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  texture.colorSpace = THREE.SRGBColorSpace;
+
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: .88,
+    metalness: 0,
+    transparent,
+    alphaTest: .04,
+    depthWrite: !transparent
+  });
+  skinMaterialCache.set(key, material);
+  return material;
+}
+
+function makeSkinMaterials(dataUrl, image, part, overlay = false) {
+  const atlas = overlay ? SKIN_OVERLAY_RECTS : SKIN_BASE_RECTS;
+  const faceRects = atlas[part];
+  return SKIN_FACE_ORDER.map((face) => getSkinFaceMaterial(dataUrl, image, faceRects[face], overlay));
+}
+
+async function applyPlayerSkin(root, dataUrl) {
+  if (!root || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png;base64,")) return;
+  if (root.userData.skinDataUrl === dataUrl) return;
+  root.userData.skinDataUrl = dataUrl;
+
+  const image = await loadSkinAtlas(dataUrl);
+  if (!image || root.userData.skinDataUrl !== dataUrl) return;
+
+  const meshes = root.userData.skinMeshes;
+  if (!meshes) return;
+
+  for (const [part, mesh] of Object.entries(meshes.base)) {
+    mesh.material = makeSkinMaterials(dataUrl, image, part, false);
+  }
+  for (const [part, mesh] of Object.entries(meshes.overlay)) {
+    mesh.material = makeSkinMaterials(dataUrl, image, part, true);
+    mesh.visible = true;
+  }
+}
+
 function createRemotePlayer() {
   const root = new THREE.Group();
 
@@ -816,35 +932,62 @@ function createRemotePlayer() {
   const skinMat = new THREE.MeshStandardMaterial({ color: 0xffd2ba, roughness: .9 });
   const legMat = new THREE.MeshStandardMaterial({ color: 0x20252d, roughness: .9 });
 
+  // Box-shaped body parts make a standard 64x64 skin atlas line up predictably.
   const torso = new THREE.Mesh(new THREE.BoxGeometry(.62, .72, .36), bodyMat);
   torso.position.y = 1.05;
   torso.castShadow = true;
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(.28, 14, 12), skinMat);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.46, .46, .46), skinMat);
   head.position.y = 1.62;
   head.castShadow = true;
 
-  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .45, 4, 8), bodyMat);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(.18, .62, .22), bodyMat);
   armL.position.set(-.43, 1.05, 0);
-  armL.rotation.z = -.15;
+  armL.rotation.z = -.08;
   armL.castShadow = true;
 
-  const armR = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .45, 4, 8), bodyMat);
+  const armR = new THREE.Mesh(new THREE.BoxGeometry(.18, .62, .22), bodyMat);
   armR.position.set(.43, 1.05, 0);
-  armR.rotation.z = .15;
+  armR.rotation.z = .08;
   armR.castShadow = true;
 
-  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .55, 4, 8), legMat);
-  legL.position.set(-.18, .43, 0);
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(.22, .62, .24), legMat);
+  legL.position.set(-.18, .38, 0);
   legL.castShadow = true;
 
-  const legR = new THREE.Mesh(new THREE.CapsuleGeometry(.11, .55, 4, 8), legMat);
-  legR.position.set(.18, .43, 0);
+  const legR = new THREE.Mesh(new THREE.BoxGeometry(.22, .62, .24), legMat);
+  legR.position.set(.18, .38, 0);
   legR.castShadow = true;
+
+  const outerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
+  const headOuter = new THREE.Mesh(new THREE.BoxGeometry(.50, .50, .50), outerMat.clone());
+  headOuter.position.copy(head.position);
+  const torsoOuter = new THREE.Mesh(new THREE.BoxGeometry(.65, .75, .39), outerMat.clone());
+  torsoOuter.position.copy(torso.position);
+  const armLOuter = new THREE.Mesh(new THREE.BoxGeometry(.21, .65, .25), outerMat.clone());
+  armLOuter.position.copy(armL.position);
+  armLOuter.rotation.copy(armL.rotation);
+  const armROuter = new THREE.Mesh(new THREE.BoxGeometry(.21, .65, .25), outerMat.clone());
+  armROuter.position.copy(armR.position);
+  armROuter.rotation.copy(armR.rotation);
+  const legLOuter = new THREE.Mesh(new THREE.BoxGeometry(.25, .65, .27), outerMat.clone());
+  legLOuter.position.copy(legL.position);
+  const legROuter = new THREE.Mesh(new THREE.BoxGeometry(.25, .65, .27), outerMat.clone());
+  legROuter.position.copy(legR.position);
+
+  const outerMeshes = [headOuter, torsoOuter, armLOuter, armROuter, legLOuter, legROuter];
+  for (const mesh of outerMeshes) {
+    mesh.castShadow = true;
+    mesh.visible = false;
+  }
 
   const weapon = createWeaponMesh("pistol");
 
-  root.add(torso, head, armL, armR, legL, legR, weapon);
+  root.add(torso, head, armL, armR, legL, legR, ...outerMeshes, weapon);
+  root.userData.skinMeshes = {
+    base: { head, torso, armR, armL, legR, legL },
+    overlay: { head: headOuter, torso: torsoOuter, armR: armROuter, armL: armLOuter, legR: legROuter, legL: legLOuter }
+  };
   root.userData.weaponMesh = weapon;
   root.userData.weaponType = "pistol";
 
@@ -901,9 +1044,11 @@ function updateRemotePlayers(players) {
       obj.userData.hasNetworkTransform = true;
     }
 
-    const clothingColor = playerClothingColor(p.name);
-    for (const mesh of obj.children) {
-      if (mesh.isMesh && (mesh.geometry.type === "BoxGeometry" || mesh.geometry.type === "CapsuleGeometry") && mesh.position.y > 0.65 && mesh.position.y < 1.5) {
+    if (p.skin) applyPlayerSkin(obj, p.skin);
+    if (!obj.userData.skinDataUrl) {
+      const clothingColor = playerClothingColor(p.name);
+      for (const mesh of [obj.userData.skinMeshes?.base?.torso, obj.userData.skinMeshes?.base?.armL, obj.userData.skinMeshes?.base?.armR]) {
+        if (!mesh) continue;
         const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
         if (material?.color) material.color.copy(clothingColor);
       }
@@ -1366,6 +1511,12 @@ document.getElementById("respawnButton")?.addEventListener("click", () => {
 
 socket.on("world", buildWorld);
 
+window.applyPlayerSkinToServer = (skinDataUrl) => {
+  if (joined && socket.connected && typeof skinDataUrl === "string") {
+    socket.emit("updateSkin", skinDataUrl);
+  }
+};
+
 socket.on("joined", ({ player }) => {
   joined = true;
   wasJoinedBeforeDisconnect = true;
@@ -1394,6 +1545,10 @@ socket.on("joined", ({ player }) => {
 });
 
 socket.on("players", updateRemotePlayers);
+socket.on("playerSkin", ({ id, skin }) => {
+  const playerObject = remotePlayers.get(id);
+  if (playerObject && skin) applyPlayerSkin(playerObject, skin);
+});
 
 socket.on("state", (players) => {
   updateRemotePlayers(players);
@@ -1477,7 +1632,12 @@ socket.on("connect", () => {
 
   if (wasJoinedBeforeDisconnect && playerName) {
     reconnecting = true;
-    socket.emit("join", { name: playerName, weapon: weaponSlots[0] || selectedWeapon, secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon });
+    socket.emit("join", {
+      name: playerName,
+      weapon: weaponSlots[0] || selectedWeapon,
+      secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
+      skin: window.getPlayerSkinData?.()
+    });
   } else {
     showMessage("サーバー接続済み");
   }
@@ -1554,7 +1714,13 @@ document.getElementById("freeForAllModeButton")?.addEventListener("click", () =>
   selectedWeapon = selectedPrimaryWeapon;
   weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
   document.getElementById("modeScreen")?.classList.add("hidden");
-  socket.emit("join", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, mode: "free-for-all" });
+  socket.emit("join", {
+    name,
+    weapon: selectedPrimaryWeapon,
+    secondaryWeapon: selectedSecondaryWeapon,
+    mode: "free-for-all",
+    skin: window.getPlayerSkinData?.()
+  });
 });
 updateLoadoutSelectionUi();
 
