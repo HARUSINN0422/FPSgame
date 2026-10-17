@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=skin-editor-entry-2">
 </head>
 <body>
   <div id="game"></div>
@@ -106,7 +106,7 @@
       <p>名前は任意です。空欄なら自動で名前を付けます。入力した名前はこの端末のCookieに保存されます。</p>
       <label class="name-label" for="playerName">プレイヤー名（任意）</label>
       <input id="playerName" class="name-input" type="text" maxlength="16" autocomplete="nickname" placeholder="空欄でもスタートできます">
-      <button id="skinEditorOpenButton" class="skin-editor-launch" type="button">スキンをペイントで作成</button>
+      <div class="skin-editor-launch-row"><button id="skinEditorOpenButton" class="skin-editor-launch" type="button">🎨 スキンをペイントで作成（ここを押す）</button></div>
       <div class="loadout-slot-picker">
         <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
@@ -263,7 +263,7 @@
     }
   }
   </script>
-  <script type="module" src="/skin-editor.js"></script>
+  <script type="module" src="/skin-editor.js?v=skin-editor-entry-2"></script>
   <script type="module" src="/game.js"></script>
 </body>
 </html>
