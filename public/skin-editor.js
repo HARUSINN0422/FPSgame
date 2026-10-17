@@ -313,16 +313,31 @@ document.getElementById("skinResetButton")?.addEventListener("click", () => {
   if (statusEl) statusEl.textContent = "初期スキンに戻しました（保存するまで適用されません）";
 });
 
-document.getElementById("skinSaveButton")?.addEventListener("click", () => {
+document.getElementById("skinSaveButton")?.addEventListener("click", async () => {
+  const saveButton = document.getElementById("skinSaveButton");
   try {
     const dataUrl = skinCanvas.toDataURL("image/png");
     localStorage.setItem(SKIN_STORAGE_KEY, dataUrl);
-    window.applyPlayerSkinToServer?.(dataUrl);
-    closeSkinEditor();
-    if (statusEl) statusEl.textContent = "保存しました";
-    document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl } }));
+    if (saveButton) saveButton.disabled = true;
+
+    // If the player is already in a match, wait for the server to confirm application.
+    const result = await window.applyPlayerSkinToServer?.(dataUrl);
+
+    if (result?.ok) {
+      if (statusEl) statusEl.textContent = "保存してゲームに適用しました";
+      document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl } }));
+      closeSkinEditor();
+    } else if (result?.notInGame || !result) {
+      // Keep the editor open so the player can see that the local save succeeded.
+      if (statusEl) statusEl.textContent = "この端末に保存しました。ゲーム開始時に適用されます。";
+      document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl } }));
+    } else {
+      if (statusEl) statusEl.textContent = "端末には保存しましたが、ゲームへの適用に失敗しました。接続を確認して再度保存してください。";
+    }
   } catch (error) {
     if (statusEl) statusEl.textContent = "保存できませんでした: " + (error?.message || "不明なエラー");
+  } finally {
+    if (saveButton) saveButton.disabled = false;
   }
 });
 
