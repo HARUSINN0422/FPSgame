@@ -84,6 +84,11 @@
 
       <div class="settings-group">
         <div class="settings-group-title">設定</div>
+        <div class="setting-section">
+          <strong>プレイヤースキン</strong>
+          <p>ペイントエディタでスキンを描いて、対戦中のキャラクターに適用できます。</p>
+          <div class="settings-actions"><button id="settingsSkinEditorButton" type="button">スキンエディタを開く</button></div>
+        </div>
       <div class="settings-actions">
         <button id="settingsResetButton">設定をすべて初期化</button>
         <button id="settingsDoneButton">完了</button>
@@ -101,6 +106,7 @@
       <p>名前は任意です。空欄なら自動で名前を付けます。入力した名前はこの端末のCookieに保存されます。</p>
       <label class="name-label" for="playerName">プレイヤー名（任意）</label>
       <input id="playerName" class="name-input" type="text" maxlength="16" autocomplete="nickname" placeholder="空欄でもスタートできます">
+      <button id="skinEditorOpenButton" class="skin-editor-launch" type="button">スキンをペイントで作成</button>
       <div class="loadout-slot-picker">
         <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
@@ -196,6 +202,59 @@
     <button id="fireButton" aria-label="発射">FIRE</button>
   </div>
 
+  <div id="skinEditorPanel" class="skin-editor-overlay hidden" aria-hidden="true">
+    <section class="skin-editor-panel" role="dialog" aria-modal="true" aria-labelledby="skinEditorTitle">
+      <header class="skin-editor-header">
+        <div><div class="eyebrow">PLAYER CUSTOMIZATION</div><h2 id="skinEditorTitle">スキンペイント</h2></div>
+        <button id="skinEditorCloseButton" type="button" aria-label="スキンエディタを閉じる">閉じる</button>
+      </header>
+      <div class="skin-editor-workspace">
+        <div class="skin-editor-drawing">
+          <div class="skin-canvas-stack">
+            <canvas id="skinCanvas" width="64" height="64" aria-label="64×64スキン編集キャンバス"></canvas>
+            <canvas id="skinGuideCanvas" width="64" height="64" aria-hidden="true"></canvas>
+          </div>
+          <div class="skin-canvas-caption">64 × 64 px · ピクセル描画</div>
+          <div id="skinEditorStatus" class="skin-editor-status">ペン：ドラッグして描画</div>
+          <div class="skin-atlas-help">
+            <strong>キャンバスの見方</strong>
+            <span>上段左：頭</span><span>中央：胴体</span><span>上段右：右腕</span>
+            <span>左中段：右脚</span><span>下段：左腕・左脚</span>
+            <span>中央の下半分（y=32〜47）：帽子・上着などの透過レイヤー</span>
+          </div>
+        </div>
+        <aside class="skin-editor-tools">
+          <div class="skin-tool-section">
+            <strong>ツール</strong>
+            <div class="skin-tool-buttons">
+              <button type="button" data-skin-tool="pencil" class="active">ペン</button>
+              <button type="button" data-skin-tool="eraser">消しゴム</button>
+              <button type="button" data-skin-tool="fill">塗りつぶし</button>
+            </div>
+          </div>
+          <label class="skin-tool-section skin-color-row">
+            <strong>色</strong>
+            <input id="skinColor" type="color" value="#2875b9" aria-label="描画色">
+          </label>
+          <label class="skin-tool-section">
+            <strong>ブラシサイズ <span id="skinBrushSizeValue">1 px</span></strong>
+            <input id="skinBrushSize" type="range" min="1" max="8" value="1" step="1">
+          </label>
+          <div class="skin-tool-section skin-preview-section">
+            <strong>正面プレビュー</strong>
+            <canvas id="skinPreview" width="128" height="192" aria-label="スキンの正面プレビュー"></canvas>
+          </div>
+          <div class="skin-tool-section skin-tool-buttons skin-utility-buttons">
+            <button id="skinUndoButton" type="button">元に戻す</button>
+            <button id="skinClearButton" type="button">全消去</button>
+            <button id="skinResetButton" type="button">初期スキン</button>
+          </div>
+          <button id="skinSaveButton" class="skin-save-button" type="button">保存して適用</button>
+        </aside>
+      </div>
+    </section>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script type="importmap">
   {
@@ -204,6 +263,7 @@
     }
   }
   </script>
+  <script type="module" src="/skin-editor.js"></script>
   <script type="module" src="/game.js"></script>
 </body>
 </html>
