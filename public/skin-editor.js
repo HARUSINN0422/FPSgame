@@ -215,6 +215,8 @@ function loadSkinDataUrl(dataUrl) {
 }
 
 async function openSkinEditor() {
+  // Close the settings panel first so the editor has a clear, usable workspace.
+  document.getElementById("settingsPanel")?.classList.add("hidden");
   const saved = localStorage.getItem(SKIN_STORAGE_KEY);
   if (saved) await loadSkinDataUrl(saved);
   else makeDefaultSkin();
