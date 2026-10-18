@@ -661,16 +661,25 @@ function makeRamp(ramp, color = 0x71808d) {
 
 function buildWorld(data) {
   worldData = data;
+  const bounds = data.world || { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
+  // マップ境界の外側に2ユニット分の床と壁を設けます。
+  const worldWidth = bounds.maxX - bounds.minX + 4;
+  const worldDepth = bounds.maxZ - bounds.minZ + 4;
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+
   const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 100),
+    new THREE.PlaneGeometry(worldWidth, worldDepth),
     new THREE.MeshStandardMaterial({ color: 0x526052, roughness: 1 })
   );
   floor.rotation.x = -Math.PI / 2;
+  floor.position.set(centerX, 0, centerZ);
   floor.receiveShadow = true;
   worldGroup.add(floor);
 
-  const grid = new THREE.GridHelper(100, 50, 0x879487, 0x6b756b);
-  grid.position.y = 0.01;
+  const gridSize = Math.max(worldWidth, worldDepth);
+  const grid = new THREE.GridHelper(gridSize, Math.max(1, Math.round(gridSize / 2)), 0x879487, 0x6b756b);
+  grid.position.set(centerX, 0.01, centerZ);
   worldGroup.add(grid);
 
   for (const o of data.obstacles || []) {
@@ -698,10 +707,10 @@ function buildWorld(data) {
     makeBox(support.w, support.h, support.d, support.x, support.h / 2, support.z, 0x626d78);
   }
 
-  makeBox(100, 3, 1, 0, 1.5, -50, 0x58636e);
-  makeBox(100, 3, 1, 0, 1.5, 50, 0x58636e);
-  makeBox(1, 3, 100, -50, 1.5, 0, 0x58636e);
-  makeBox(1, 3, 100, 50, 1.5, 0, 0x58636e);
+  makeBox(worldWidth, 3, 1, centerX, 1.5, bounds.minZ - 2, 0x58636e);
+  makeBox(worldWidth, 3, 1, centerX, 1.5, bounds.maxZ + 2, 0x58636e);
+  makeBox(1, 3, worldDepth, bounds.minX - 2, 1.5, centerZ, 0x58636e);
+  makeBox(1, 3, worldDepth, bounds.maxX + 2, 1.5, centerZ, 0x58636e);
 }
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
