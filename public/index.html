@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="/style.css?v=area-mode-3">
+  <link rel="stylesheet" href="/style.css?v=area-mode-4">
 </head>
 <body>
   <div id="game"></div>
@@ -18,6 +18,22 @@
       <div class="settings-header">
         <h2>ゲーム設定</h2>
         <button id="settingsCloseButton" aria-label="設定を閉じる">閉じる</button>
+      </div>
+
+      <div class="settings-skin-action settings-nav-action">
+        <div>
+          <strong>ゲームモード</strong>
+          <p>対戦するゲームモードを変更します。</p>
+        </div>
+        <button id="settingsModeChangeButton" class="settings-skin-change-button" type="button">ゲームモード変更</button>
+      </div>
+
+      <div class="settings-skin-action settings-nav-action">
+        <div>
+          <strong>武器構成</strong>
+          <p>使用する2つの武器を変更します。</p>
+        </div>
+        <button id="settingsWeaponChangeButton" class="settings-skin-change-button" type="button">武器変更</button>
       </div>
 
       <div class="settings-skin-action">
@@ -167,7 +183,7 @@
       <h1>エリア対戦を検索中</h1>
       <p id="areaQueueStatus">対戦相手を募集しています。</p>
       <div class="area-queue-progress"><div id="areaQueueProgressFill"></div></div>
-      <div class="area-queue-count"><strong id="areaQueueCount">1 / 6 人</strong><span id="areaQueueTime">30秒</span></div>
+      <div class="area-queue-count"><strong id="areaQueueCount">1 / 6 人</strong><span id="areaQueueTime">20秒</span></div>
       <button id="cancelAreaQueueButton" class="mode-back-button" type="button">キャンセルして戻る</button>
     </section>
   </div>
@@ -309,6 +325,6 @@
   }
   </script>
   <script type="module" src="/skin-editor.js?v=skin-live-apply-6"></script>
-  <script type="module" src="/game.js?v=area-mode-3"></script>
+  <script type="module" src="/game.js?v=area-mode-4"></script>
 </body>
 </html>
