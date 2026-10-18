@@ -563,9 +563,11 @@ function updateBot(p, now) {
     Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius
   ).length : 0;
   const botInsideZone = zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.75;
+  const enemyInsideZone = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius);
   const nearbyEnemy = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius + 12);
   const moveToObjective = Boolean(zone && !botInsideZone && !nearbyEnemy && livingTeamMembersInZone < 2);
-  const holdObjective = Boolean(zone && botInsideZone && !nearbyEnemy);
+  // エリア外の敵に反応しても、制圧エリアにいるBOTは追いかけずに防衛する。
+  const holdObjective = Boolean(zone && botInsideZone && !enemyInsideZone);
 
   if (moveToObjective) {
     const dx = zone.x - p.x;
