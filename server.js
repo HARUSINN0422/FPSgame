@@ -280,7 +280,7 @@ const MAP_MODE = "Melee";
 const AREA_MODE = "Area";
 const MAP_ROTATION_INTERVAL_MS = 10 * 60 * 1000;
 const MAP_CHANGE_COUNTDOWN_MS = 5 * 1000;
-const AREA_QUEUE_DURATION_MS = 30 * 1000;
+const AREA_QUEUE_DURATION_MS = 20 * 1000;
 const AREA_CONTROL_HOLD_MS = 5 * 1000;
 const AREA_PROGRESS_PER_PERCENT_MS = 1500;
 const AREA_BOT_NAMES = ["Liam", "Noah", "Oliver", "James", "Elijah", "Mateo", "Theodore", "Henry", "Lucas", "Jack"];
@@ -556,7 +556,22 @@ function updateBot(p, now) {
     (isAreaBot ? other.team !== p.team : !other.isBot)
   );
 
-  // Area BOTは味方が制圧エリアにいない場合、敵が遠くても中央へ向かう。
+  // 視認できる敵がいる場合だけ戦闘を優先し、遮蔽物越しの敵には釣られず制圧へ向かう。
+  const visibleTargets = isAreaBot ? targets.filter((other) => {
+    const dx = other.x - p.x;
+    const dz = other.z - p.z;
+    const distance = Math.max(0.001, Math.hypot(dx, dz));
+    if (distance > WEAPONS[p.weapon].range) return false;
+    const targetYaw = Math.atan2(-dx, -dz);
+    const targetY = other.y + (other.crouched ? 0.75 : 1.0);
+    const targetPitch = clamp(Math.atan2(targetY - (p.y + PLAYER_HEIGHT - 0.15), distance), -1.0, 1.0);
+    const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
+    const dir = directionFromAngles(targetYaw, targetPitch);
+    const wallDistance = rayHitsObstacle(origin, dir, Math.min(distance, WEAPONS[p.weapon].range), p);
+    return wallDistance === null || wallDistance >= distance - 0.7;
+  }) : [];
+
+  // 味方が少ないときは積極的に中央エリアへ向かう。視認できる敵がいれば戦闘を優先する。
   const zone = isAreaBot ? areaMap.areaZone : null;
   const livingTeamMembersInZone = zone ? Array.from(players.values()).filter((other) =>
     isSameGame(p, other) && other.health > 0 && other.team === p.team &&
@@ -564,9 +579,8 @@ function updateBot(p, now) {
   ).length : 0;
   const botInsideZone = zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.75;
   const enemyInsideZone = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius);
-  const nearbyEnemy = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius + 12);
-  const moveToObjective = Boolean(zone && !botInsideZone && !nearbyEnemy && livingTeamMembersInZone < 2);
-  // エリア外の敵に反応しても、制圧エリアにいるBOTは追いかけずに防衛する。
+  const moveToObjective = Boolean(zone && !botInsideZone && visibleTargets.length === 0 && livingTeamMembersInZone < 2);
+  // エリア内のBOTは敵がエリアへ入らない限り位置を維持し、視認できる敵には戦闘処理で応戦する。
   const holdObjective = Boolean(zone && botInsideZone && !enemyInsideZone);
 
   if (moveToObjective) {
@@ -616,7 +630,14 @@ function updateBot(p, now) {
     return;
   }
 
-  targets.sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  targets.sort((a, b) => {
+    if (isAreaBot && visibleTargets.length) {
+      const aVisible = visibleTargets.includes(a);
+      const bVisible = visibleTargets.includes(b);
+      if (aVisible !== bVisible) return aVisible ? -1 : 1;
+    }
+    return Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z);
+  });
   const target = targets[0];
   const dx = target.x - p.x;
   const dz = target.z - p.z;
@@ -1335,6 +1356,25 @@ function startAreaMatch(fillWithBots) {
       });
     }
   }
+
+  // 人間プレイヤーを先に均等配分し、人間同士のチーム人数差を最大1人に抑える。
+  const teamCounts = { blue: 0, red: 0 };
+  for (const participant of participants.filter((entry) => !entry.isBot)) {
+    const team = teamCounts.blue === teamCounts.red
+      ? (Math.random() < 0.5 ? "blue" : "red")
+      : (teamCounts.blue < teamCounts.red ? "blue" : "red");
+    participant.team = team;
+    teamCounts[team] += 1;
+  }
+  // 残りの枠は総人数の少ない側へBOTを配置し、最終的に各チーム3人にそろえる。
+  for (const participant of participants.filter((entry) => entry.isBot)) {
+    const team = teamCounts.blue === teamCounts.red
+      ? (Math.random() < 0.5 ? "blue" : "red")
+      : (teamCounts.blue < teamCounts.red ? "blue" : "red");
+    participant.team = team;
+    teamCounts[team] += 1;
+  }
+
   if (participants.length < 2) {
     for (const entry of waiting) io.to(entry.socketId).emit("areaQueueError", { message: "対戦相手を用意できませんでした。もう一度お試しください。" });
     return;
@@ -1357,7 +1397,7 @@ function startAreaMatch(fillWithBots) {
 
   const teamSpawnCounts = { blue: 0, red: 0 };
   participants.forEach((entry, index) => {
-    const team = index % 2 === 0 ? "blue" : "red";
+    const team = entry.team || (index % 2 === 0 ? "blue" : "red");
     const teamSpawns = areaMap.teamSpawnPoints?.[team] || areaMap.spawnPoints;
     const spawnIndex = teamSpawnCounts[team]++;
     const spawn = teamSpawns[spawnIndex % teamSpawns.length];
@@ -1553,6 +1593,19 @@ io.on("connection", (socket) => {
 
   socket.on("leaveAreaMatch", () => {
     removeAreaPlayer(socket.id);
+  });
+
+  socket.on("leaveMatch", () => {
+    const player = players.get(socket.id);
+    if (player?.mode === AREA_MODE) {
+      removeAreaPlayer(socket.id);
+      return;
+    }
+
+    if (player) players.delete(socket.id);
+    syncBots();
+    broadcastPlayers();
+    socket.emit("returnedToLobby");
   });
 
   socket.on("join", (data = {}) => {
@@ -1801,7 +1854,7 @@ setInterval(() => {
   }
 }, 100);
 
-// Matchmaking window: start immediately at six humans, otherwise fill with BOTs after 30 seconds.
+// Matchmaking window: start immediately at six humans, otherwise fill with BOTs after 20 seconds.
 setInterval(() => {
   if (areaQueue.length === 0) return;
   const remaining = AREA_QUEUE_DURATION_MS - (Date.now() - areaQueueStartedAt);
