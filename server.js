@@ -1182,6 +1182,307 @@ function publicPlayer(p, includeSkin = false) {
   };
 }
 
+function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
+  const now = Date.now();
+  return {
+    id,
+    name,
+    skin: skin || "",
+    mode: AREA_MODE,
+    team,
+    matchId,
+    isBot: Boolean(isBot),
+    finished: false,
+    botSpawnIndex,
+    botThinkAt: 0,
+    botOffset: Math.random() * 1000,
+    x: spawn[0],
+    y: spawn[1] || 0,
+    z: spawn[2],
+    yaw: team === "blue" ? -Math.PI / 2 : Math.PI / 2,
+    pitch: 0,
+    health: 100,
+    kills: 0,
+    deaths: 0,
+    weapon,
+    weaponSlots: [weapon, secondaryWeapon],
+    activeWeaponSlot: 0,
+    ammo: WEAPONS[weapon].magazineSize,
+    reloadingUntil: 0,
+    lastFire: 0,
+    velocityY: 0,
+    grounded: true,
+    lastGroundedAt: now,
+    jumpQueuedUntil: 0,
+    input: { forward: 0, strafe: 0, crouch: false },
+    crouched: false,
+    respawnAt: 0,
+    invulnerableUntil: now + 3000,
+    damageHitstopUntil: 0,
+    damageSlowUntil: 0
+  };
+}
+
+function areaQueueStatus() {
+  const remainingMs = Math.max(0, AREA_QUEUE_DURATION_MS - (Date.now() - areaQueueStartedAt));
+  return {
+    waiting: areaQueue.length,
+    required: 6,
+    remainingMs,
+    secondsRemaining: Math.ceil(remainingMs / 1000)
+  };
+}
+
+function broadcastAreaQueueStatus() {
+  const status = areaQueueStatus();
+  for (const entry of areaQueue) {
+    io.to(entry.socketId).emit("areaQueueStatus", status);
+  }
+}
+
+function queueAreaPlayer(socket, data = {}) {
+  if (players.has(socket.id)) {
+    socket.emit("areaQueueError", { message: "現在の対戦を終了してからモードを変更してください。" });
+    return;
+  }
+  if (areaQueue.some((entry) => entry.socketId === socket.id)) {
+    socket.emit("areaQueueStatus", areaQueueStatus());
+    return;
+  }
+
+  const entry = {
+    socketId: socket.id,
+    name: sanitizeName(data.name),
+    skin: sanitizeSkin(data.skin),
+    weapon: sanitizeWeapon(data.weapon),
+    secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
+    queuedAt: Date.now()
+  };
+  if (entry.secondaryWeapon === entry.weapon) {
+    entry.secondaryWeapon = entry.weapon === "rifle" ? "shotgun" : "rifle";
+  }
+
+  if (areaQueue.length === 0) {
+    areaQueueStartedAt = Date.now();
+    lastAreaQueueSecond = null;
+  }
+  areaQueue.push(entry);
+  broadcastAreaQueueStatus();
+
+  if (areaQueue.length >= 6) startAreaMatch(false);
+}
+
+function cancelAreaQueue(socketId) {
+  const before = areaQueue.length;
+  areaQueue = areaQueue.filter((entry) => entry.socketId !== socketId);
+  if (areaQueue.length === 0) {
+    areaQueueStartedAt = 0;
+    lastAreaQueueSecond = null;
+  } else {
+    broadcastAreaQueueStatus();
+  }
+  if (before !== areaQueue.length) io.to(socketId).emit("areaQueueCancelled");
+}
+
+function startAreaMatch(fillWithBots) {
+  const waiting = areaQueue.splice(0, 6).filter((entry) => io.sockets.sockets.has(entry.socketId));
+  areaQueueStartedAt = 0;
+  lastAreaQueueSecond = null;
+  if (waiting.length === 0) return;
+
+  const usedNames = new Set(waiting.map((entry) => entry.name.toLowerCase()));
+  const availableBotNames = AREA_BOT_NAMES.filter((name) => !usedNames.has(name.toLowerCase()));
+  for (let i = availableBotNames.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [availableBotNames[i], availableBotNames[j]] = [availableBotNames[j], availableBotNames[i]];
+  }
+
+  const participants = waiting.map((entry) => ({ ...entry, isBot: false }));
+  if (fillWithBots || participants.length < 6) {
+    while (participants.length < 6) {
+      const name = availableBotNames.shift();
+      if (!name) break;
+      participants.push({
+        socketId: null,
+        name,
+        skin: "",
+        weapon: Math.random() < 0.7 ? "rifle" : "marksman",
+        secondaryWeapon: "shotgun",
+        isBot: true
+      });
+    }
+  }
+  if (participants.length < 2) {
+    for (const entry of waiting) io.to(entry.socketId).emit("areaQueueError", { message: "対戦相手を用意できませんでした。もう一度お試しください。" });
+    return;
+  }
+
+  const matchId = "area-" + Date.now() + "-" + (++areaMatchSequence);
+  const match = {
+    id: matchId,
+    playerIds: [],
+    humanIds: waiting.map((entry) => entry.socketId),
+    scores: { blue: 0, red: 0 },
+    holdTeam: null,
+    holdStartedAt: 0,
+    lastStateAt: 0,
+    finished: false,
+    winnerTeam: null
+  };
+  areaMatches.set(matchId, match);
+
+  const teamSpawnCounts = { blue: 0, red: 0 };
+  participants.forEach((entry, index) => {
+    const team = index % 2 === 0 ? "blue" : "red";
+    const teamSpawns = areaMap.teamSpawnPoints?.[team] || areaMap.spawnPoints;
+    const spawnIndex = teamSpawnCounts[team]++;
+    const spawn = teamSpawns[spawnIndex % teamSpawns.length];
+    const id = entry.isBot ? "bot:" + matchId + ":" + index : entry.socketId;
+    const player = createAreaPlayer({
+      id,
+      name: entry.name,
+      skin: entry.skin,
+      weapon: entry.weapon,
+      secondaryWeapon: entry.secondaryWeapon,
+      team,
+      matchId,
+      isBot: entry.isBot,
+      botSpawnIndex: spawnIndex
+    }, spawn);
+    players.set(id, player);
+    match.playerIds.push(id);
+
+    if (!entry.isBot) {
+      const client = io.sockets.sockets.get(entry.socketId);
+      if (client) {
+        client.emit("world", getWorldPayloadForMap(areaMap, AREA_MODE));
+        client.emit("joined", { player: publicPlayer(player, true) });
+        client.emit("areaMatchStarted", {
+          matchId,
+          team,
+          botCount: participants.filter((participant) => participant.isBot).length,
+          map: getMapInfo(areaMap, AREA_MODE)
+        });
+      }
+    }
+  });
+
+  broadcastPlayers();
+  sendAreaMatchState(match, true);
+  console.log("[Area] 試合開始:", matchId, "players:", participants.length, "bots:", participants.filter((p) => p.isBot).length);
+}
+
+function sendAreaMatchState(match, force = false) {
+  if (!match || match.finished) return;
+  const now = Date.now();
+  if (!force && now - match.lastStateAt < 200) return;
+  match.lastStateAt = now;
+
+  const zone = areaMap.areaZone;
+  const occupants = match.playerIds
+    .map((id) => players.get(id))
+    .filter((player) => player && player.health > 0 && !player.finished &&
+      Math.hypot(player.x - zone.x, player.z - zone.z) <= zone.radius);
+  const blueInZone = occupants.filter((p) => p.team === "blue").length;
+  const redInZone = occupants.filter((p) => p.team === "red").length;
+  const state = {
+    matchId: match.id,
+    scores: { blue: Number(match.scores.blue.toFixed(2)), red: Number(match.scores.red.toFixed(2)) },
+    blueInZone,
+    redInZone,
+    holdTeam: match.holdTeam,
+    holdRemainingMs: match.holdTeam ? Math.max(0, AREA_CONTROL_HOLD_MS - (now - match.holdStartedAt)) : 0,
+    status: blueInZone && redInZone ? "contested" : occupants.length === 0 ? "empty" :
+      match.holdTeam && now - match.holdStartedAt >= AREA_CONTROL_HOLD_MS ? "capturing" : "holding"
+  };
+  for (const socketId of match.humanIds) io.to(socketId).emit("areaState", state);
+}
+
+function finishAreaMatch(match, winnerTeam) {
+  if (!match || match.finished) return;
+  match.finished = true;
+  match.winnerTeam = winnerTeam;
+  for (const id of match.playerIds) {
+    const player = players.get(id);
+    if (!player) continue;
+    player.finished = true;
+    player.input = { forward: 0, strafe: 0, crouch: false };
+    player.jumpQueuedUntil = 0;
+    player.respawnAt = 0;
+  }
+
+  for (const socketId of match.humanIds) {
+    const player = players.get(socketId);
+    if (!player) continue;
+    io.to(socketId).emit("areaMatchEnd", {
+      matchId: match.id,
+      won: player.team === winnerTeam,
+      team: player.team,
+      winnerTeam,
+      scores: { blue: Math.min(100, match.scores.blue), red: Math.min(100, match.scores.red) },
+      kills: player.kills,
+      deaths: player.deaths
+    });
+  }
+  broadcastPlayers();
+  console.log("[Area] 試合終了:", match.id, "winner:", winnerTeam);
+}
+
+function updateAreaMatches(dt, now) {
+  for (const match of areaMatches.values()) {
+    if (match.finished) continue;
+    const zone = areaMap.areaZone;
+    const occupants = match.playerIds
+      .map((id) => players.get(id))
+      .filter((player) => player && player.health > 0 && !player.finished &&
+        Math.hypot(player.x - zone.x, player.z - zone.z) <= zone.radius);
+    const presentTeams = new Set(occupants.map((player) => player.team));
+
+    if (presentTeams.size === 1) {
+      const team = occupants[0].team;
+      if (match.holdTeam !== team) {
+        match.holdTeam = team;
+        match.holdStartedAt = now;
+      }
+      if (now - match.holdStartedAt >= AREA_CONTROL_HOLD_MS) {
+        match.scores[team] = Math.min(100, match.scores[team] + dt / (AREA_PROGRESS_PER_PERCENT_MS / 1000));
+        if (match.scores[team] >= 100) {
+          match.scores[team] = 100;
+          sendAreaMatchState(match, true);
+          finishAreaMatch(match, team);
+          continue;
+        }
+      }
+    } else {
+      match.holdTeam = null;
+      match.holdStartedAt = 0;
+    }
+    sendAreaMatchState(match);
+  }
+}
+
+function removeAreaPlayer(socketId) {
+  const player = players.get(socketId);
+  if (!player || player.mode !== AREA_MODE) return;
+  const match = areaMatches.get(player.matchId);
+  players.delete(socketId);
+  if (!match) {
+    io.to(socketId).emit("areaReturnToModeSelect");
+    broadcastPlayers();
+    return;
+  }
+
+  match.playerIds = match.playerIds.filter((id) => id !== socketId);
+  match.humanIds = match.humanIds.filter((id) => id !== socketId);
+  io.to(socketId).emit("areaReturnToModeSelect");
+
+  if (match.humanIds.length === 0) {
+    for (const id of match.playerIds) players.delete(id);
+    areaMatches.delete(match.id);
+  }
+  broadcastPlayers();
+}
+
 io.on("connection", (socket) => {
   socket.emit("world", getWorldPayload());
   socket.emit("mapRotationStatus", getMapRotationStatus());
