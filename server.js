@@ -1010,7 +1010,8 @@ function fireShot(shooter) {
     let bestHit = null;
 
     for (const target of players.values()) {
-      if (target.id === shooter.id || target.health <= 0) continue;
+      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
+      if (shooter.mode === AREA_MODE && target.team === shooter.team) continue;
       // リスポーン直後3秒間は被弾しない。
       if (target.invulnerableUntil > now) continue;
 
@@ -1018,7 +1019,7 @@ function fireShot(shooter) {
       if (hitInfo === null || hitInfo.t > weapon.range) continue;
 
       // プレイヤーより手前に壁がある場合は、その弾丸を無効にする。
-      const wallDistance = rayHitsObstacle(origin, dir, hitInfo.t);
+      const wallDistance = rayHitsObstacle(origin, dir, hitInfo.t, shooter);
       if (wallDistance !== null && wallDistance <= hitInfo.t + 0.001) continue;
 
       if (!bestHit || hitInfo.t < bestHit.t) {
@@ -1091,7 +1092,7 @@ function fireShot(shooter) {
       shooter.kills += 1;
       result.target.deaths += 1;
 
-      io.emit("elimination", {
+      broadcastGameEvent(shooter, "elimination", {
         killerId: shooter.id,
         killerName: shooter.name,
         victimId: result.target.id,
@@ -1119,7 +1120,7 @@ function fireShot(shooter) {
       visualPitch += (Math.random() - 0.5) * weapon.spread;
     }
     const visualDir = directionFromAngles(visualYaw, visualPitch);
-    const wallDistance = rayHitsObstacle(origin, visualDir, weapon.range);
+    const wallDistance = rayHitsObstacle(origin, visualDir, weapon.range, shooter);
     const distance = wallDistance ?? weapon.range;
     visualTracers.push({
       yaw: visualYaw,
@@ -1131,7 +1132,7 @@ function fireShot(shooter) {
     });
   }
 
-  io.emit("shot", {
+  broadcastGameEvent(shooter, "shot", {
     id: shooter.id,
     x: origin.x,
     y: origin.y,
@@ -1147,6 +1148,10 @@ function fireShot(shooter) {
 function publicPlayer(p, includeSkin = false) {
   return {
     id: p.id,
+    mode: p.mode || MAP_MODE,
+    team: p.team || null,
+    matchId: p.matchId || null,
+    finished: Boolean(p.finished),
     x: p.x,
     y: p.y,
     z: p.z,
