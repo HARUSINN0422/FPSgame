@@ -9,7 +9,7 @@ const PORT = 3007;
 const AUTO_UPDATE_INTERVAL = 60 * 1000;
 const AUTO_UPDATE_BRANCH = "main";
 const TICK_RATE = 20;
-const WORLD = { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
+// マップデータは map/<ゲームモード>/*.json から読み込みます。
 const PLAYER_SPEED = 6.5;
 const CROUCH_SPEED = 4.2;
 const PLAYER_RADIUS = 0.45;
@@ -274,35 +274,64 @@ app.get("/{*splat}", (_req, res) => {
 });
 
 const players = new Map();
-const spawnPoints = [
-  [-36, 0, -36], [36, 0, 36], [-36, 0, 36], [36, 0, -36],
-  [0, 0, -36], [0, 0, 36], [-36, 0, 0], [36, 0, 0]
-];
 
-const obstacles = [
-  { x: 0, z: 0, w: 12, d: 2, h: 3.5 },
-  { x: 0, z: 18, w: 18, d: 4, h: 3 },
-  { x: 0, z: -18, w: 18, d: 4, h: 3 },
-  { x: 20, z: 0, w: 4, d: 18, h: 3 },
-  { x: -20, z: 0, w: 4, d: 18, h: 3 },
-  { x: 22, z: 25, w: 10, d: 4, h: 3 },
-  { x: -22, z: -25, w: 10, d: 4, h: 3 },
-  { x: 22, z: -25, w: 10, d: 4, h: 3 },
-  { x: -22, z: 25, w: 10, d: 4, h: 3 },
-  { x: 10, z: 10, w: 8, d: 3, h: 2.2 },
-  { x: -10, z: 10, w: 8, d: 3, h: 2.2 },
-  { x: 10, z: -10, w: 8, d: 3, h: 2.2 },
-  { x: -10, z: -10, w: 8, d: 3, h: 2.2 },
-  { x: 30, z: 10, w: 4, d: 8, h: 2.5 },
-  { x: -30, z: -10, w: 4, d: 8, h: 2.5 },
-  { x: 30, z: -10, w: 4, d: 8, h: 2.5 },
-  { x: -30, z: 10, w: 4, d: 8, h: 2.5 }
-];
+const MAP_ROOT = path.join(__dirname, "map");
+const MAP_MODE = "Melee";
 
-const ramps = [
-  { x: 0, z: -3, w: 12, d: 4, h: 3.5, direction: "north" },
-  { x: 0, z: 3, w: 12, d: 4, h: 3.5, direction: "south" }
-];
+function loadMapsForMode(mode) {
+  const modeDirectory = path.join(MAP_ROOT, mode);
+  const files = fs.readdirSync(modeDirectory)
+    .filter((file) => file.toLowerCase().endsWith(".json"))
+    .sort();
+
+  const maps = [];
+  for (const file of files) {
+    const fullPath = path.join(modeDirectory, file);
+    try {
+      const mapData = JSON.parse(fs.readFileSync(fullPath, "utf8"));
+      if (
+        !mapData ||
+        typeof mapData.id !== "string" ||
+        typeof mapData.name !== "string" ||
+        !mapData.world ||
+        !Number.isFinite(mapData.world.minX) ||
+        !Number.isFinite(mapData.world.maxX) ||
+        !Number.isFinite(mapData.world.minZ) ||
+        !Number.isFinite(mapData.world.maxZ) ||
+        !Array.isArray(mapData.spawnPoints) ||
+        mapData.spawnPoints.length === 0 ||
+        !Array.isArray(mapData.obstacles) ||
+        !Array.isArray(mapData.ramps)
+      ) {
+        throw new Error("必須項目（id/name/world/spawnPoints/obstacles/ramps）が不足しています");
+      }
+
+      maps.push({
+        ...mapData,
+        elevatedPlatforms: Array.isArray(mapData.elevatedPlatforms) ? mapData.elevatedPlatforms : []
+      });
+    } catch (error) {
+      console.warn("[Map] マップを読み込めないためスキップします:", file, error.message);
+    }
+  }
+
+  if (maps.length === 0) {
+    throw new Error("map/" + mode + "/ に有効なJSONマップがありません");
+  }
+  return maps;
+}
+
+// 起動時にモードフォルダ内のマップから1つ選び、全プレイヤーで同じマップを使用します。
+const availableMaps = loadMapsForMode(MAP_MODE);
+const activeMap = availableMaps[Math.floor(Math.random() * availableMaps.length)];
+const WORLD = activeMap.world;
+const spawnPoints = activeMap.spawnPoints;
+const obstacles = activeMap.obstacles;
+const ramps = activeMap.ramps;
+const elevatedPlatforms = activeMap.elevatedPlatforms;
+
+console.log("[Map] モード:", MAP_MODE, "マップ:", activeMap.name, "(" + activeMap.id + ")");
+
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -502,10 +531,11 @@ function getGroundHeight(x, z, playerY = 0) {
     if (rampHeight !== null) height = Math.max(height, rampHeight);
   }
 
-  const center = obstacles[0];
-  if (Math.abs(x - center.x) <= center.w / 2 - PLAYER_RADIUS &&
-      Math.abs(z - center.z) <= center.d / 2 + PLAYER_RADIUS) {
-    height = Math.max(height, center.h);
+  for (const platform of elevatedPlatforms) {
+    if (Math.abs(x - platform.x) <= platform.w / 2 - PLAYER_RADIUS &&
+        Math.abs(z - platform.z) <= platform.d / 2 + PLAYER_RADIUS) {
+      height = Math.max(height, platform.h);
+    }
   }
   return height;
 }
@@ -982,9 +1012,16 @@ function publicPlayer(p, includeSkin = false) {
 }
 
 io.on("connection", (socket) => {
-  socket.emit("world", { obstacles, ramps, world: WORLD, weapons: Object.fromEntries(
-    Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
-  ) });
+  socket.emit("world", {
+    map: { mode: MAP_MODE, id: activeMap.id, name: activeMap.name, description: activeMap.description || "" },
+    obstacles,
+    ramps,
+    elevatedPlatforms,
+    world: WORLD,
+    weapons: Object.fromEntries(
+      Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
+    )
+  });
 
   socket.on("join", (data = {}) => {
     if (players.has(socket.id)) return;
