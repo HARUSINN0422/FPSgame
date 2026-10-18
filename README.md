@@ -47,9 +47,12 @@ http://<サーバーIP>:3007/
 ├─ server.js
 ├─ map/
 │  ├─ README.md
-│  └─ Melee/
-│     ├─ RampArena.json
-│     └─ Courtyard.json
+│  ├─ Melee/
+│  │  ├─ RampArena.json
+│  │  └─ Courtyard.json
+│  └─ Area/
+│     ├─ README.md
+│     └─ ControlCenter.json
 ├─ package.json
 └─ public/
    ├─ index.html
