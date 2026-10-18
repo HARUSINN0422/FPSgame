@@ -660,6 +660,19 @@ function makeRamp(ramp, color = 0x71808d) {
 }
 
 function buildWorld(data) {
+  // マップ切替時は前の床・壁・障害物を破棄してから新しいマップを描画する。
+  for (const oldObject of [...worldGroup.children]) {
+    worldGroup.remove(oldObject);
+    oldObject.traverse?.((part) => {
+      part.geometry?.dispose();
+      const materials = Array.isArray(part.material) ? part.material : [part.material];
+      for (const material of materials) {
+        material?.map?.dispose();
+        material?.dispose();
+      }
+    });
+  }
+
   worldData = data;
   const bounds = data.world || { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
   // マップ境界の外側に2ユニット分の床と壁を設けます。
@@ -1524,6 +1537,47 @@ document.getElementById("respawnButton")?.addEventListener("click", () => {
 });
 
 socket.on("world", buildWorld);
+
+const mapChangeCountdownElement = document.getElementById("mapChangeCountdown");
+let mapChangeNoticeTimeout = null;
+
+function displayMapChangeCountdown(seconds, nextMap) {
+  if (!mapChangeCountdownElement) return;
+  if (mapChangeNoticeTimeout) {
+    clearTimeout(mapChangeNoticeTimeout);
+    mapChangeNoticeTimeout = null;
+  }
+  const nextName = nextMap?.name ? "（次：" + nextMap.name + "）" : "";
+  mapChangeCountdownElement.textContent = "マップ変更まで " + seconds + "秒 " + nextName;
+  mapChangeCountdownElement.classList.remove("hidden");
+}
+
+socket.on("mapRotationStatus", (status = {}) => {
+  const remaining = Number(status.changeAt) - Date.now();
+  if (remaining > 0 && remaining <= 5000) {
+    displayMapChangeCountdown(Math.max(1, Math.ceil(remaining / 1000)), status.nextMap);
+  }
+});
+
+socket.on("mapChangeCountdown", ({ seconds, nextMap } = {}) => {
+  displayMapChangeCountdown(seconds, nextMap);
+});
+
+socket.on("mapChanged", ({ map } = {}) => {
+  stopAllControls();
+  setScopeEnabled(false);
+  yaw = 0;
+  pitch = 0;
+  if (!mapChangeCountdownElement) return;
+
+  if (mapChangeNoticeTimeout) clearTimeout(mapChangeNoticeTimeout);
+  mapChangeCountdownElement.textContent = "マップ変更：" + (map?.name || "新しいマップ");
+  mapChangeCountdownElement.classList.remove("hidden");
+  mapChangeNoticeTimeout = setTimeout(() => {
+    mapChangeCountdownElement.classList.add("hidden");
+    mapChangeNoticeTimeout = null;
+  }, 3000);
+});
 
 window.applyPlayerSkinToServer = (skinDataUrl) => {
   if (!joined || !socket.connected || typeof skinDataUrl !== "string") {
