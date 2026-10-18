@@ -1346,8 +1346,9 @@ function startAreaMatch(fillWithBots) {
     playerIds: [],
     humanIds: waiting.map((entry) => entry.socketId),
     scores: { blue: 0, red: 0 },
-    holdTeam: null,
-    holdStartedAt: 0,
+    ownerTeam: null,
+    captureTeam: null,
+    captureStartedAt: 0,
     lastStateAt: 0,
     finished: false,
     winnerTeam: null
@@ -1413,10 +1414,18 @@ function sendAreaMatchState(match, force = false) {
     scores: { blue: Number(match.scores.blue.toFixed(2)), red: Number(match.scores.red.toFixed(2)) },
     blueInZone,
     redInZone,
-    holdTeam: match.holdTeam,
-    holdRemainingMs: match.holdTeam ? Math.max(0, AREA_CONTROL_HOLD_MS - (now - match.holdStartedAt)) : 0,
-    status: blueInZone && redInZone ? "contested" : occupants.length === 0 ? "empty" :
-      match.holdTeam && now - match.holdStartedAt >= AREA_CONTROL_HOLD_MS ? "capturing" : "holding"
+    ownerTeam: match.ownerTeam,
+    captureTeam: match.captureTeam,
+    // holdTeam remains available for older client code; it represents the team currently taking the zone,
+    // or the owner when nobody is challenging it.
+    holdTeam: match.captureTeam || match.ownerTeam,
+    holdRemainingMs: match.captureTeam
+      ? Math.max(0, AREA_CONTROL_HOLD_MS - (now - match.captureStartedAt))
+      : 0,
+    status: blueInZone && redInZone ? "contested"
+      : occupants.length === 0 ? (match.ownerTeam ? "owned-empty" : "empty")
+      : match.captureTeam ? "taking"
+      : match.ownerTeam ? "owned" : "holding"
   };
   for (const socketId of match.humanIds) io.to(socketId).emit("areaState", state);
 }
@@ -1460,25 +1469,41 @@ function updateAreaMatches(dt, now) {
       .filter((player) => player && player.health > 0 && !player.finished &&
         Math.hypot(player.x - zone.x, player.z - zone.z) <= zone.radius);
     const presentTeams = new Set(occupants.map((player) => player.team));
+    const soloTeam = presentTeams.size === 1 ? occupants[0].team : null;
 
-    if (presentTeams.size === 1) {
-      const team = occupants[0].team;
-      if (match.holdTeam !== team) {
-        match.holdTeam = team;
-        match.holdStartedAt = now;
+    // 所有権がない、または相手が占領中の場合は、片方のチームだけが5秒間いると所有権を取得。
+    // エリアが空、あるいは両チームが争っている間は所有権を維持し、奪取タイマーだけをリセットします。
+    if (soloTeam && soloTeam !== match.ownerTeam) {
+      if (match.captureTeam !== soloTeam) {
+        match.captureTeam = soloTeam;
+        match.captureStartedAt = now;
       }
-      if (now - match.holdStartedAt >= AREA_CONTROL_HOLD_MS) {
-        match.scores[team] = Math.min(100, match.scores[team] + dt / (AREA_PROGRESS_PER_PERCENT_MS / 1000));
-        if (match.scores[team] >= 100) {
-          match.scores[team] = 100;
-          sendAreaMatchState(match, true);
-          finishAreaMatch(match, team);
-          continue;
-        }
+      if (now - match.captureStartedAt >= AREA_CONTROL_HOLD_MS) {
+        const previousOwner = match.ownerTeam;
+        match.ownerTeam = soloTeam;
+        match.captureTeam = null;
+        match.captureStartedAt = 0;
+        console.log("[Area] エリアを奪取:", match.id, previousOwner || "なし", "->", soloTeam);
       }
     } else {
-      match.holdTeam = null;
-      match.holdStartedAt = 0;
+      match.captureTeam = null;
+      match.captureStartedAt = 0;
+    }
+
+    // 一度確保したチームの得点は、エリアが無人でも継続する。
+    // カウントが止まるのは、相手チームが5秒間単独で確保して所有権を奪ったときだけ。
+    if (match.ownerTeam) {
+      match.scores[match.ownerTeam] = Math.min(
+        100,
+        match.scores[match.ownerTeam] + dt / (AREA_PROGRESS_PER_PERCENT_MS / 1000)
+      );
+      if (match.scores[match.ownerTeam] >= 100) {
+        const winnerTeam = match.ownerTeam;
+        match.scores[winnerTeam] = 100;
+        sendAreaMatchState(match, true);
+        finishAreaMatch(match, winnerTeam);
+        continue;
+      }
     }
     sendAreaMatchState(match);
   }
