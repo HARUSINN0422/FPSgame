@@ -838,8 +838,9 @@ function movePlayer(p, dt) {
     p.grounded = false;
   }
 
-  p.x = clamp(p.x, WORLD.minX + PLAYER_RADIUS, WORLD.maxX - PLAYER_RADIUS);
-  p.z = clamp(p.z, WORLD.minZ + PLAYER_RADIUS, WORLD.maxZ - PLAYER_RADIUS);
+  const playerBounds = getMapForPlayer(p).world;
+  p.x = clamp(p.x, playerBounds.minX + PLAYER_RADIUS, playerBounds.maxX - PLAYER_RADIUS);
+  p.z = clamp(p.z, playerBounds.minZ + PLAYER_RADIUS, playerBounds.maxZ - PLAYER_RADIUS);
   p.pitch = clamp(p.pitch, -1.35, 1.35);
 }
 
