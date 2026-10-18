@@ -575,7 +575,8 @@ function updateBot(p, now) {
     p.input.forward = wallDistance !== null && wallDistance < 2.4 ? 0.15 : clamp(distance / 12, 0.28, 0.85);
     p.input.strafe = Math.sin(now / 900 + (p.botOffset || 0)) * 0.16;
     p.input.crouch = false;
-    if (!targets.length || distance > 22) return;
+    // エリア優先行動中は中央への移動を維持する。近くに敵が来た段階で戦闘思考へ切り替える。
+    return;
   }
 
   if (!targets.length) {
