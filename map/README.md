@@ -8,16 +8,19 @@ map/
 ├─ Melee/
 │  ├─ RampArena.json
 │  └─ Courtyard.json
+├─ Area/
+│  ├─ README.md
+│  └─ ControlCenter.json
 └─ （今後のモード名）/
    └─ *.json
 ```
 
 ## 追加方法
 
-- 乱闘（Melee）のマップは `map/Melee/` にJSONファイルを追加します。
+- 乱闘（Melee）のマップは `map/Melee/`、エリア（Area）のマップは `map/Area/` にJSONファイルを追加します。
+- Meleeは `rotationOrder` の昇順で10分ごとに切り替え、5秒前からカウントダウンを表示します。
+- Areaは中央の制圧エリア設定を持つ専用マップを使います。詳細は `map/Area/README.md` を参照してください。
 - 新しいゲームモードを作った場合は、`map/` の直下にモード名と同じフォルダを作り、そのモード専用のJSONを入れます。
-- 現在のサーバーは `map/Melee/*.json` を読み込み、`rotationOrder` の昇順で10分ごとに切り替えます。
-- マップ切替の5秒前から全クライアントにカウントダウンが表示されます。切替時は全プレイヤーを新しいマップのスポーン地点へ移動し、HPと弾薬を回復します。
 - `rotationOrder` が同じマップはファイル名順で並びます。値を重複させないことを推奨します。
 
 ## JSON形式
