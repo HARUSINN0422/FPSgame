@@ -790,11 +790,21 @@ function updateMinimap() {
   const worldWidth = Math.max(1, world.maxX - world.minX);
   const worldDepth = Math.max(1, world.maxZ - world.minZ);
   const minimap = document.getElementById("minimap");
-  if (minimap) minimap.style.aspectRatio = `${worldWidth} / ${worldDepth}`;
+  if (minimap) {
+    minimap.style.aspectRatio = `${worldWidth} / ${worldDepth}`;
+    // CSSだけのaspect-ratio指定に依存せず、表示枠の実寸もマップ比率に合わせる。
+    const minimapWidth = minimap.getBoundingClientRect().width;
+    if (minimapWidth > 0) {
+      const minimapHeight = Math.max(1, Math.round(minimapWidth * worldDepth / worldWidth));
+      if (Math.abs(minimap.getBoundingClientRect().height - minimapHeight) > 1) {
+        minimap.style.height = `${minimapHeight}px`;
+      }
+    }
+  }
 
-  // Canvas自体もマップの縦横比に合わせ、横長のエリアマップをつぶさず表示する。
+  // Canvas自体もマップの縦横比に合わせ、実際の地形比率を保つ。
   const canvasWidth = 180;
-  const canvasHeight = Math.max(48, Math.round(canvasWidth * worldDepth / worldWidth));
+  const canvasHeight = Math.max(1, Math.round(canvasWidth * worldDepth / worldWidth));
   if (canvas.width !== canvasWidth) canvas.width = canvasWidth;
   if (canvas.height !== canvasHeight) canvas.height = canvasHeight;
   const ctx = canvas.getContext("2d");
@@ -1727,7 +1737,10 @@ socket.on("areaState", (state = {}) => {
         seconds.toFixed(1) + "秒";
     }
   } else if (ownerTeam) {
-    statusEl.textContent = "制圧チーム：" + teamName(ownerTeam) + " · カウント進行中";
+    // エリアが無人の間も得点は進むが、状態表示には「カウント進行中」を出さない。
+    statusEl.textContent = state.status === "owned-empty"
+      ? "制圧チーム：" + teamName(ownerTeam)
+      : "制圧チーム：" + teamName(ownerTeam) + " · カウント進行中";
   } else {
     statusEl.textContent = "中央エリアを確保してください";
   }
