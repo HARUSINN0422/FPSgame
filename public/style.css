@@ -1101,6 +1101,65 @@ body.controller-mode #settingsButton {
 }
 
 
+/* Area capture mode UI */
+.area-mode-card { border-color: rgba(91, 180, 255, .45); background: linear-gradient(115deg, #182a3a, #171c23); }
+.area-queue-panel, .area-result-panel { width: min(520px, 100%); }
+.area-queue-progress { height: 10px; overflow: hidden; border-radius: 999px; background: #2a3038; margin: 18px 0 10px; }
+#areaQueueProgressFill { width: 0%; height: 100%; background: linear-gradient(90deg, #52a8ff, #71dcff); transition: width .2s linear; }
+.area-queue-count { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+#areaQueueCount { font-size: 20px; font-weight: 900; }
+#areaQueueTime { font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums; }
+#areaQueueMessage { min-height: 42px; line-height: 1.5; }
+.area-queue-panel #cancelAreaQueueButton { margin-top: 8px; }
+
+.area-hud {
+  position: fixed;
+  z-index: 4;
+  top: max(82px, calc(82px + env(safe-area-inset-top)));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 54vw);
+  padding: 9px 12px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(9,14,20,.82);
+  box-shadow: 0 6px 22px rgba(0,0,0,.28);
+  pointer-events: none;
+}
+.area-hud-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 12px; }
+#areaTeamLabel { font-weight: 800; opacity: .85; }
+.area-progress-row { display: grid; grid-template-columns: 42px minmax(0,1fr) 43px; gap: 7px; align-items: center; margin: 5px 0; font-size: 10px; font-weight: 900; }
+.area-progress-row.blue > span { color: #79bdff; }
+.area-progress-row.red > span { color: #ff8989; }
+.area-progress-track { height: 12px; border-radius: 999px; overflow: hidden; background: #2a3038; border: 1px solid rgba(255,255,255,.12); }
+.area-progress-fill { height: 100%; width: 0%; transition: width .15s linear; }
+#areaBlueFill { background: linear-gradient(90deg, #1f73cf, #6dc3ff); }
+#areaRedFill { background: linear-gradient(90deg, #bc3737, #ff8d8d); }
+.area-progress-row > strong { text-align: right; font-variant-numeric: tabular-nums; }
+.area-capture-status { margin-top: 6px; text-align: center; font-size: 11px; font-weight: 800; color: #ffe8a3; }
+.area-result-score { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0; }
+.area-result-score > div { padding: 18px; border-radius: 12px; background: rgba(255,255,255,.06); text-align: center; }
+.area-result-score span, .area-result-score strong { display: block; }
+.area-result-score span { font-size: 12px; letter-spacing: .12em; opacity: .7; }
+.area-result-score strong { margin-top: 6px; font-size: 30px; font-variant-numeric: tabular-nums; }
+.area-result-score > div:first-child span { color: #79bdff; }
+.area-result-score > div:last-child span { color: #ff8989; }
+.area-result-kd { display: grid; grid-template-columns: 1fr auto; gap: 8px 18px; padding: 16px; margin-bottom: 14px; border-radius: 12px; background: rgba(255,255,255,.04); }
+.area-result-kd span { opacity: .72; }
+.area-result-kd strong { font-variant-numeric: tabular-nums; }
+#areaResultCloseButton { margin-top: 8px; }
+
+@media (max-width: 620px) {
+  .area-hud { top: max(76px, calc(76px + env(safe-area-inset-top))); width: min(390px, 72vw); padding: 7px 9px; }
+  .area-hud-header { font-size: 10px; margin-bottom: 4px; }
+  .area-progress-row { grid-template-columns: 34px minmax(0,1fr) 38px; gap: 4px; font-size: 9px; }
+  .area-progress-track { height: 10px; }
+  .area-capture-status { font-size: 9px; margin-top: 4px; }
+  .area-result-score > div { padding: 14px 8px; }
+  .area-result-score strong { font-size: 25px; }
+}
+
 /* Pixel-art player skin editor */
 .skin-editor-overlay {
   position: fixed;
