@@ -1905,8 +1905,15 @@ socket.on("connect", () => {
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       skin: window.getPlayerSkinData?.()
     };
-    if (selectedGameMode === "Area") socket.emit("joinAreaQueue", rejoinData);
-    else socket.emit("join", rejoinData);
+    if (selectedGameMode === "Area") {
+      document.getElementById("modeScreen")?.classList.add("hidden");
+      document.getElementById("areaResultPanel")?.classList.add("hidden");
+      areaQueuePanel?.classList.remove("hidden");
+      if (areaQueueStatusText) areaQueueStatusText.textContent = "再接続しました。エリア対戦を再検索しています。";
+      socket.emit("joinAreaQueue", rejoinData);
+    } else {
+      socket.emit("join", rejoinData);
+    }
   } else {
     showMessage("サーバー接続済み");
   }
