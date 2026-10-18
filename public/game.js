@@ -1624,7 +1624,6 @@ const areaQueueStatusText = document.getElementById("areaQueueStatus");
 const areaQueueCountText = document.getElementById("areaQueueCount");
 const areaQueueTimeText = document.getElementById("areaQueueTime");
 const areaQueueProgressFill = document.getElementById("areaQueueProgressFill");
-const areaQueueMessage = document.getElementById("areaQueueMessage");
 
 socket.on("areaQueueStatus", (status = {}) => {
   if (!areaQueuePanel || joined) return;
@@ -1633,21 +1632,16 @@ socket.on("areaQueueStatus", (status = {}) => {
   if (areaQueueStatusText) {
     areaQueueStatusText.textContent = seconds > 0
       ? "対戦相手を募集しています。"
-      : "BOTを準備しています。";
+      : "対戦を準備しています。";
   }
   if (areaQueueCountText) areaQueueCountText.textContent = (Number(status.waiting) || 0) + " / 6 人";
   if (areaQueueTimeText) areaQueueTimeText.textContent = seconds + "秒";
   if (areaQueueProgressFill) areaQueueProgressFill.style.width =
     Math.max(0, Math.min(100, 100 - remainingMs / 30000 * 100)) + "%";
-  if (areaQueueMessage) {
-    areaQueueMessage.textContent = status.waiting >= 6
-      ? "6人集まりました。対戦を開始します。"
-      : "6人集まるとすぐに開始します。30秒で集まらない場合はBOTが参加します。";
-  }
 });
 
 socket.on("areaQueueError", ({ message } = {}) => {
-  if (areaQueueMessage) areaQueueMessage.textContent = message || "マッチメイキングに失敗しました。";
+  if (areaQueueStatusText) areaQueueStatusText.textContent = message || "マッチメイキングに失敗しました。";
 });
 
 socket.on("areaQueueCancelled", () => {
@@ -1682,16 +1676,28 @@ socket.on("areaState", (state = {}) => {
 
   const statusEl = document.getElementById("areaCaptureStatus");
   if (!statusEl) return;
+
+  const teamName = (team) => team === "blue" ? "BLUE" : "RED";
+  const ownerTeam = state.ownerTeam || null;
+  const captureTeam = state.captureTeam || null;
+  const seconds = Math.max(0, (Number(state.holdRemainingMs) || 0) / 1000);
+
   if (state.status === "contested") {
-    statusEl.textContent = "争奪中：両チームがエリア内にいます";
-  } else if (state.status === "empty") {
-    statusEl.textContent = "中央エリアを確保してください";
-  } else if (state.holdTeam) {
-    const teamLabel = state.holdTeam === "blue" ? "BLUE" : "RED";
-    const seconds = Math.max(0, (Number(state.holdRemainingMs) || 0) / 1000);
-    statusEl.textContent = seconds > 0
-      ? teamLabel + " が確保中 · カウント開始まで " + seconds.toFixed(1) + "秒"
-      : teamLabel + " がエリアを制圧中";
+    statusEl.textContent = ownerTeam
+      ? "争奪中 · " + teamName(ownerTeam) + "のカウントは継続中"
+      : "争奪中：どちらのチームもまだ確保していません";
+  } else if (captureTeam && captureTeam !== ownerTeam) {
+    if (ownerTeam) {
+      statusEl.textContent = teamName(captureTeam) + " が奪取中 · 所有権切替まで " +
+        seconds.toFixed(1) + "秒（" + teamName(ownerTeam) + "のカウントは継続中）";
+    } else {
+      statusEl.textContent = teamName(captureTeam) + " が確保中 · 所有権取得まで " +
+        seconds.toFixed(1) + "秒";
+    }
+  } else if (ownerTeam) {
+    statusEl.textContent = state.status === "owned-empty"
+      ? teamName(ownerTeam) + "が制圧中 · 無人でもカウント継続中"
+      : teamName(ownerTeam) + "が制圧中 · カウント進行中";
   } else {
     statusEl.textContent = "中央エリアを確保してください";
   }
@@ -1752,7 +1758,6 @@ socket.on("areaReturnToModeSelect", () => {
   document.getElementById("settingsPanel")?.classList.add("hidden");
   document.getElementById("modeScreen")?.classList.remove("hidden");
   mapChangeCountdownElement?.classList.add("hidden");
-  if (areaQueueMessage) areaQueueMessage.textContent = "6人集まるとすぐに開始します。30秒で集まらない場合はBOTが参加します。";
 });
 
 window.applyPlayerSkinToServer = (skinDataUrl) => {
