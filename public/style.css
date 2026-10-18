@@ -827,7 +827,8 @@ input {
   top: max(12px, calc(12px + env(safe-area-inset-top)));
   right: 12px;
   width: 180px;
-  height: 180px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   border: 2px solid rgba(255,255,255,.22);
   border-radius: 14px;
@@ -849,7 +850,7 @@ input {
   opacity: .65;
 }
 @media (max-width: 900px) {
-  #minimap { width: 125px; height: 125px; }
+  #minimap { width: 125px; height: auto; }
   #healthBar { width: 82px; }
   #healthHud { min-width: 125px; gap: 5px; }
   #respawnPanel { min-width: 210px; }
@@ -1356,7 +1357,8 @@ body.controller-mode #settingsButton {
 
 
 /* Make the skin editor entry point unmistakable on desktop and mobile. */
-/* Prominent skin-change action at the top of the settings panel. */
+/* Prominent navigation actions and skin-change action in settings. */
+.settings-nav-action { margin: 10px 0; }
 .settings-skin-action {
   display: flex;
   align-items: center;
