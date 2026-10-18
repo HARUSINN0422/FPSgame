@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="/style.css?v=map-rotation-1">
+  <link rel="stylesheet" href="/style.css?v=area-mode-1">
 </head>
 <body>
   <div id="game"></div>
@@ -150,11 +150,45 @@
       <div class="mode-grid">
         <button id="freeForAllModeButton" class="mode-card" type="button">
           <strong>乱闘モード</strong>
-          <span>全員が敵の通常対戦。これまでと同じルールで開始します。</span>
+          <span>全員が敵の通常対戦。10分ごとにマップが切り替わります。</span>
+        </button>
+        <button id="areaModeButton" class="mode-card area-mode-card" type="button">
+          <strong>エリア（3対3）</strong>
+          <span>中央エリアを5秒間確保するとカウントが進行。100%に到達したチームが勝利します。</span>
         </button>
       </div>
       <button id="backToLoadoutButton" class="mode-back-button" type="button">武器構成に戻る</button>
     </div>
+  </div>
+
+  <div id="areaQueuePanel" class="overlay hidden" aria-live="polite">
+    <section class="panel area-queue-panel">
+      <div class="eyebrow">AREA MATCHMAKING</div>
+      <h1>エリア対戦を検索中</h1>
+      <p id="areaQueueStatus">対戦相手を募集しています。</p>
+      <div class="area-queue-progress"><div id="areaQueueProgressFill"></div></div>
+      <div class="area-queue-count"><strong id="areaQueueCount">1 / 6 人</strong><span id="areaQueueTime">30秒</span></div>
+      <p id="areaQueueMessage">6人集まるとすぐに開始します。30秒で集まらない場合はBOTが参加します。</p>
+      <button id="cancelAreaQueueButton" class="mode-back-button" type="button">キャンセルして戻る</button>
+    </section>
+  </div>
+
+  <div id="areaResultPanel" class="overlay hidden" aria-live="polite">
+    <section class="panel area-result-panel">
+      <div class="eyebrow">AREA MATCH RESULT</div>
+      <h1 id="areaResultTitle">試合終了</h1>
+      <p id="areaResultSummary">勝敗が確定しました。</p>
+      <div class="area-result-score">
+        <div><span>BLUE</span><strong id="areaResultBlueScore">0%</strong></div>
+        <div><span>RED</span><strong id="areaResultRedScore">0%</strong></div>
+      </div>
+      <div class="area-result-kd">
+        <span>あなたのキル</span><strong id="areaResultKills">0</strong>
+        <span>あなたのデス</span><strong id="areaResultDeaths">0</strong>
+        <span>K/D</span><strong id="areaResultKD">0.00</strong>
+      </div>
+      <button id="areaResultCloseButton" class="start-game-button" type="button">閉じてゲームモード選択へ</button>
+    </section>
   </div>
 
   <div id="hud" class="hidden">
@@ -166,6 +200,12 @@
       </div>
       <div>PLAYERS <span id="playerCount">0</span></div>
       <div id="kdHud">K <span id="kills">0</span> / D <span id="deaths">0</span></div>
+    </div>
+    <div id="areaHud" class="area-hud hidden" aria-label="エリアの進行状況">
+      <div class="area-hud-header"><strong>エリア制圧</strong><span id="areaTeamLabel">あなた：BLUE</span></div>
+      <div class="area-progress-row blue"><span>BLUE</span><div class="area-progress-track"><div id="areaBlueFill" class="area-progress-fill"></div></div><strong id="areaBlueScore">0%</strong></div>
+      <div class="area-progress-row red"><span>RED</span><div class="area-progress-track"><div id="areaRedFill" class="area-progress-fill"></div></div><strong id="areaRedScore">0%</strong></div>
+      <div id="areaCaptureStatus" class="area-capture-status">中央エリアを確保してください。</div>
     </div>
     <div id="connectionStatus" class="disconnected">接続中…</div>
     <div id="mapChangeCountdown" class="hidden" role="status" aria-live="polite"></div>
@@ -270,6 +310,6 @@
   }
   </script>
   <script type="module" src="/skin-editor.js?v=skin-live-apply-6"></script>
-  <script type="module" src="/game.js?v=map-rotation-1"></script>
+  <script type="module" src="/game.js?v=area-mode-1"></script>
 </body>
 </html>
