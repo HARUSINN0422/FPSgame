@@ -1358,7 +1358,7 @@ body.controller-mode #settingsButton {
 
 /* Make the skin editor entry point unmistakable on desktop and mobile. */
 /* Prominent navigation actions and skin-change action in settings. */
-.settings-nav-action { margin: 10px 0; }
+.settings-skin-action.settings-nav-action { margin: 10px 0; }
 .settings-skin-action {
   display: flex;
   align-items: center;
