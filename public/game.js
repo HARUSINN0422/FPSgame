@@ -97,6 +97,7 @@ let myId = null;
 let myState = null;
 let selectedGameMode = "Melee";
 let areaResultOpen = false;
+let lobbyScreenAfterLeave = "modeScreen";
 let selectedWeapon = "pistol";
 let weaponSlots = ["pistol", "rifle"];
 let activeWeaponSlot = 0;
@@ -350,6 +351,27 @@ function setupSettings() {
     stopLayoutEditing();
     panel?.classList.add("hidden");
   };
+
+  const navigateToLobbyScreen = (screenId) => {
+    if (!["modeScreen", "weaponScreen"].includes(screenId)) return;
+    stopLayoutEditing();
+    panel?.classList.add("hidden");
+    if (joined) {
+      lobbyScreenAfterLeave = screenId;
+      socket.emit("leaveMatch");
+      return;
+    }
+
+    document.getElementById("weaponScreen")?.classList.toggle("hidden", screenId !== "weaponScreen");
+    document.getElementById("modeScreen")?.classList.toggle("hidden", screenId !== "modeScreen");
+  };
+
+  document.getElementById("settingsModeChangeButton")?.addEventListener("click", () => {
+    navigateToLobbyScreen("modeScreen");
+  });
+  document.getElementById("settingsWeaponChangeButton")?.addEventListener("click", () => {
+    navigateToLobbyScreen("weaponScreen");
+  });
 
   settingsButton?.addEventListener("click", () => {
     if (layoutEditing) return;
@@ -764,10 +786,20 @@ function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
   if (!canvas || !myState || !worldData?.world) return;
 
+  const world = worldData.world;
+  const worldWidth = Math.max(1, world.maxX - world.minX);
+  const worldDepth = Math.max(1, world.maxZ - world.minZ);
+  const minimap = document.getElementById("minimap");
+  if (minimap) minimap.style.aspectRatio = `${worldWidth} / ${worldDepth}`;
+
+  // Canvas自体もマップの縦横比に合わせ、横長のエリアマップをつぶさず表示する。
+  const canvasWidth = 180;
+  const canvasHeight = Math.max(48, Math.round(canvasWidth * worldDepth / worldWidth));
+  if (canvas.width !== canvasWidth) canvas.width = canvasWidth;
+  if (canvas.height !== canvasHeight) canvas.height = canvasHeight;
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
-  const world = worldData.world;
 
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = "rgba(9,14,18,.9)";
@@ -1637,7 +1669,7 @@ socket.on("areaQueueStatus", (status = {}) => {
   if (areaQueueCountText) areaQueueCountText.textContent = (Number(status.waiting) || 0) + " / 6 人";
   if (areaQueueTimeText) areaQueueTimeText.textContent = seconds + "秒";
   if (areaQueueProgressFill) areaQueueProgressFill.style.width =
-    Math.max(0, Math.min(100, 100 - remainingMs / 30000 * 100)) + "%";
+    Math.max(0, Math.min(100, 100 - remainingMs / 20000 * 100)) + "%";
 });
 
 socket.on("areaQueueError", ({ message } = {}) => {
@@ -1684,20 +1716,18 @@ socket.on("areaState", (state = {}) => {
 
   if (state.status === "contested") {
     statusEl.textContent = ownerTeam
-      ? "争奪中 · " + teamName(ownerTeam) + "のカウントは継続中"
+      ? "争奪中 · 現在の制圧チーム：" + teamName(ownerTeam)
       : "争奪中：どちらのチームもまだ確保していません";
   } else if (captureTeam && captureTeam !== ownerTeam) {
     if (ownerTeam) {
       statusEl.textContent = teamName(captureTeam) + " が奪取中 · 所有権切替まで " +
-        seconds.toFixed(1) + "秒（" + teamName(ownerTeam) + "のカウントは継続中）";
+        seconds.toFixed(1) + "秒";
     } else {
       statusEl.textContent = teamName(captureTeam) + " が確保中 · 所有権取得まで " +
         seconds.toFixed(1) + "秒";
     }
   } else if (ownerTeam) {
-    statusEl.textContent = state.status === "owned-empty"
-      ? teamName(ownerTeam) + "が制圧中 · 無人でもカウント継続中"
-      : teamName(ownerTeam) + "が制圧中 · カウント進行中";
+    statusEl.textContent = "制圧チーム：" + teamName(ownerTeam) + " · カウント進行中";
   } else {
     statusEl.textContent = "中央エリアを確保してください";
   }
@@ -1756,7 +1786,30 @@ socket.on("areaReturnToModeSelect", () => {
   document.getElementById("touchUi")?.classList.add("hidden");
   document.getElementById("settingsButton")?.classList.add("hidden");
   document.getElementById("settingsPanel")?.classList.add("hidden");
-  document.getElementById("modeScreen")?.classList.remove("hidden");
+  document.getElementById("weaponScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "weaponScreen");
+  document.getElementById("modeScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "modeScreen");
+  lobbyScreenAfterLeave = "modeScreen";
+  mapChangeCountdownElement?.classList.add("hidden");
+});
+
+socket.on("returnedToLobby", () => {
+  joined = false;
+  wasJoinedBeforeDisconnect = false;
+  reconnecting = false;
+  areaResultOpen = false;
+  selectedGameMode = "Melee";
+  myId = null;
+  myState = null;
+  stopAllControls();
+  setScopeEnabled(false);
+  for (const id of ["weaponScreen", "modeScreen", "areaQueuePanel", "areaResultPanel", "hud", "touchUi", "settingsPanel"]) {
+    document.getElementById(id)?.classList.add("hidden");
+  }
+  document.getElementById("areaHud")?.classList.add("hidden");
+  document.getElementById("settingsButton")?.classList.add("hidden");
+  document.getElementById("weaponScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "weaponScreen");
+  document.getElementById("modeScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "modeScreen");
+  lobbyScreenAfterLeave = "modeScreen";
   mapChangeCountdownElement?.classList.add("hidden");
 });
 
@@ -2019,7 +2072,7 @@ document.getElementById("areaModeButton")?.addEventListener("click", () => {
   document.getElementById("areaResultPanel")?.classList.add("hidden");
   if (areaQueueStatusText) areaQueueStatusText.textContent = "対戦相手を募集しています。";
   if (areaQueueCountText) areaQueueCountText.textContent = "1 / 6 人";
-  if (areaQueueTimeText) areaQueueTimeText.textContent = "30秒";
+  if (areaQueueTimeText) areaQueueTimeText.textContent = "20秒";
   if (areaQueueProgressFill) areaQueueProgressFill.style.width = "0%";
   if (areaQueuePanel) areaQueuePanel.classList.remove("hidden");
   socket.emit("joinAreaQueue", {
