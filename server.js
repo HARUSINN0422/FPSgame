@@ -1495,6 +1495,18 @@ io.on("connection", (socket) => {
     });
   }
 
+  socket.on("joinAreaQueue", (data = {}) => {
+    queueAreaPlayer(socket, data);
+  });
+
+  socket.on("cancelAreaQueue", () => {
+    cancelAreaQueue(socket.id);
+  });
+
+  socket.on("leaveAreaMatch", () => {
+    removeAreaPlayer(socket.id);
+  });
+
   socket.on("join", (data = {}) => {
     if (players.has(socket.id)) return;
 
@@ -1510,11 +1522,16 @@ io.on("connection", (socket) => {
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
     const spawn = pickSpawn();
+    socket.emit("world", getWorldPayload());
 
     players.set(socket.id, {
       id: socket.id,
       name,
       skin,
+      mode: MAP_MODE,
+      team: null,
+      matchId: null,
+      finished: false,
       isBot: false,
       x: spawn[0],
       y: 0,
@@ -1544,7 +1561,7 @@ io.on("connection", (socket) => {
 
     syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
-    io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
+    broadcastPlayers();
   });
 
   socket.on("updateSkin", (skinDataUrl, acknowledge) => {
@@ -1561,14 +1578,14 @@ io.on("connection", (socket) => {
     }
 
     p.skin = safeSkin;
-    // Broadcast the new skin to every connected player and confirm it to the editor.
-    io.emit("playerSkin", { id: p.id, skin: p.skin });
+    // Broadcast the new skin only to players in the same match/mode.
+    broadcastGameEvent(p, "playerSkin", { id: p.id, skin: p.skin });
     reply({ ok: true });
   });
 
   socket.on("input", (input = {}) => {
     const p = players.get(socket.id);
-    if (!p) return;
+    if (!p || p.finished) return;
 
     p.input.forward = clamp(Number(input.forward) || 0, -1, 1);
     p.input.strafe = clamp(Number(input.strafe) || 0, -1, 1);
@@ -1579,25 +1596,25 @@ io.on("connection", (socket) => {
 
   socket.on("jump", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0) return;
+    if (!p || p.health <= 0 || p.finished) return;
     // 120msだけ入力を保持し、移動中の同時入力でもジャンプを取りこぼさない。
     p.jumpQueuedUntil = Date.now() + 120;
   });
 
   socket.on("fire", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0) return;
+    if (!p || p.health <= 0 || p.finished) return;
     fireShot(p);
   });
 
   socket.on("respawn", () => {
     const p = players.get(socket.id);
-    if (!p || p.health > 0) return;
+    if (!p || p.finished || p.health > 0) return;
     if (!p.respawnAt || Date.now() < p.respawnAt) return;
 
-    const spawn = pickSpawn();
+    const spawn = pickSpawnForPlayer(p, p.botSpawnIndex || 0);
     p.x = spawn[0];
-    p.y = 0;
+    p.y = spawn[1] || 0;
     p.z = spawn[2];
     p.velocityY = 0;
     p.grounded = true;
@@ -1616,18 +1633,18 @@ io.on("connection", (socket) => {
     p.damageSlowUntil = 0;
 
     socket.emit("respawned", { player: publicPlayer(p) });
-    io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
+    broadcastPlayers();
   });
 
   socket.on("reload", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0) return;
+    if (!p || p.health <= 0 || p.finished) return;
     startReload(p);
   });
 
   socket.on("changeWeapon", (weapon) => {
     const p = players.get(socket.id);
-    if (!p) return;
+    if (!p || p.finished) return;
     const nextWeapon = sanitizeWeapon(weapon);
     if (p.weapon === nextWeapon) return;
     if (!Array.isArray(p.weaponSlots)) p.weaponSlots = [p.weapon, nextWeapon];
@@ -1640,7 +1657,7 @@ io.on("connection", (socket) => {
 
   socket.on("switchWeapon", (slotIndex) => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || !Array.isArray(p.weaponSlots)) return;
+    if (!p || p.health <= 0 || p.finished || !Array.isArray(p.weaponSlots)) return;
     const nextSlot = Number(slotIndex);
     if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
@@ -1653,9 +1670,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    cancelAreaQueue(socket.id);
+    const player = players.get(socket.id);
+    if (player?.mode === AREA_MODE) {
+      removeAreaPlayer(socket.id);
+      return;
+    }
     players.delete(socket.id);
     syncBots();
-    io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
+    broadcastPlayers();
   });
 });
 
