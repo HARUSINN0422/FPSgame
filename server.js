@@ -511,9 +511,14 @@ function syncBots() {
 
   const spawn = pickSpawn();
   const id = "bot:arena";
+  const usedNames = new Set(humanPlayers.map((player) => player.name.toLowerCase()));
+  const availableNames = AREA_BOT_NAMES.filter((name) => !usedNames.has(name.toLowerCase()));
+  const botName = availableNames.length
+    ? availableNames[Math.floor(Math.random() * availableNames.length)]
+    : "BOT-1";
   players.set(id, {
     id,
-    name: "BOT",
+    name: botName,
     isBot: true,
     x: spawn[0], y: 0, z: spawn[2],
     yaw: 0, pitch: 0,
