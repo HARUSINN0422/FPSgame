@@ -823,6 +823,7 @@ input {
 #respawnButton:disabled { opacity: .45; cursor: not-allowed; }
 
 #minimap {
+  box-sizing: border-box;
   position: absolute;
   top: max(12px, calc(12px + env(safe-area-inset-top)));
   right: 12px;
