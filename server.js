@@ -1692,7 +1692,7 @@ function rotateMeleeMap() {
   elevatedPlatforms = activeMap.elevatedPlatforms;
 
   const now = Date.now();
-  const connectedPlayers = Array.from(players.values());
+  const connectedPlayers = Array.from(players.values()).filter((p) => (p.mode || MAP_MODE) === MAP_MODE);
   connectedPlayers.forEach((p, index) => {
     const spawn = spawnPoints[index % spawnPoints.length];
     p.x = spawn[0];
@@ -1717,13 +1717,16 @@ function rotateMeleeMap() {
     p.damageSlowUntil = 0;
   });
 
-  io.emit("world", getWorldPayload());
-  io.emit("mapChanged", {
+  for (const client of io.sockets.sockets.values()) {
+    const player = players.get(client.id);
+    if (player && (player.mode || MAP_MODE) === MAP_MODE) client.emit("world", getWorldPayload());
+  }
+  broadcastModeEvent(MAP_MODE, "mapChanged", {
     map: getMapInfo(activeMap),
     nextMap: getMapInfo(getNextMap()),
     nextChangeAt: nextMapChangeAt
   });
-  io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
+  broadcastPlayers();
   console.log("[Map] マップを切り替えました:", activeMap.name, "(" + activeMap.id + ")");
 }
 
@@ -1734,7 +1737,7 @@ setInterval(() => {
     nextMapChangeAt = Date.now() + MAP_ROTATION_INTERVAL_MS;
     lastMapCountdownSecond = null;
     rotateMeleeMap();
-    io.emit("mapRotationStatus", getMapRotationStatus());
+    broadcastModeEvent(MAP_MODE, "mapRotationStatus", getMapRotationStatus());
     return;
   }
 
@@ -1742,7 +1745,7 @@ setInterval(() => {
     const seconds = Math.max(1, Math.ceil(remaining / 1000));
     if (seconds !== lastMapCountdownSecond) {
       lastMapCountdownSecond = seconds;
-      io.emit("mapChangeCountdown", {
+      broadcastModeEvent(MAP_MODE, "mapChangeCountdown", {
         seconds,
         nextMap: getMapInfo(getNextMap())
       });
@@ -1750,10 +1753,30 @@ setInterval(() => {
   }
 }, 100);
 
+// Matchmaking window: start immediately at six humans, otherwise fill with BOTs after 30 seconds.
+setInterval(() => {
+  if (areaQueue.length === 0) return;
+  const remaining = AREA_QUEUE_DURATION_MS - (Date.now() - areaQueueStartedAt);
+  if (areaQueue.length >= 6) {
+    startAreaMatch(false);
+    return;
+  }
+  if (remaining <= 0) {
+    startAreaMatch(true);
+    return;
+  }
+  const second = Math.ceil(remaining / 1000);
+  if (second !== lastAreaQueueSecond) {
+    lastAreaQueueSecond = second;
+    broadcastAreaQueueStatus();
+  }
+}, 200);
+
 setInterval(() => {
   const dt = 1 / TICK_RATE;
   const now = Date.now();
   for (const p of players.values()) {
+    if (p.finished) continue;
     if (p.isBot && p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
       respawnBot(p, now);
     }
@@ -1764,7 +1787,8 @@ setInterval(() => {
     }
   }
 
-  io.emit("state", Array.from(players.values()).map(publicPlayer));
+  updateAreaMatches(dt, now);
+  broadcastState();
 }, 1000 / TICK_RATE);
 
 server.listen(PORT, "0.0.0.0", () => {
