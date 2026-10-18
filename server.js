@@ -571,17 +571,21 @@ function updateBot(p, now) {
     return wallDistance === null || wallDistance >= distance - 0.7;
   }) : [];
 
-  // 味方が少ないときは積極的に中央エリアへ向かう。視認できる敵がいれば戦闘を優先する。
+  // 視認中の敵との交戦は優先し、それ以外の時間は制圧地点へ向かう。
   const zone = isAreaBot ? areaMap.areaZone : null;
   const livingTeamMembersInZone = zone ? Array.from(players.values()).filter((other) =>
     isSameGame(p, other) && other.health > 0 && other.team === p.team &&
     Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius
   ).length : 0;
-  const botInsideZone = zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.75;
-  const enemyInsideZone = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius);
-  const moveToObjective = Boolean(zone && !botInsideZone && visibleTargets.length === 0 && livingTeamMembersInZone < 2);
-  // エリア内のBOTは敵がエリアへ入らない限り位置を維持し、視認できる敵には戦闘処理で応戦する。
-  const holdObjective = Boolean(zone && botInsideZone && !enemyInsideZone);
+  const botInsideZone = Boolean(zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.9);
+  const enemyOwnsOrUnclaimedZone = Boolean(zone && (!match?.ownerTeam || match.ownerTeam !== p.team));
+  const enemyIsTakingZone = Boolean(match?.captureTeam && match.captureTeam !== p.team);
+  // 中立/敵側のエリアでは味方の人数にかかわらずBOTも制圧に参加する。
+  // 自チーム所有中は、エリア内の味方が2人未満なら守備要員として向かう。
+  const needsObjectiveSupport = livingTeamMembersInZone < 2 || enemyOwnsOrUnclaimedZone || enemyIsTakingZone;
+  const moveToObjective = Boolean(zone && !botInsideZone && visibleTargets.length === 0 && needsObjectiveSupport);
+  // 敵が視認できないときは、エリア内にいるBOTが持ち場を離れないようにする。
+  const holdObjective = Boolean(zone && botInsideZone && visibleTargets.length === 0);
 
   if (moveToObjective) {
     const dx = zone.x - p.x;
@@ -593,11 +597,18 @@ function updateBot(p, now) {
     p.pitch = 0;
     const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
     const dir = directionFromAngles(p.yaw, 0);
-    const wallDistance = rayHitsObstacle(origin, dir, 3.2, p);
-    p.input.forward = wallDistance !== null && wallDistance < 2.4 ? 0.15 : clamp(distance / 12, 0.28, 0.85);
-    p.input.strafe = Math.sin(now / 900 + (p.botOffset || 0)) * 0.16;
+    const wallDistance = rayHitsObstacle(origin, dir, 3.8, p);
+    if (wallDistance !== null && wallDistance < 2.4) {
+      // 直進路が塞がれている場合は斜めに回り込み、壁の前で停滞しにくくする。
+      const turnDirection = Math.sin(now / 1700 + (p.botOffset || 0)) >= 0 ? 1 : -1;
+      p.yaw += turnDirection * 0.48;
+      p.input.forward = 0.34;
+      p.input.strafe = turnDirection * 0.72;
+    } else {
+      p.input.forward = clamp(distance / 8, 0.45, 0.95);
+      p.input.strafe = Math.sin(now / 1100 + (p.botOffset || 0)) * 0.12;
+    }
     p.input.crouch = false;
-    // エリア優先行動中は中央への移動を維持する。近くに敵が来た段階で戦闘思考へ切り替える。
     return;
   }
 
