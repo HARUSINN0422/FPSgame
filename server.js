@@ -277,6 +277,8 @@ const players = new Map();
 
 const MAP_ROOT = path.join(__dirname, "map");
 const MAP_MODE = "Melee";
+const MAP_ROTATION_INTERVAL_MS = 10 * 60 * 1000;
+const MAP_CHANGE_COUNTDOWN_MS = 5 * 1000;
 
 function loadMapsForMode(mode) {
   const modeDirectory = path.join(MAP_ROOT, mode);
@@ -308,6 +310,7 @@ function loadMapsForMode(mode) {
 
       maps.push({
         ...mapData,
+        mapFile: file,
         elevatedPlatforms: Array.isArray(mapData.elevatedPlatforms) ? mapData.elevatedPlatforms : []
       });
     } catch (error) {
@@ -318,17 +321,57 @@ function loadMapsForMode(mode) {
   if (maps.length === 0) {
     throw new Error("map/" + mode + "/ に有効なJSONマップがありません");
   }
+
+  // rotationOrderが小さい順。未設定ならファイル名順で末尾側に配置する。
+  maps.sort((a, b) => {
+    const orderA = Number.isFinite(Number(a.rotationOrder)) ? Number(a.rotationOrder) : Number.MAX_SAFE_INTEGER;
+    const orderB = Number.isFinite(Number(b.rotationOrder)) ? Number(b.rotationOrder) : Number.MAX_SAFE_INTEGER;
+    return orderA - orderB || a.mapFile.localeCompare(b.mapFile);
+  });
   return maps;
 }
 
-// 起動時にモードフォルダ内のマップから1つ選び、全プレイヤーで同じマップを使用します。
+// 起動時は順番の先頭マップから開始し、以後10分ごとに次のマップへ切り替えます。
 const availableMaps = loadMapsForMode(MAP_MODE);
-const activeMap = availableMaps[Math.floor(Math.random() * availableMaps.length)];
-const WORLD = activeMap.world;
-const spawnPoints = activeMap.spawnPoints;
-const obstacles = activeMap.obstacles;
-const ramps = activeMap.ramps;
-const elevatedPlatforms = activeMap.elevatedPlatforms;
+let activeMapIndex = 0;
+let activeMap = availableMaps[activeMapIndex];
+let WORLD = activeMap.world;
+let spawnPoints = activeMap.spawnPoints;
+let obstacles = activeMap.obstacles;
+let ramps = activeMap.ramps;
+let elevatedPlatforms = activeMap.elevatedPlatforms;
+let nextMapChangeAt = Date.now() + MAP_ROTATION_INTERVAL_MS;
+let lastMapCountdownSecond = null;
+
+function getMapInfo(map) {
+  return { mode: MAP_MODE, id: map.id, name: map.name, description: map.description || "" };
+}
+
+function getWorldPayload() {
+  return {
+    map: getMapInfo(activeMap),
+    obstacles,
+    ramps,
+    elevatedPlatforms,
+    world: WORLD,
+    weapons: Object.fromEntries(
+      Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
+    )
+  };
+}
+
+function getNextMap() {
+  return availableMaps[(activeMapIndex + 1) % availableMaps.length];
+}
+
+function getMapRotationStatus() {
+  return {
+    currentMap: getMapInfo(activeMap),
+    nextMap: getMapInfo(getNextMap()),
+    changeAt: nextMapChangeAt,
+    intervalMs: MAP_ROTATION_INTERVAL_MS
+  };
+}
 
 console.log("[Map] モード:", MAP_MODE, "マップ:", activeMap.name, "(" + activeMap.id + ")");
 
@@ -1012,16 +1055,16 @@ function publicPlayer(p, includeSkin = false) {
 }
 
 io.on("connection", (socket) => {
-  socket.emit("world", {
-    map: { mode: MAP_MODE, id: activeMap.id, name: activeMap.name, description: activeMap.description || "" },
-    obstacles,
-    ramps,
-    elevatedPlatforms,
-    world: WORLD,
-    weapons: Object.fromEntries(
-      Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
-    )
-  });
+  socket.emit("world", getWorldPayload());
+  socket.emit("mapRotationStatus", getMapRotationStatus());
+
+  const initialMapChangeRemaining = nextMapChangeAt - Date.now();
+  if (initialMapChangeRemaining > 0 && initialMapChangeRemaining <= MAP_CHANGE_COUNTDOWN_MS) {
+    socket.emit("mapChangeCountdown", {
+      seconds: Math.max(1, Math.ceil(initialMapChangeRemaining / 1000)),
+      nextMap: getMapInfo(getNextMap())
+    });
+  }
 
   socket.on("join", (data = {}) => {
     if (players.has(socket.id)) return;
@@ -1186,6 +1229,73 @@ io.on("connection", (socket) => {
     io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
   });
 });
+
+function rotateMeleeMap() {
+  activeMapIndex = (activeMapIndex + 1) % availableMaps.length;
+  activeMap = availableMaps[activeMapIndex];
+  WORLD = activeMap.world;
+  spawnPoints = activeMap.spawnPoints;
+  obstacles = activeMap.obstacles;
+  ramps = activeMap.ramps;
+  elevatedPlatforms = activeMap.elevatedPlatforms;
+
+  const now = Date.now();
+  const connectedPlayers = Array.from(players.values());
+  connectedPlayers.forEach((p, index) => {
+    const spawn = spawnPoints[index % spawnPoints.length];
+    p.x = spawn[0];
+    p.y = spawn[1] || 0;
+    p.z = spawn[2];
+    p.yaw = 0;
+    p.pitch = 0;
+    p.health = 100;
+    p.ammo = WEAPONS[p.weapon].magazineSize;
+    p.reloadingUntil = 0;
+    p.lastFire = 0;
+    p.velocityY = 0;
+    p.grounded = true;
+    p.lastGroundedAt = now;
+    p.jumpQueuedUntil = 0;
+    p.input = { forward: 0, strafe: 0, crouch: false };
+    p.crouched = false;
+    p.respawnAt = 0;
+    // Map transition resets everyone to full health and briefly protects them from spawn damage.
+    p.invulnerableUntil = now + 3000;
+    p.damageHitstopUntil = 0;
+    p.damageSlowUntil = 0;
+  });
+
+  io.emit("world", getWorldPayload());
+  io.emit("mapChanged", {
+    map: getMapInfo(activeMap),
+    nextMap: getMapInfo(getNextMap()),
+    nextChangeAt: nextMapChangeAt
+  });
+  io.emit("players", Array.from(players.values()).map((p) => publicPlayer(p, true)));
+  console.log("[Map] マップを切り替えました:", activeMap.name, "(" + activeMap.id + ")");
+}
+
+setInterval(() => {
+  const remaining = nextMapChangeAt - Date.now();
+  if (remaining <= 0) {
+    rotateMeleeMap();
+    nextMapChangeAt = Date.now() + MAP_ROTATION_INTERVAL_MS;
+    lastMapCountdownSecond = null;
+    io.emit("mapRotationStatus", getMapRotationStatus());
+    return;
+  }
+
+  if (availableMaps.length > 1 && remaining <= MAP_CHANGE_COUNTDOWN_MS) {
+    const seconds = Math.max(1, Math.ceil(remaining / 1000));
+    if (seconds !== lastMapCountdownSecond) {
+      lastMapCountdownSecond = seconds;
+      io.emit("mapChangeCountdown", {
+        seconds,
+        nextMap: getMapInfo(getNextMap())
+      });
+    }
+  }
+}, 100);
 
 setInterval(() => {
   const dt = 1 / TICK_RATE;
