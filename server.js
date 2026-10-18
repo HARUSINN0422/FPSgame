@@ -1278,9 +1278,10 @@ function rotateMeleeMap() {
 setInterval(() => {
   const remaining = nextMapChangeAt - Date.now();
   if (remaining <= 0) {
-    rotateMeleeMap();
+    // 次の周期を先に設定し、mapChangedイベントにも正しい予定時刻を載せます。
     nextMapChangeAt = Date.now() + MAP_ROTATION_INTERVAL_MS;
     lastMapCountdownSecond = null;
+    rotateMeleeMap();
     io.emit("mapRotationStatus", getMapRotationStatus());
     return;
   }
