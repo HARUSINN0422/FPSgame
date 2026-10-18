@@ -82,20 +82,52 @@ function drawGuides() {
     guideCtx.stroke();
   }
 
-  // This red hatched strip is not referenced by the standard 64x64 player UV layout.
-  // Pixels there can be edited, but no body surface uses them.
+  // Detect every atlas pixel used by the model's six faces, including both outer layers.
+  // Unmapped pixels remain editable on the canvas, but changing them cannot alter the character.
+  const mappedFaceRects = [
+    // Head base and outer layer
+    [0,8,8,8], [16,8,8,8], [8,0,8,8], [16,0,8,8], [8,8,8,8], [24,8,8,8],
+    [32,8,8,8], [48,8,8,8], [40,0,8,8], [48,0,8,8], [40,8,8,8], [56,8,8,8],
+    // Torso base and outer layer
+    [16,20,4,12], [28,20,4,12], [20,16,8,4], [28,16,8,4], [20,20,8,12], [32,20,8,12],
+    [16,36,4,12], [28,36,4,12], [20,32,8,4], [28,32,8,4], [20,36,8,12], [32,36,8,12],
+    // Right arm base and outer layer
+    [40,20,4,12], [48,20,4,12], [44,16,4,4], [48,16,4,4], [44,20,4,12], [52,20,4,12],
+    [40,36,4,12], [48,36,4,12], [44,32,4,4], [48,32,4,4], [44,36,4,12], [52,36,4,12],
+    // Right leg base and outer layer
+    [0,20,4,12], [8,20,4,12], [4,16,4,4], [8,16,4,4], [4,20,4,12], [12,20,4,12],
+    [0,36,4,12], [8,36,4,12], [4,32,4,4], [8,32,4,4], [4,36,4,12], [12,36,4,12],
+    // Left arm base and outer layer
+    [32,52,4,12], [40,52,4,12], [36,48,4,4], [40,48,4,4], [36,52,4,12], [44,52,4,12],
+    [48,52,4,12], [56,52,4,12], [52,48,4,4], [56,48,4,4], [52,52,4,12], [60,52,4,12],
+    // Left leg base and outer layer
+    [16,52,4,12], [24,52,4,12], [20,48,4,4], [24,48,4,4], [20,52,4,12], [28,52,4,12],
+    [0,52,4,12], [8,52,4,12], [4,48,4,4], [8,48,4,4], [4,52,4,12], [12,52,4,12]
+  ];
+  const mappedPixels = new Uint8Array(SKIN_SIZE * SKIN_SIZE);
+  for (const [x, y, w, h] of mappedFaceRects) {
+    for (let py = y; py < y + h; py++) {
+      for (let px = x; px < x + w; px++) mappedPixels[py * SKIN_SIZE + px] = 1;
+    }
+  }
+
+  // Hatch every unmapped pixel instead of implying that only one blank strip is unused.
   guideCtx.save();
-  guideCtx.fillStyle = "rgba(220, 65, 65, .18)";
-  guideCtx.fillRect(56, 16, 8, 32);
   guideCtx.beginPath();
-  guideCtx.rect(56, 16, 8, 32);
+  for (let y = 0; y < SKIN_SIZE; y++) {
+    for (let x = 0; x < SKIN_SIZE; x++) {
+      if (!mappedPixels[y * SKIN_SIZE + x]) guideCtx.rect(x, y, 1, 1);
+    }
+  }
   guideCtx.clip();
-  guideCtx.strokeStyle = "rgba(255, 115, 115, .75)";
+  guideCtx.fillStyle = "rgba(220, 65, 65, .24)";
+  guideCtx.fillRect(0, 0, SKIN_SIZE, SKIN_SIZE);
+  guideCtx.strokeStyle = "rgba(255, 115, 115, .8)";
   guideCtx.lineWidth = 0.7;
-  for (let x = 52; x < 68; x += 4) {
+  for (let start = -SKIN_SIZE; start < SKIN_SIZE * 2; start += 4) {
     guideCtx.beginPath();
-    guideCtx.moveTo(x, 16);
-    guideCtx.lineTo(x - 32, 48);
+    guideCtx.moveTo(start, 0);
+    guideCtx.lineTo(start - SKIN_SIZE, SKIN_SIZE);
     guideCtx.stroke();
   }
   guideCtx.restore();
