@@ -23,6 +23,7 @@ const DAMAGE_SLOW_MULTIPLIER = 0.45;
 
 const LOG_DIR = path.join(__dirname, "logs");
 const ERROR_LOG_FILE = path.join(LOG_DIR, "error.log");
+const SERVER_LOG_FILE = path.join(LOG_DIR, "server.log");
 
 try {
   fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -62,25 +63,68 @@ function saveLatestError(error, source = "Unknown") {
   }
 }
 
-// 常に「最後に発生したエラー」1件だけを保存する。
-// 新しいエラーが発生すると error.log を上書きするため、2個前のログは残らない。
-const originalConsoleError = console.error.bind(console);
-console.error = (...args) => {
-  originalConsoleError(...args);
+// 端末やSSH/PTYが切断されても、console.logの書き込み失敗でゲームを落とさない。
+let consoleOutputUnavailable = false;
 
+function appendServerLog(level, args) {
+  const line = new Date().toISOString() + " [" + level + "] " +
+    args.map((arg) => formatError(arg)).join(" ") + "\n";
+  try {
+    fs.appendFileSync(SERVER_LOG_FILE, line, "utf8");
+  } catch (_) {
+    // ログファイルへの書き込みも失敗した場合、二次例外でサーバーを停止させない。
+  }
+}
+
+function handleConsoleStreamError(error) {
+  consoleOutputUnavailable = true;
+  appendServerLog("CONSOLE-STREAM-ERROR", [error]);
+}
+
+// EIO / EPIPEなどのstream errorを未処理イベントにしない。
+process.stdout.on("error", handleConsoleStreamError);
+process.stderr.on("error", handleConsoleStreamError);
+
+const originalConsoleLog = console.log.bind(console);
+const originalConsoleInfo = console.info.bind(console);
+const originalConsoleWarn = console.warn.bind(console);
+const originalConsoleError = console.error.bind(console);
+
+function safeConsoleWrite(originalMethod, level, args) {
+  if (consoleOutputUnavailable) {
+    appendServerLog(level, args);
+    return;
+  }
+
+  try {
+    originalMethod(...args);
+  } catch (error) {
+    consoleOutputUnavailable = true;
+    appendServerLog("CONSOLE-WRITE-ERROR", [error]);
+    appendServerLog(level, args);
+  }
+}
+
+console.log = (...args) => safeConsoleWrite(originalConsoleLog, "INFO", args);
+console.info = (...args) => safeConsoleWrite(originalConsoleInfo, "INFO", args);
+console.warn = (...args) => safeConsoleWrite(originalConsoleWarn, "WARN", args);
+
+// エラーは従来どおりerror.logへ保存し、端末出力に失敗した場合はserver.logへ退避する。
+console.error = (...args) => {
   const message = args.map((arg) => formatError(arg)).join(" ");
   saveLatestError(message, "console.error");
+  safeConsoleWrite(originalConsoleError, "ERROR", args);
 };
 
 process.on("uncaughtException", (error) => {
   saveLatestError(error, "uncaughtException");
-  originalConsoleError("[Fatal] 未処理の例外:", error);
+  safeConsoleWrite(originalConsoleError, "FATAL", ["[Fatal] 未処理の例外:", error]);
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
   saveLatestError(reason, "unhandledRejection");
-  originalConsoleError("[Fatal] 未処理のPromise拒否:", reason);
+  safeConsoleWrite(originalConsoleError, "FATAL", ["[Fatal] 未処理のPromise拒否:", reason]);
 });
 
 const WEAPONS = {
@@ -183,13 +227,25 @@ function checkForUpdates() {
             if (npmStdout) console.log(npmStdout.trim());
             console.log("[AutoUpdate] 更新完了。新しいNode.jsプロセスを起動します。");
 
-            const child = spawn(process.execPath, [__filename], {
-              cwd: __dirname,
-              detached: true,
-              stdio: "inherit",
-              env: process.env
-            });
+            // 再起動後のプロセスは画面/SSHの端末ではなくログファイルへ出力する。
+            // これにより親プロセス終了後や端末切断後の write EIO を防ぐ。
+            const childLogFd = fs.openSync(SERVER_LOG_FILE, "a");
+            let child;
+            try {
+              child = spawn(process.execPath, [__filename], {
+                cwd: __dirname,
+                detached: true,
+                stdio: ["ignore", childLogFd, childLogFd],
+                env: process.env
+              });
+            } finally {
+              fs.closeSync(childLogFd);
+            }
 
+            child.once("error", (error) => {
+              saveLatestError(error, "AutoUpdate restart spawn");
+              appendServerLog("ERROR", ["[AutoUpdate] 新しいNode.jsプロセスを起動できません:", error]);
+            });
             child.unref();
             process.exit(0);
           });
