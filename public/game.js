@@ -1619,6 +1619,142 @@ socket.on("mapChanged", ({ map } = {}) => {
   }, 3000);
 });
 
+const areaQueuePanel = document.getElementById("areaQueuePanel");
+const areaQueueStatusText = document.getElementById("areaQueueStatus");
+const areaQueueCountText = document.getElementById("areaQueueCount");
+const areaQueueTimeText = document.getElementById("areaQueueTime");
+const areaQueueProgressFill = document.getElementById("areaQueueProgressFill");
+const areaQueueMessage = document.getElementById("areaQueueMessage");
+
+socket.on("areaQueueStatus", (status = {}) => {
+  if (!areaQueuePanel || joined) return;
+  const remainingMs = Math.max(0, Number(status.remainingMs) || 0);
+  const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  if (areaQueueStatusText) {
+    areaQueueStatusText.textContent = seconds > 0
+      ? "対戦相手を募集しています。"
+      : "BOTを準備しています。";
+  }
+  if (areaQueueCountText) areaQueueCountText.textContent = (Number(status.waiting) || 0) + " / 6 人";
+  if (areaQueueTimeText) areaQueueTimeText.textContent = seconds + "秒";
+  if (areaQueueProgressFill) areaQueueProgressFill.style.width =
+    Math.max(0, Math.min(100, 100 - remainingMs / 30000 * 100)) + "%";
+  if (areaQueueMessage) {
+    areaQueueMessage.textContent = status.waiting >= 6
+      ? "6人集まりました。対戦を開始します。"
+      : "6人集まるとすぐに開始します。30秒で集まらない場合はBOTが参加します。";
+  }
+});
+
+socket.on("areaQueueError", ({ message } = {}) => {
+  if (areaQueueMessage) areaQueueMessage.textContent = message || "マッチメイキングに失敗しました。";
+});
+
+socket.on("areaQueueCancelled", () => {
+  areaQueuePanel?.classList.add("hidden");
+  document.getElementById("modeScreen")?.classList.remove("hidden");
+  selectedGameMode = "Melee";
+  wasJoinedBeforeDisconnect = false;
+});
+
+socket.on("areaMatchStarted", ({ team, botCount, map } = {}) => {
+  selectedGameMode = "Area";
+  areaQueuePanel?.classList.add("hidden");
+  document.getElementById("areaResultPanel")?.classList.add("hidden");
+  document.getElementById("areaHud")?.classList.remove("hidden");
+  const teamLabel = document.getElementById("areaTeamLabel");
+  if (teamLabel) teamLabel.textContent = "あなた：" + (team === "blue" ? "BLUE" : "RED");
+  showMessage((map?.name ? map.name + " · " : "") + "エリア対戦開始" + (botCount ? "（BOT " + botCount + "人）" : ""));
+});
+
+socket.on("areaState", (state = {}) => {
+  if (state.matchId !== myState?.matchId || selectedGameMode !== "Area") return;
+  const blue = Math.max(0, Math.min(100, Number(state.scores?.blue) || 0));
+  const red = Math.max(0, Math.min(100, Number(state.scores?.red) || 0));
+  const blueFill = document.getElementById("areaBlueFill");
+  const redFill = document.getElementById("areaRedFill");
+  const blueText = document.getElementById("areaBlueScore");
+  const redText = document.getElementById("areaRedScore");
+  if (blueFill) blueFill.style.width = blue + "%";
+  if (redFill) redFill.style.width = red + "%";
+  if (blueText) blueText.textContent = Math.floor(blue) + "%";
+  if (redText) redText.textContent = Math.floor(red) + "%";
+
+  const statusEl = document.getElementById("areaCaptureStatus");
+  if (!statusEl) return;
+  if (state.status === "contested") {
+    statusEl.textContent = "争奪中：両チームがエリア内にいます";
+  } else if (state.status === "empty") {
+    statusEl.textContent = "中央エリアを確保してください";
+  } else if (state.holdTeam) {
+    const teamLabel = state.holdTeam === "blue" ? "BLUE" : "RED";
+    const seconds = Math.max(0, (Number(state.holdRemainingMs) || 0) / 1000);
+    statusEl.textContent = seconds > 0
+      ? teamLabel + " が確保中 · カウント開始まで " + seconds.toFixed(1) + "秒"
+      : teamLabel + " がエリアを制圧中";
+  } else {
+    statusEl.textContent = "中央エリアを確保してください";
+  }
+});
+
+socket.on("areaMatchEnd", (result = {}) => {
+  areaResultOpen = true;
+  stopAllControls();
+  const won = Boolean(result.won);
+  const title = document.getElementById("areaResultTitle");
+  const summary = document.getElementById("areaResultSummary");
+  if (title) {
+    title.textContent = won ? "勝利" : "敗北";
+    title.classList.toggle("area-result-win", won);
+  }
+  if (summary) {
+    const winner = result.winnerTeam === "blue" ? "BLUE" : "RED";
+    summary.textContent = winner + "チームがエリアを100%まで制圧しました。あなたのチーム：" +
+      (result.team === "blue" ? "BLUE" : "RED");
+  }
+  const blueScore = document.getElementById("areaResultBlueScore");
+  const redScore = document.getElementById("areaResultRedScore");
+  if (blueScore) blueScore.textContent = Math.round(result.scores?.blue || 0) + "%";
+  if (redScore) redScore.textContent = Math.round(result.scores?.red || 0) + "%";
+  const kills = Number(result.kills) || 0;
+  const deaths = Number(result.deaths) || 0;
+  document.getElementById("areaResultKills").textContent = String(kills);
+  document.getElementById("areaResultDeaths").textContent = String(deaths);
+  document.getElementById("areaResultKD").textContent = deaths ? (kills / deaths).toFixed(2) : (kills ? "∞" : "0.00");
+  document.getElementById("areaHud")?.classList.add("hidden");
+  document.getElementById("areaResultPanel")?.classList.remove("hidden");
+});
+
+document.getElementById("cancelAreaQueueButton")?.addEventListener("click", () => {
+  socket.emit("cancelAreaQueue");
+});
+
+document.getElementById("areaResultCloseButton")?.addEventListener("click", () => {
+  socket.emit("leaveAreaMatch");
+});
+
+socket.on("areaReturnToModeSelect", () => {
+  joined = false;
+  wasJoinedBeforeDisconnect = false;
+  reconnecting = false;
+  areaResultOpen = false;
+  selectedGameMode = "Melee";
+  myId = null;
+  myState = null;
+  stopAllControls();
+  setScopeEnabled(false);
+  document.getElementById("areaResultPanel")?.classList.add("hidden");
+  document.getElementById("areaQueuePanel")?.classList.add("hidden");
+  document.getElementById("areaHud")?.classList.add("hidden");
+  document.getElementById("hud")?.classList.add("hidden");
+  document.getElementById("touchUi")?.classList.add("hidden");
+  document.getElementById("settingsButton")?.classList.add("hidden");
+  document.getElementById("settingsPanel")?.classList.add("hidden");
+  document.getElementById("modeScreen")?.classList.remove("hidden");
+  mapChangeCountdownElement?.classList.add("hidden");
+  if (areaQueueMessage) areaQueueMessage.textContent = "6人集まるとすぐに開始します。30秒で集まらない場合はBOTが参加します。";
+});
+
 window.applyPlayerSkinToServer = (skinDataUrl) => {
   if (!joined || !socket.connected || typeof skinDataUrl !== "string") {
     return Promise.resolve({ ok: false, notInGame: true });
@@ -1763,12 +1899,14 @@ socket.on("connect", () => {
 
   if (wasJoinedBeforeDisconnect && playerName) {
     reconnecting = true;
-    socket.emit("join", {
+    const rejoinData = {
       name: playerName,
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       skin: window.getPlayerSkinData?.()
-    });
+    };
+    if (selectedGameMode === "Area") socket.emit("joinAreaQueue", rejoinData);
+    else socket.emit("join", rejoinData);
   } else {
     showMessage("サーバー接続済み");
   }
@@ -1777,7 +1915,7 @@ socket.on("connect", () => {
 socket.on("disconnect", () => {
   setConnectionStatus("接続中…", false);
 
-  if (joined) {
+  if (joined || (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden"))) {
     wasJoinedBeforeDisconnect = true;
     joined = false;
     stopAllControls();
@@ -1842,14 +1980,40 @@ document.getElementById("backToLoadoutButton")?.addEventListener("click", () => 
 document.getElementById("freeForAllModeButton")?.addEventListener("click", () => {
   if (joined) return;
   const name = savePlayerName();
+  selectedGameMode = "Melee";
+  areaResultOpen = false;
   selectedWeapon = selectedPrimaryWeapon;
   weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
   document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("areaQueuePanel")?.classList.add("hidden");
+  document.getElementById("areaResultPanel")?.classList.add("hidden");
   socket.emit("join", {
     name,
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     mode: "free-for-all",
+    skin: window.getPlayerSkinData?.()
+  });
+});
+
+document.getElementById("areaModeButton")?.addEventListener("click", () => {
+  if (joined) return;
+  const name = savePlayerName();
+  selectedGameMode = "Area";
+  areaResultOpen = false;
+  selectedWeapon = selectedPrimaryWeapon;
+  weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("areaResultPanel")?.classList.add("hidden");
+  if (areaQueueStatusText) areaQueueStatusText.textContent = "対戦相手を募集しています。";
+  if (areaQueueCountText) areaQueueCountText.textContent = "1 / 6 人";
+  if (areaQueueTimeText) areaQueueTimeText.textContent = "30秒";
+  if (areaQueueProgressFill) areaQueueProgressFill.style.width = "0%";
+  if (areaQueuePanel) areaQueuePanel.classList.remove("hidden");
+  socket.emit("joinAreaQueue", {
+    name,
+    weapon: selectedPrimaryWeapon,
+    secondaryWeapon: selectedSecondaryWeapon,
     skin: window.getPlayerSkinData?.()
   });
 });
