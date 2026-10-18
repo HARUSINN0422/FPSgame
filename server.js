@@ -350,6 +350,12 @@ let elevatedPlatforms = activeMap.elevatedPlatforms;
 let nextMapChangeAt = Date.now() + MAP_ROTATION_INTERVAL_MS;
 let lastMapCountdownSecond = null;
 
+const areaMatches = new Map();
+let areaQueue = [];
+let areaQueueStartedAt = 0;
+let lastAreaQueueSecond = null;
+let areaMatchSequence = 0;
+
 function getMapInfo(map, mode = MAP_MODE) {
   return { mode, id: map.id, name: map.name, description: map.description || "" };
 }
