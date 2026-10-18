@@ -560,6 +560,7 @@ function updateBot(p, now) {
   const botInsideZone = zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.75;
   const nearbyEnemy = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius + 12);
   const moveToObjective = Boolean(zone && !botInsideZone && !nearbyEnemy && livingTeamMembersInZone < 2);
+  const holdObjective = Boolean(zone && botInsideZone && !nearbyEnemy);
 
   if (moveToObjective) {
     const dx = zone.x - p.x;
@@ -580,6 +581,15 @@ function updateBot(p, now) {
   }
 
   if (!targets.length) {
+    if (isAreaBot && holdObjective) {
+      // 敵がエリア付近にいないときは、その場に留まって制圧を継続する。
+      p.input.forward = 0;
+      p.input.strafe = 0;
+      p.input.crouch = false;
+      p.yaw += (Math.random() - 0.5) * 0.08;
+      p.pitch = 0;
+      return;
+    }
     // 相手がいない間も巡回する。壁が近い場合は向きを変えて進路を探す。
     if (!p.botWanderTurnAt || now >= p.botWanderTurnAt) {
       p.yaw += (Math.random() - 0.5) * 1.8;
@@ -614,7 +624,11 @@ function updateBot(p, now) {
   const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
   const dir = directionFromAngles(p.yaw, p.pitch);
   const wallDistance = rayHitsObstacle(origin, dir, Math.min(distance, WEAPONS[p.weapon].range), p);
-  if (distance > 5) {
+  if (holdObjective) {
+    // エリア確保中は敵を狙って射撃するが、追いかけてエリア外へ出ない。
+    p.input.forward = 0;
+    p.input.strafe = 0;
+  } else if (distance > 5) {
     p.input.forward = wallDistance !== null && wallDistance < distance - 1 ? 0.12 : 0.45;
     p.input.strafe = Math.sin(now / 850) * 0.35;
   } else {
