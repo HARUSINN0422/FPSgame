@@ -95,6 +95,8 @@ let respawnTimer = null;
 let joined = false;
 let myId = null;
 let myState = null;
+let selectedGameMode = "Melee";
+let areaResultOpen = false;
 let selectedWeapon = "pistol";
 let weaponSlots = ["pistol", "rifle"];
 let activeWeaponSlot = 0;
@@ -695,6 +697,39 @@ function buildWorld(data) {
   grid.position.set(centerX, 0.01, centerZ);
   worldGroup.add(grid);
 
+  if (data.areaZone && Number.isFinite(data.areaZone.radius)) {
+    const zone = data.areaZone;
+    const zoneFloor = new THREE.Mesh(
+      new THREE.CircleGeometry(zone.radius, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0xf2c84b,
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      })
+    );
+    zoneFloor.rotation.x = -Math.PI / 2;
+    zoneFloor.position.set(zone.x, 0.035, zone.z);
+    worldGroup.add(zoneFloor);
+
+    const zoneRing = new THREE.Mesh(
+      new THREE.TorusGeometry(zone.radius, 0.16, 10, 64),
+      new THREE.MeshBasicMaterial({ color: 0xffdf67, depthWrite: false })
+    );
+    zoneRing.rotation.x = Math.PI / 2;
+    zoneRing.position.set(zone.x, 0.18, zone.z);
+    worldGroup.add(zoneRing);
+
+    const innerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(zone.radius * 0.72, 0.045, 8, 64),
+      new THREE.MeshBasicMaterial({ color: 0xfff0ad, transparent: true, opacity: 0.8, depthWrite: false })
+    );
+    innerRing.rotation.x = Math.PI / 2;
+    innerRing.position.set(zone.x, 0.12, zone.z);
+    worldGroup.add(innerRing);
+  }
+
   for (const o of data.obstacles || []) {
     makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
   }
@@ -1073,7 +1108,9 @@ function updateRemotePlayers(players) {
 
     if (p.skin) applyPlayerSkin(obj, p.skin);
     if (!obj.userData.skinDataUrl) {
-      const clothingColor = playerClothingColor(p.name);
+      const clothingColor = p.mode === "Area"
+        ? new THREE.Color(p.team === "blue" ? 0x287bd1 : 0xc93636)
+        : playerClothingColor(p.name);
       for (const mesh of [obj.userData.skinMeshes?.base?.torso, obj.userData.skinMeshes?.base?.armL, obj.userData.skinMeshes?.base?.armR]) {
         if (!mesh) continue;
         const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
@@ -1553,6 +1590,7 @@ function displayMapChangeCountdown(seconds, nextMap) {
 }
 
 socket.on("mapRotationStatus", (status = {}) => {
+  if (!joined || selectedGameMode !== "Melee") return;
   const remaining = Number(status.changeAt) - Date.now();
   if (remaining > 0 && remaining <= 5000) {
     displayMapChangeCountdown(Math.max(1, Math.ceil(remaining / 1000)), status.nextMap);
@@ -1560,10 +1598,12 @@ socket.on("mapRotationStatus", (status = {}) => {
 });
 
 socket.on("mapChangeCountdown", ({ seconds, nextMap } = {}) => {
+  if (!joined || selectedGameMode !== "Melee") return;
   displayMapChangeCountdown(seconds, nextMap);
 });
 
 socket.on("mapChanged", ({ map } = {}) => {
+  if (selectedGameMode !== "Melee") return;
   stopAllControls();
   setScopeEnabled(false);
   yaw = 0;
@@ -1602,6 +1642,8 @@ socket.on("joined", ({ player }) => {
   joined = true;
   wasJoinedBeforeDisconnect = true;
   reconnecting = false;
+  selectedGameMode = player.mode || "Melee";
+  areaResultOpen = false;
   playerName = player.name || playerName;
   setCookie("fps_player_name", playerName);
   selectedWeapon = player.weapon || selectedWeapon;
@@ -1616,9 +1658,17 @@ socket.on("joined", ({ player }) => {
   pitch = player.pitch;
 
   document.getElementById("weaponScreen").classList.add("hidden");
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("areaQueuePanel")?.classList.add("hidden");
+  document.getElementById("areaResultPanel")?.classList.add("hidden");
   document.getElementById("hud").classList.remove("hidden");
   document.getElementById("touchUi").classList.remove("hidden");
   document.getElementById("settingsButton")?.classList.remove("hidden");
+  document.getElementById("areaHud")?.classList.toggle("hidden", selectedGameMode !== "Area");
+  const areaTeamLabel = document.getElementById("areaTeamLabel");
+  if (areaTeamLabel) areaTeamLabel.textContent = selectedGameMode === "Area"
+    ? "あなた：" + (player.team === "blue" ? "BLUE" : "RED")
+    : "";
   setConnectionStatus("接続済み", true);
   updateAmmoHud();
   updateWeaponSwitchButton();
