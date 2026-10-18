@@ -28,7 +28,7 @@ const SERVER_LOG_FILE = path.join(LOG_DIR, "server.log");
 try {
   fs.mkdirSync(LOG_DIR, { recursive: true });
 } catch (error) {
-  process.stderr.write("[ErrorLog] ログフォルダを作成できません: " + error.message + "\n");
+  appendServerLog("ERROR-LOG", ["ログフォルダを作成できません:", error]);
 }
 
 function formatError(error) {
@@ -59,7 +59,7 @@ function saveLatestError(error, source = "Unknown") {
   try {
     fs.writeFileSync(ERROR_LOG_FILE, content, "utf8");
   } catch (writeError) {
-    process.stderr.write("[ErrorLog] エラーログを書き込めません: " + writeError.message + "\n");
+    appendServerLog("ERROR-LOG", ["エラーログを書き込めません:", writeError]);
   }
 }
 
@@ -260,7 +260,7 @@ const io = new Server(server);
 
 server.on("error", (error) => {
   saveLatestError(error, "http.Server");
-  originalConsoleError("[Server Error]", error);
+  safeConsoleWrite(originalConsoleError, "ERROR", ["[Server Error]", error]);
 });
 
 app.use(express.static(path.join(__dirname, "public")));
