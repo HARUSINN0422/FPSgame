@@ -902,7 +902,12 @@ function getSkinFaceMaterial(dataUrl, image, rect, transparent) {
 function makeSkinMaterials(dataUrl, image, part, overlay = false) {
   const atlas = overlay ? SKIN_OVERLAY_RECTS : SKIN_BASE_RECTS;
   const faceRects = atlas[part];
-  return SKIN_FACE_ORDER.map((face) => getSkinFaceMaterial(dataUrl, image, faceRects[face], overlay));
+  // The player model faces -Z, while BoxGeometry's "front" material slot is +Z.
+  // Swap the atlas front/back rectangles so facial details appear on the avatar's actual front.
+  return SKIN_FACE_ORDER.map((face) => {
+    const atlasFace = face === "front" ? "back" : face === "back" ? "front" : face;
+    return getSkinFaceMaterial(dataUrl, image, faceRects[atlasFace], overlay);
+  });
 }
 
 async function applyPlayerSkin(root, dataUrl) {
