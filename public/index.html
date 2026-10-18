@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="/style.css?v=skin-live-apply-6">
+  <link rel="stylesheet" href="/style.css?v=map-rotation-1">
 </head>
 <body>
   <div id="game"></div>
@@ -168,6 +168,7 @@
       <div id="kdHud">K <span id="kills">0</span> / D <span id="deaths">0</span></div>
     </div>
     <div id="connectionStatus" class="disconnected">接続中…</div>
+    <div id="mapChangeCountdown" class="hidden" role="status" aria-live="polite"></div>
     <div id="invulnerabilityHud" class="hidden">無敵 3.0秒</div>
     <div id="minimap" aria-label="敵位置を表示しないミニマップ">
       <canvas id="minimapCanvas" width="180" height="180"></canvas>
@@ -269,6 +270,6 @@
   }
   </script>
   <script type="module" src="/skin-editor.js?v=skin-live-apply-6"></script>
-  <script type="module" src="/game.js?v=skin-live-apply-6"></script>
+  <script type="module" src="/game.js?v=map-rotation-1"></script>
 </body>
 </html>
