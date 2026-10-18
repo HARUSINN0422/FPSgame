@@ -277,8 +277,13 @@ const players = new Map();
 
 const MAP_ROOT = path.join(__dirname, "map");
 const MAP_MODE = "Melee";
+const AREA_MODE = "Area";
 const MAP_ROTATION_INTERVAL_MS = 10 * 60 * 1000;
 const MAP_CHANGE_COUNTDOWN_MS = 5 * 1000;
+const AREA_QUEUE_DURATION_MS = 30 * 1000;
+const AREA_CONTROL_HOLD_MS = 5 * 1000;
+const AREA_PROGRESS_PER_PERCENT_MS = 1500;
+const AREA_BOT_NAMES = ["Liam", "Noah", "Oliver", "James", "Elijah", "Mateo", "Theodore", "Henry", "Lucas", "Jack"];
 
 function loadMapsForMode(mode) {
   const modeDirectory = path.join(MAP_ROOT, mode);
@@ -331,8 +336,10 @@ function loadMapsForMode(mode) {
   return maps;
 }
 
-// 起動時は順番の先頭マップから開始し、以後10分ごとに次のマップへ切り替えます。
+// 各モードのマップを別々に読み込みます。Areaは1枚の専用マップ上で独立した試合を行います。
 const availableMaps = loadMapsForMode(MAP_MODE);
+const areaMaps = loadMapsForMode(AREA_MODE);
+const areaMap = areaMaps[0];
 let activeMapIndex = 0;
 let activeMap = availableMaps[activeMapIndex];
 let WORLD = activeMap.world;
@@ -343,21 +350,40 @@ let elevatedPlatforms = activeMap.elevatedPlatforms;
 let nextMapChangeAt = Date.now() + MAP_ROTATION_INTERVAL_MS;
 let lastMapCountdownSecond = null;
 
-function getMapInfo(map) {
-  return { mode: MAP_MODE, id: map.id, name: map.name, description: map.description || "" };
+function getMapInfo(map, mode = MAP_MODE) {
+  return { mode, id: map.id, name: map.name, description: map.description || "" };
 }
 
-function getWorldPayload() {
+function getMapForPlayer(player) {
+  return player?.mode === AREA_MODE ? areaMap : activeMap;
+}
+
+function getMapCollectionsForPlayer(player) {
+  const map = getMapForPlayer(player);
   return {
-    map: getMapInfo(activeMap),
-    obstacles,
-    ramps,
-    elevatedPlatforms,
-    world: WORLD,
+    world: map.world,
+    obstacles: map.obstacles || [],
+    ramps: map.ramps || [],
+    elevatedPlatforms: map.elevatedPlatforms || []
+  };
+}
+
+function getWorldPayloadForMap(map, mode) {
+  return {
+    map: getMapInfo(map, mode),
+    obstacles: map.obstacles || [],
+    ramps: map.ramps || [],
+    elevatedPlatforms: map.elevatedPlatforms || [],
+    world: map.world,
+    ...(mode === AREA_MODE && map.areaZone ? { areaZone: map.areaZone } : {}),
     weapons: Object.fromEntries(
       Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
     )
   };
+}
+
+function getWorldPayload() {
+  return getWorldPayloadForMap(activeMap, MAP_MODE);
 }
 
 function getNextMap() {
@@ -398,7 +424,7 @@ function sanitizeSkin(value) {
 }
 
 function pickSpawn() {
-  const alivePlayers = Array.from(players.values()).filter((p) => p.health > 0);
+  const alivePlayers = Array.from(players.values()).filter((p) => p.health > 0 && p.mode !== AREA_MODE);
   const scored = spawnPoints.map((spawn) => {
     const [x, _y, z] = spawn;
     const nearestDistance = alivePlayers.length
@@ -416,9 +442,60 @@ function pickSpawn() {
   return scored[0]?.spawn || [0, 0, 10];
 }
 
+function pickSpawnForPlayer(player, index = 0) {
+  if (player?.mode === AREA_MODE) {
+    const teamSpawns = areaMap.teamSpawnPoints?.[player.team] || areaMap.spawnPoints;
+    if (teamSpawns?.length) return teamSpawns[Math.abs(index) % teamSpawns.length];
+  }
+  return pickSpawn();
+}
+
+function isSameGame(a, b) {
+  if (!a || !b) return false;
+  const modeA = a.mode || MAP_MODE;
+  const modeB = b.mode || MAP_MODE;
+  if (modeA !== modeB) return false;
+  if (modeA === AREA_MODE) return Boolean(a.matchId && a.matchId === b.matchId);
+  return true;
+}
+
+function gamePlayersFor(player) {
+  return Array.from(players.values()).filter((candidate) => isSameGame(player, candidate));
+}
+
+function broadcastPlayers() {
+  for (const client of io.sockets.sockets.values()) {
+    const player = players.get(client.id);
+    const visiblePlayers = player ? gamePlayersFor(player) : [];
+    client.emit("players", visiblePlayers.map((entry) => publicPlayer(entry, true)));
+  }
+}
+
+function broadcastGameEvent(referencePlayer, eventName, payload) {
+  if (!referencePlayer) return;
+  for (const client of io.sockets.sockets.values()) {
+    const player = players.get(client.id);
+    if (player && isSameGame(referencePlayer, player)) client.emit(eventName, payload);
+  }
+}
+
+function broadcastModeEvent(mode, eventName, payload) {
+  for (const client of io.sockets.sockets.values()) {
+    const player = players.get(client.id);
+    if (player && (player.mode || MAP_MODE) === mode) client.emit(eventName, payload);
+  }
+}
+
+function broadcastState() {
+  for (const client of io.sockets.sockets.values()) {
+    const player = players.get(client.id);
+    if (player) client.emit("state", gamePlayersFor(player).map((entry) => publicPlayer(entry)));
+  }
+}
+
 function syncBots() {
-  const humanPlayers = Array.from(players.values()).filter((p) => !p.isBot);
-  const bots = Array.from(players.values()).filter((p) => p.isBot);
+  const humanPlayers = Array.from(players.values()).filter((p) => !p.isBot && (p.mode || MAP_MODE) === MAP_MODE);
+  const bots = Array.from(players.values()).filter((p) => p.isBot && (p.mode || MAP_MODE) === MAP_MODE);
 
   if (humanPlayers.length !== 1) {
     for (const bot of bots) players.delete(bot.id);
@@ -456,10 +533,45 @@ function syncBots() {
 }
 
 function updateBot(p, now) {
-  if (!p.isBot || p.health <= 0 || now < p.botThinkAt) return;
+  if (!p.isBot || p.health <= 0 || p.finished || now < p.botThinkAt) return;
   p.botThinkAt = now + 100 + Math.random() * 80;
 
-  const targets = Array.from(players.values()).filter((other) => !other.isBot && other.health > 0);
+  const isAreaBot = p.mode === AREA_MODE;
+  const match = isAreaBot ? areaMatches.get(p.matchId) : null;
+  const targets = Array.from(players.values()).filter((other) =>
+    other.id !== p.id &&
+    other.health > 0 &&
+    isSameGame(p, other) &&
+    (isAreaBot ? other.team !== p.team : !other.isBot)
+  );
+
+  // Area BOTは味方が制圧エリアにいない場合、敵が遠くても中央へ向かう。
+  const zone = isAreaBot ? areaMap.areaZone : null;
+  const livingTeamMembersInZone = zone ? Array.from(players.values()).filter((other) =>
+    isSameGame(p, other) && other.health > 0 && other.team === p.team &&
+    Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius
+  ).length : 0;
+  const botInsideZone = zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.75;
+  const nearbyEnemy = zone && targets.some((other) => Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius + 12);
+  const moveToObjective = Boolean(zone && !botInsideZone && !nearbyEnemy && livingTeamMembersInZone < 2);
+
+  if (moveToObjective) {
+    const dx = zone.x - p.x;
+    const dz = zone.z - p.z;
+    const distance = Math.max(0.001, Math.hypot(dx, dz));
+    const targetYaw = Math.atan2(-dx, -dz);
+    const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
+    p.yaw += clamp(yawDelta, -0.18, 0.18);
+    p.pitch = 0;
+    const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
+    const dir = directionFromAngles(p.yaw, 0);
+    const wallDistance = rayHitsObstacle(origin, dir, 3.2, p);
+    p.input.forward = wallDistance !== null && wallDistance < 2.4 ? 0.15 : clamp(distance / 12, 0.28, 0.85);
+    p.input.strafe = Math.sin(now / 900 + (p.botOffset || 0)) * 0.16;
+    p.input.crouch = false;
+    if (!targets.length || distance > 22) return;
+  }
+
   if (!targets.length) {
     // 相手がいない間も巡回する。壁が近い場合は向きを変えて進路を探す。
     if (!p.botWanderTurnAt || now >= p.botWanderTurnAt) {
@@ -469,7 +581,7 @@ function updateBot(p, now) {
     p.pitch = 0;
     const wanderOrigin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
     const wanderDir = directionFromAngles(p.yaw, 0);
-    const wanderWall = rayHitsObstacle(wanderOrigin, wanderDir, 3.2);
+    const wanderWall = rayHitsObstacle(wanderOrigin, wanderDir, 3.2, p);
     if (wanderWall !== null && wanderWall < 2.4) {
       p.yaw += (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 1.1);
       p.botWanderTurnAt = now + 500;
@@ -494,7 +606,7 @@ function updateBot(p, now) {
   // 射線が壁に遮られているときは、横移動しながら射線を探す。
   const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
   const dir = directionFromAngles(p.yaw, p.pitch);
-  const wallDistance = rayHitsObstacle(origin, dir, Math.min(distance, WEAPONS[p.weapon].range));
+  const wallDistance = rayHitsObstacle(origin, dir, Math.min(distance, WEAPONS[p.weapon].range), p);
   if (distance > 5) {
     p.input.forward = wallDistance !== null && wallDistance < distance - 1 ? 0.12 : 0.45;
     p.input.strafe = Math.sin(now / 850) * 0.35;
@@ -520,7 +632,7 @@ function updateBot(p, now) {
 }
 
 function respawnBot(p, now) {
-  const spawn = pickSpawn();
+  const spawn = pickSpawnForPlayer(p, p.botSpawnIndex || 0);
   p.x = spawn[0]; p.y = 0; p.z = spawn[2];
   p.yaw = 0; p.pitch = 0;
   p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
@@ -533,14 +645,17 @@ function respawnBot(p, now) {
   p.damageHitstopUntil = 0; p.damageSlowUntil = 0;
 }
 
-function collides(x, z, y = 0, height = PLAYER_HEIGHT) {
-  if (x < WORLD.minX + PLAYER_RADIUS || x > WORLD.maxX - PLAYER_RADIUS) return true;
-  if (z < WORLD.minZ + PLAYER_RADIUS || z > WORLD.maxZ - PLAYER_RADIUS) return true;
+function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
+  const map = getMapForPlayer(player);
+  const bounds = map.world;
+  const mapObstacles = map.obstacles || [];
+  if (x < bounds.minX + PLAYER_RADIUS || x > bounds.maxX - PLAYER_RADIUS) return true;
+  if (z < bounds.minZ + PLAYER_RADIUS || z > bounds.maxZ - PLAYER_RADIUS) return true;
 
   const bodyBottom = y;
   const bodyTop = y + height;
 
-  return obstacles.some((o) => {
+  return mapObstacles.some((o) => {
     if (bodyTop <= 0 || bodyBottom >= o.h) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
@@ -566,15 +681,16 @@ function getRampHeight(ramp, x, z) {
   return clamp(t, 0, 1) * ramp.h;
 }
 
-function getGroundHeight(x, z, playerY = 0) {
+function getGroundHeight(x, z, playerY = 0, player = null) {
   let height = 0;
+  const map = getMapForPlayer(player);
 
-  for (const ramp of ramps) {
+  for (const ramp of map.ramps || []) {
     const rampHeight = getRampHeight(ramp, x, z);
     if (rampHeight !== null) height = Math.max(height, rampHeight);
   }
 
-  for (const platform of elevatedPlatforms) {
+  for (const platform of map.elevatedPlatforms || []) {
     if (Math.abs(x - platform.x) <= platform.w / 2 - PLAYER_RADIUS &&
         Math.abs(z - platform.z) <= platform.d / 2 + PLAYER_RADIUS) {
       height = Math.max(height, platform.h);
@@ -584,7 +700,7 @@ function getGroundHeight(x, z, playerY = 0) {
 }
 
 function canStand(p) {
-  return !collides(p.x, p.z, p.y, PLAYER_HEIGHT);
+  return !collides(p.x, p.z, p.y, PLAYER_HEIGHT, p);
 }
 
 function updateCrouchState(p) {
@@ -604,7 +720,7 @@ function movePlayer(p, dt) {
   updateCrouchState(p);
 
   // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
-  const groundBefore = getGroundHeight(p.x, p.z, p.y);
+  const groundBefore = getGroundHeight(p.x, p.z, p.y, p);
   const wasGrounded = p.grounded;
 
   if (p.y <= groundBefore + 0.08 && p.velocityY <= 0) {
@@ -644,22 +760,22 @@ function movePlayer(p, dt) {
 
   // 坂の上を歩いている場合は、坂の高さまで自然に追従させる。
   // 空中にいる場合は現在のYをそのまま使って壁との衝突だけ判定する。
-  const nextGroundX = getGroundHeight(nextX, p.z, p.y);
+  const nextGroundX = getGroundHeight(nextX, p.z, p.y, p);
   const currentHeight = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const collisionY = wasGrounded && p.velocityY <= 0
     ? Math.max(p.y, nextGroundX)
     : p.y;
 
-  if (!collides(nextX, p.z, collisionY, currentHeight)) {
+  if (!collides(nextX, p.z, collisionY, currentHeight, p)) {
     p.x = nextX;
   }
 
-  const nextGroundZ = getGroundHeight(p.x, nextZ, p.y);
+  const nextGroundZ = getGroundHeight(p.x, nextZ, p.y, p);
   const collisionY2 = wasGrounded && p.velocityY <= 0
     ? Math.max(p.y, nextGroundZ)
     : p.y;
 
-  if (!collides(p.x, nextZ, collisionY2, currentHeight)) {
+  if (!collides(p.x, nextZ, collisionY2, currentHeight, p)) {
     p.z = nextZ;
   }
 
@@ -673,7 +789,7 @@ function movePlayer(p, dt) {
   // 台の上からゆっくり降りるときに、1tickの間に台を突き抜けないようにする。
   // プレイヤーの足元が台の上面を上から下へ横切った瞬間に、台の上面へ固定する。
   if (!p.grounded && p.velocityY <= 0 && p.y <= previousY) {
-    for (const obstacle of obstacles) {
+    for (const obstacle of (getMapForPlayer(p).obstacles || [])) {
       const insideX =
         p.x > obstacle.x - obstacle.w / 2 - PLAYER_RADIUS &&
         p.x < obstacle.x + obstacle.w / 2 + PLAYER_RADIUS;
@@ -702,7 +818,7 @@ function movePlayer(p, dt) {
     }
   }
 
-  const ground = getGroundHeight(p.x, p.z, p.y);
+  const ground = getGroundHeight(p.x, p.z, p.y, p);
 
   // 坂を上るときは地面の高さに追従する。
   // 坂から外れた場合はground=0になり、重力で下へ落ちる。
@@ -742,10 +858,11 @@ function directionFromAngles(yaw, pitch) {
   };
 }
 
-function rayHitsObstacle(origin, direction, maxDistance) {
+function rayHitsObstacle(origin, direction, maxDistance, player = null) {
   let nearest = Infinity;
+  const mapObstacles = getMapForPlayer(player).obstacles || [];
 
-  for (const o of obstacles) {
+  for (const o of mapObstacles) {
     // 壁を少し厚くして、弾が境界をすり抜けるのを防ぐ。
     const minX = o.x - o.w / 2;
     const maxX = o.x + o.w / 2;
