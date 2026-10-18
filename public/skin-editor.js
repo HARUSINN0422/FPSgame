@@ -82,14 +82,42 @@ function drawGuides() {
     guideCtx.stroke();
   }
 
-  guideCtx.strokeStyle = "rgba(255,245,190,.85)";
+  // This red hatched strip is not referenced by the standard 64x64 player UV layout.
+  // Pixels there can be edited, but no body surface uses them.
+  guideCtx.save();
+  guideCtx.fillStyle = "rgba(220, 65, 65, .18)";
+  guideCtx.fillRect(56, 16, 8, 32);
+  guideCtx.beginPath();
+  guideCtx.rect(56, 16, 8, 32);
+  guideCtx.clip();
+  guideCtx.strokeStyle = "rgba(255, 115, 115, .75)";
+  guideCtx.lineWidth = 0.7;
+  for (let x = 52; x < 68; x += 4) {
+    guideCtx.beginPath();
+    guideCtx.moveTo(x, 16);
+    guideCtx.lineTo(x - 32, 48);
+    guideCtx.stroke();
+  }
+  guideCtx.restore();
+
+  // Outline every mapped atlas block, including the head's outer layer and left limbs.
   guideCtx.lineWidth = 1;
-  // Main atlas region boundaries, not a replacement for the user's pixels.
-  for (const [x, y, w, h] of [
-    [0, 0, 32, 16], [0, 16, 16, 16], [16, 16, 24, 16],
-    [40, 16, 16, 16], [0, 32, 64, 16],
-    [16, 48, 16, 16], [32, 48, 16, 16]
-  ]) {
+  const mappedRegions = [
+    [0, 0, 32, 16, "rgba(255,245,190,.95)"],   // head base
+    [32, 0, 32, 16, "rgba(115,220,255,.95)"],  // head overlay
+    [0, 16, 16, 16, "rgba(255,245,190,.95)"],  // right leg base
+    [16, 16, 24, 16, "rgba(255,245,190,.95)"], // torso base
+    [40, 16, 16, 16, "rgba(255,245,190,.95)"], // right arm base
+    [0, 32, 16, 16, "rgba(115,220,255,.95)"],  // right leg overlay
+    [16, 32, 24, 16, "rgba(115,220,255,.95)"], // torso overlay
+    [40, 32, 16, 16, "rgba(115,220,255,.95)"], // right arm overlay
+    [0, 48, 16, 16, "rgba(115,220,255,.95)"],  // left leg overlay
+    [16, 48, 16, 16, "rgba(255,245,190,.95)"], // left leg base
+    [32, 48, 16, 16, "rgba(255,245,190,.95)"], // left arm base
+    [48, 48, 16, 16, "rgba(115,220,255,.95)"]  // left arm overlay
+  ];
+  for (const [x, y, w, h, color] of mappedRegions) {
+    guideCtx.strokeStyle = color;
     guideCtx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   }
 }
@@ -289,7 +317,19 @@ function stopDrawing(event) {
 }
 skinCanvas?.addEventListener("pointerup", stopDrawing);
 skinCanvas?.addEventListener("pointercancel", stopDrawing);
-window.addEventListener("pointerup", () => { drawingPointer = null; lastCell = null; });
+skinCanvas?.addEventListener("lostpointercapture", (event) => {
+  if (event.pointerId === drawingPointer) {
+    drawingPointer = null;
+    lastCell = null;
+  }
+});
+window.addEventListener("pointerup", (event) => {
+  // Do not cancel a drawing gesture when a different finger/pointer is released.
+  if (event.pointerId === drawingPointer) {
+    drawingPointer = null;
+    lastCell = null;
+  }
+});
 
 document.getElementById("skinUndoButton")?.addEventListener("click", () => {
   const previous = undoStack.pop();
