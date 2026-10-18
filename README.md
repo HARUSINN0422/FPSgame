@@ -45,12 +45,25 @@ http://<サーバーIP>:3007/
 ```
 .
 ├─ server.js
+├─ map/
+│  ├─ README.md
+│  └─ Melee/
+│     ├─ RampArena.json
+│     └─ Courtyard.json
 ├─ package.json
-└─ public
+└─ public/
    ├─ index.html
    ├─ game.js
    └─ style.css
 ```
+
+## マップの追加
+
+- 乱闘モードのマップは `map/Melee/` にJSONファイルを追加します。
+- `server.js` は起動時にこのフォルダのJSONを読み込み、その中から1つをランダムに選択します。全プレイヤーが同じマップで遊びます。
+- 現在は `RampArena.json`（従来のマップ）と `Courtyard.json`（別レイアウト）を収録しています。
+- 将来ゲームモードを増やす場合は、`map/` 直下にそのモード用フォルダ（例：`map/TeamBattle/`）を作り、そのモードのマップJSONを保存します。
+- 各フィールドの仕様は `map/README.md` に記載しています。
 
 ## 注意
 
