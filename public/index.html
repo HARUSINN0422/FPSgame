@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=input-sensitivity-3">
+  <link rel="stylesheet" href="style.css?v=touch-slide-look-1">
 </head>
 <body>
   <div id="game"></div>
@@ -81,6 +81,11 @@
             <strong>他のボタンを押しながら視点を動かす</strong>
             <span><input id="allowLookWhileActionHeldToggle" type="checkbox" checked> <strong id="allowLookToggleValue">ON（許可）</strong></span>
             <p>OFFにすると、移動スティック以外のボタンを押している間は視点が動きません。</p>
+          </label>
+          <label class="setting-section look-toggle-row">
+            <strong>ジャンプ・しゃがみを押したまま視点を動かす</strong>
+            <span><input id="allowLookWhileJumpCrouchHeldToggle" type="checkbox" checked> <strong id="allowLookWhileJumpCrouchHeldValue">ON（許可）</strong></span>
+            <p>ONにすると、ジャンプまたはしゃがみボタンを押したまま、その指をスライドして視点を操作できます。</p>
           </label>
         </div>
         <div class="settings-group">
@@ -356,6 +361,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-live-apply-7"></script>
-  <script type="module" src="game.js?v=input-sensitivity-3"></script>
+  <script type="module" src="game.js?v=touch-slide-look-1"></script>
 </body>
 </html>
