@@ -163,6 +163,7 @@ const DEFAULT_SETTINGS = {
   controllerSensitivity: 1,
   mouseSensitivity: 1,
   allowLookWhileActionHeld: true,
+  allowLookWhileJumpCrouchHeld: true,
   keyboard: {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
@@ -208,6 +209,7 @@ function loadGameSettings() {
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
+      allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
       keyboard: savedKeyboard,
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
@@ -346,6 +348,14 @@ function updateSettingsUi() {
   gameSettings.layout.scopeButton.size = Math.round(scopeSize);
   if (scopeSizeSlider) scopeSizeSlider.value = String(scopeSize);
   if (scopeSizeValue) scopeSizeValue.textContent = Math.round(scopeSize) + "px";
+
+  const jumpCrouchLookToggle = document.getElementById("allowLookWhileJumpCrouchHeldToggle");
+  if (jumpCrouchLookToggle) {
+    jumpCrouchLookToggle.checked = gameSettings.allowLookWhileJumpCrouchHeld !== false;
+    const label = document.getElementById("allowLookWhileJumpCrouchHeldValue");
+    if (label) label.textContent = jumpCrouchLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
+  }
+
   refreshKeyBindingLabels();
 }
 
@@ -577,6 +587,13 @@ function setupSettings() {
   document.getElementById("allowLookWhileActionHeldToggle")?.addEventListener("change", (event) => {
     gameSettings.allowLookWhileActionHeld = Boolean(event.target.checked);
     const label = document.getElementById("allowLookToggleValue");
+    if (label) label.textContent = event.target.checked ? "ON（許可）" : "OFF（禁止）";
+    saveGameSettings();
+  });
+
+  document.getElementById("allowLookWhileJumpCrouchHeldToggle")?.addEventListener("change", (event) => {
+    gameSettings.allowLookWhileJumpCrouchHeld = Boolean(event.target.checked);
+    const label = document.getElementById("allowLookWhileJumpCrouchHeldValue");
     if (label) label.textContent = event.target.checked ? "ON（許可）" : "OFF（禁止）";
     saveGameSettings();
   });
@@ -2336,10 +2353,46 @@ movePad?.addEventListener("pointercancel", (e) => {
 
 const jumpButton = document.getElementById("jumpButton");
 const crouchButton = document.getElementById("crouchButton");
+
+const jumpCrouchLookPointers = new Map();
+
+function beginJumpCrouchLookGesture(event) {
+  if (layoutEditing || event.pointerType === "mouse") return;
+  if (gameSettings.allowLookWhileJumpCrouchHeld === false) return;
+  jumpCrouchLookPointers.set(event.pointerId, {
+    x: event.clientX,
+    y: event.clientY
+  });
+}
+
+// Capture-phase document listener still receives pointer moves while a touch button owns pointer capture.
+document.addEventListener("pointermove", (event) => {
+  const previous = jumpCrouchLookPointers.get(event.pointerId);
+  if (!previous || gameSettings.allowLookWhileJumpCrouchHeld === false) return;
+
+  const dx = event.clientX - previous.x;
+  const dy = event.clientY - previous.y;
+  previous.x = event.clientX;
+  previous.y = event.clientY;
+
+  yaw -= dx * .0045 * gameSettings.touchSensitivity;
+  pitch -= dy * .0045 * gameSettings.touchSensitivity;
+  pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
+  event.preventDefault();
+}, { capture: true, passive: false });
+
+const endJumpCrouchLookGesture = (event) => {
+  jumpCrouchLookPointers.delete(event.pointerId);
+};
+document.addEventListener("pointerup", endJumpCrouchLookGesture, true);
+document.addEventListener("pointercancel", endJumpCrouchLookGesture, true);
+window.addEventListener("blur", () => jumpCrouchLookPointers.clear());
+
 jumpButton.addEventListener("pointerdown", (e) => {
   if (layoutEditing) return;
   e.preventDefault();
   jumpButton.setPointerCapture?.(e.pointerId);
+  beginJumpCrouchLookGesture(e);
   jump();
 });
 
@@ -2347,6 +2400,7 @@ crouchButton?.addEventListener("pointerdown", (e) => {
   if (layoutEditing) return;
   e.preventDefault();
   crouchButton.setPointerCapture?.(e.pointerId);
+  beginJumpCrouchLookGesture(e);
   setCrouch(true);
 });
 
