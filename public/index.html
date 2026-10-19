@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=area-mode-6">
+  <link rel="stylesheet" href="style.css?v=settings-tabs-1">
 </head>
 <body>
   <div id="game"></div>
@@ -13,106 +13,131 @@
 
   <button id="settingsButton" class="hidden" aria-label="設定">設定</button>
 
-  <div id="settingsPanel" class="settings-overlay hidden">
+    <div id="settingsPanel" class="settings-overlay hidden">
     <div class="settings-panel">
       <div class="settings-header">
         <h2>ゲーム設定</h2>
         <button id="settingsCloseButton" aria-label="設定を閉じる">閉じる</button>
       </div>
 
-      <div class="settings-skin-action settings-nav-action">
-        <div>
-          <strong>ゲームモード</strong>
-          <p>対戦するゲームモードを変更します。</p>
+      <div class="settings-tabs" role="tablist" aria-label="設定カテゴリ">
+        <button type="button" class="settings-tab active" data-settings-tab="general" role="tab" aria-selected="true">一般</button>
+        <button type="button" class="settings-tab" data-settings-tab="touch" role="tab" aria-selected="false">タッチ操作</button>
+        <button type="button" class="settings-tab" data-settings-tab="controller" role="tab" aria-selected="false">コントローラー操作</button>
+        <button type="button" class="settings-tab" data-settings-tab="mouse" role="tab" aria-selected="false">マウス操作</button>
+      </div>
+
+      <div class="settings-tab-panel active" data-settings-content="general" role="tabpanel">
+        <div class="settings-group">
+          <div class="settings-group-title">基本設定</div>
+          <div class="settings-skin-action settings-nav-action">
+            <div><strong>ゲームモード</strong><p>対戦するゲームモードを変更します。</p></div>
+            <button id="settingsModeChangeButton" class="settings-skin-change-button" type="button">ゲームモード変更</button>
+          </div>
+          <div class="settings-skin-action settings-nav-action">
+            <div><strong>武器構成</strong><p>使用する2つの武器を変更します。</p></div>
+            <button id="settingsWeaponChangeButton" class="settings-skin-change-button" type="button">武器変更</button>
+          </div>
+          <div class="settings-skin-action">
+            <div><strong>プレイヤースキン</strong><p>キャラクターの見た目をペイントして変更できます。</p></div>
+            <button id="settingsSkinEditorButton" class="settings-skin-change-button" type="button">スキン変更</button>
+          </div>
+          <label class="setting-row">
+            <span>視点感度（全操作共通） <strong id="sensitivityValue">1.00</strong></span>
+            <input id="sensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
+          </label>
         </div>
-        <button id="settingsModeChangeButton" class="settings-skin-change-button" type="button">ゲームモード変更</button>
       </div>
 
-      <div class="settings-skin-action settings-nav-action">
-        <div>
-          <strong>武器構成</strong>
-          <p>使用する2つの武器を変更します。</p>
+      <div class="settings-tab-panel" data-settings-content="touch" role="tabpanel" hidden>
+        <div class="settings-group">
+          <div class="settings-group-title">タッチ操作</div>
+          <div class="setting-section">
+            <strong>タッチ移動スティックのサイズ</strong>
+            <span class="setting-value"><strong id="movePadSizeValue">150px</strong></span>
+            <input id="movePadSizeSlider" type="range" min="90" max="240" step="5" value="150">
+          </div>
+          <div class="setting-section">
+            <strong>ジャンプボタンのサイズ</strong>
+            <span class="setting-value"><strong id="jumpButtonSizeValue">72px</strong></span>
+            <input id="jumpButtonSizeSlider" type="range" min="48" max="160" step="4" value="72">
+          </div>
+          <div class="setting-section">
+            <strong>発射ボタンのサイズ</strong>
+            <span class="setting-value"><strong id="fireButtonSizeValue">100px</strong></span>
+            <input id="fireButtonSizeSlider" type="range" min="60" max="180" step="5" value="100">
+          </div>
+          <div class="setting-section">
+            <strong>武器切替ボタンのサイズ</strong>
+            <span class="setting-value"><strong id="switchWeaponButtonSizeValue">76px</strong></span>
+            <input id="switchWeaponButtonSizeSlider" type="range" min="60" max="180" step="5" value="76">
+          </div>
+          <div class="setting-section">
+            <strong>スコープボタンのサイズ</strong>
+            <span class="setting-value"><strong id="scopeButtonSizeValue">68px</strong></span>
+            <input id="scopeButtonSizeSlider" type="range" min="60" max="180" step="5" value="68">
+          </div>
+          <label class="setting-section look-toggle-row">
+            <strong>他のボタンを押しながら視点を動かす</strong>
+            <span><input id="allowLookWhileActionHeldToggle" type="checkbox" checked> <strong id="allowLookToggleValue">ON（許可）</strong></span>
+            <p>OFFにすると、移動スティック以外のボタンを押している間は視点が動きません。</p>
+          </label>
         </div>
-        <button id="settingsWeaponChangeButton" class="settings-skin-change-button" type="button">武器変更</button>
-      </div>
-
-      <div class="settings-skin-action">
-        <div>
-          <strong>プレイヤースキン</strong>
-          <p>キャラクターの見た目をペイントして変更できます。</p>
+        <div class="settings-group">
+          <div class="settings-group-title">ボタン配置</div>
+          <div class="setting-section">
+            <p>「配置を編集」を押したあと、移動スティック・JUMP・CROUCH・RELOAD・FIRE・武器切替・スコープ・MAP・HPバー・K/D表示などをドラッグして移動できます。</p>
+            <div class="settings-actions">
+              <button id="layoutEditButton">配置を編集</button>
+              <button id="layoutResetButton">配置を初期化</button>
+            </div>
+            <div id="layoutEditStatus" class="setting-status hidden">配置編集を開始すると設定画面が閉じます。ボタンをドラッグして動かしてください。</div>
+          </div>
         </div>
-        <button id="settingsSkinEditorButton" class="settings-skin-change-button" type="button">スキン変更</button>
       </div>
 
-      <label class="setting-row">
-        <span>視点感度 <strong id="sensitivityValue">1.00</strong></span>
-        <input id="sensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
-      </label>
-
-      <div class="settings-group">
-        <div class="settings-group-title">操作</div>
-
-      <div class="setting-section">
-        <strong>タッチ移動スティックのサイズ</strong>
-        <span class="setting-value"><strong id="movePadSizeValue">150px</strong></span>
-        <input id="movePadSizeSlider" type="range" min="90" max="240" step="5" value="150">
-      </div>
-
-      <div class="setting-section">
-        <strong>ジャンプボタンのサイズ</strong>
-        <span class="setting-value"><strong id="jumpButtonSizeValue">72px</strong></span>
-        <input id="jumpButtonSizeSlider" type="range" min="48" max="160" step="4" value="72">
-      </div>
-
-      <div class="setting-section">
-        <strong>発射ボタンのサイズ</strong>
-        <span class="setting-value"><strong id="fireButtonSizeValue">100px</strong></span>
-        <input id="fireButtonSizeSlider" type="range" min="60" max="180" step="5" value="100">
-      </div>
-      <div class="setting-section">
-        <strong>武器切替ボタンのサイズ</strong>
-        <span class="setting-value"><strong id="switchWeaponButtonSizeValue">76px</strong></span>
-        <input id="switchWeaponButtonSizeSlider" type="range" min="60" max="180" step="5" value="76">
-      </div>
-      <div class="setting-section">
-        <strong>スコープボタンのサイズ</strong>
-        <span class="setting-value"><strong id="scopeButtonSizeValue">68px</strong></span>
-        <input id="scopeButtonSizeSlider" type="range" min="60" max="180" step="5" value="68">
-      </div>
-
-      <label class="setting-section look-toggle-row">
-        <strong>他のボタンを押しながら視点を動かす</strong>
-        <span><input id="allowLookWhileActionHeldToggle" type="checkbox" checked> <strong id="allowLookToggleValue">ON（許可）</strong></span>
-        <p>OFFにすると、移動スティック以外のボタンを押している間は視点が動きません。</p>
-      </label>
-
-      <div class="setting-section">
-        <strong>Bluetoothコントローラー</strong>
-        <p>先に端末のBluetooth設定でコントローラーをペアリングしてください。その後「接続を確認」を押すとゲームパッドを検出します。</p>
-        <div class="settings-actions">
-          <button id="gamepadConnectButton">接続を確認</button>
+      <div class="settings-tab-panel" data-settings-content="controller" role="tabpanel" hidden>
+        <div class="settings-group">
+          <div class="settings-group-title">コントローラー操作</div>
+          <div class="setting-section">
+            <strong>Bluetoothコントローラー</strong>
+            <p>先に端末のBluetooth設定でコントローラーをペアリングしてください。その後「接続を確認」を押すとゲームパッドを検出します。</p>
+            <div class="settings-actions"><button id="gamepadConnectButton">接続を確認</button></div>
+            <div id="gamepadStatus" class="setting-status">未接続</div>
+          </div>
         </div>
-        <div id="gamepadStatus" class="setting-status">未接続</div>
       </div>
 
-      <div class="setting-section">
-        <strong>ボタン配置</strong>
-        <p>「配置を編集」を押したあと、移動スティック・JUMP・CROUCH・RELOAD・FIRE・武器切替・スコープ・MAP・HPバー・K/D表示などをドラッグして移動できます。</p>
-        <div class="settings-actions">
-          <button id="layoutEditButton">配置を編集</button>
-          <button id="layoutResetButton">配置を初期化</button>
+      <div class="settings-tab-panel" data-settings-content="mouse" role="tabpanel" hidden>
+        <div class="settings-group">
+          <div class="settings-group-title">マウス操作</div>
+          <div class="setting-section">
+            <p>マウスを動かして視点を操作します。ゲーム画面をクリックするとマウス視点操作が有効になり、左クリックで発射します（Escで解除）。</p>
+          </div>
         </div>
-        <div id="layoutEditStatus" class="setting-status hidden">配置編集を開始すると設定画面が閉じます。ボタンをドラッグして動かしてください。</div>
-      </div>
+        <div class="settings-group">
+          <div class="settings-group-title">キーボード操作</div>
+          <p>「変更」を押してから割り当てたいキーを押してください。Escで設定をキャンセルできます。変更はこの端末に保存されます。</p>
+          <div class="keybind-grid">
+            <div class="keybind-row"><span>前進</span><button type="button" data-keybind-action="forward">変更</button></div>
+            <div class="keybind-row"><span>後退</span><button type="button" data-keybind-action="back">変更</button></div>
+            <div class="keybind-row"><span>左移動</span><button type="button" data-keybind-action="left">変更</button></div>
+            <div class="keybind-row"><span>右移動</span><button type="button" data-keybind-action="right">変更</button></div>
+            <div class="keybind-row"><span>ジャンプ</span><button type="button" data-keybind-action="jump">変更</button></div>
+            <div class="keybind-row"><span>しゃがむ</span><button type="button" data-keybind-action="crouch">変更</button></div>
+            <div class="keybind-row"><span>リロード</span><button type="button" data-keybind-action="reload">変更</button></div>
+            <div class="keybind-row"><span>武器切替</span><button type="button" data-keybind-action="switchWeapon">変更</button></div>
+            <div class="keybind-row"><span>武器スロット1</span><button type="button" data-keybind-action="weapon1">変更</button></div>
+            <div class="keybind-row"><span>武器スロット2</span><button type="button" data-keybind-action="weapon2">変更</button></div>
+            <div class="keybind-row"><span>発射（長押し）</span><button type="button" data-keybind-action="fire">変更</button></div>
+          </div>
+          <div id="keyBindingStatus" class="setting-status" aria-live="polite">変更を押してキーを割り当てます。</div>
+        </div>
       </div>
 
-      <div class="settings-group">
-        <div class="settings-group-title">設定</div>
-
-      <div class="settings-actions">
+      <div class="settings-actions settings-footer">
         <button id="settingsResetButton">設定をすべて初期化</button>
         <button id="settingsDoneButton">完了</button>
-      </div>
       </div>
     </div>
   </div>
@@ -325,6 +350,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-live-apply-7"></script>
-  <script type="module" src="game.js?v=area-mode-6"></script>
+  <script type="module" src="game.js?v=settings-tabs-1"></script>
 </body>
 </html>
