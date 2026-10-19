@@ -1060,9 +1060,10 @@ function fireShot(shooter) {
     let pitch = shooter.pitch;
 
     if (weapon.spread) {
-      // 通常時も少しブレを大きくし、ジャンプ中はさらにブレる。
-      const spreadMultiplier = shooter.grounded ? 1 : 2.0;
-      const spread = weapon.spread * spreadMultiplier;
+      // BOTは人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
+      const botSpreadMultiplier = shooter.isBot ? 4.5 : 1;
+      const movementSpreadMultiplier = shooter.grounded ? 1 : 2.0;
+      const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
       yaw += (Math.random() - 0.5) * spread;
       pitch += (Math.random() - 0.5) * spread;
     }
@@ -1177,8 +1178,11 @@ function fireShot(shooter) {
     let visualYaw = shooter.yaw;
     let visualPitch = shooter.pitch;
     if (weapon.spread) {
-      visualYaw += (Math.random() - 0.5) * weapon.spread;
-      visualPitch += (Math.random() - 0.5) * weapon.spread;
+      const botSpreadMultiplier = shooter.isBot ? 4.5 : 1;
+      const movementSpreadMultiplier = shooter.grounded ? 1 : 2.0;
+      const visualSpread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
+      visualYaw += (Math.random() - 0.5) * visualSpread;
+      visualPitch += (Math.random() - 0.5) * visualSpread;
     }
     const visualDir = directionFromAngles(visualYaw, visualPitch);
     const wallDistance = rayHitsObstacle(origin, visualDir, weapon.range, shooter);
