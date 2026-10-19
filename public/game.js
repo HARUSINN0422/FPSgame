@@ -347,7 +347,7 @@ function keyCodeLabel(code) {
     ControlLeft: "左Ctrl", ControlRight: "右Ctrl", AltLeft: "左Alt", AltRight: "右Alt",
     ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
     CapsLock: "Caps Lock", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
-    Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Backquote: "\`",
+    Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Backquote: "Backquote",
     Backslash: "\\"
   };
   return labels[code] || code;
@@ -429,12 +429,20 @@ function setupSettings() {
   };
 
   const closePanel = () => {
+    if (pendingKeyBindingAction) {
+      pendingKeyBindingAction = null;
+      refreshKeyBindingLabels();
+    }
     stopLayoutEditing();
     panel?.classList.add("hidden");
   };
 
   const navigateToLobbyScreen = (screenId) => {
     if (!["modeScreen", "weaponScreen"].includes(screenId)) return;
+    if (pendingKeyBindingAction) {
+      pendingKeyBindingAction = null;
+      refreshKeyBindingLabels();
+    }
     stopLayoutEditing();
     panel?.classList.add("hidden");
     if (joined) {
@@ -539,6 +547,7 @@ function setupSettings() {
   });
 
   resetAll?.addEventListener("click", () => {
+    pendingKeyBindingAction = null;
     gameSettings = cloneSettings(DEFAULT_SETTINGS);
     applyButtonLayout();
     updateSettingsUi();
