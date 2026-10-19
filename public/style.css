@@ -1507,3 +1507,16 @@ body.controller-mode #settingsButton {
   .keybind-grid { grid-template-columns: 1fr; }
   .keybind-row { font-size: 12px; }
 }
+
+
+/* Stable settings geometry and per-device view sensitivity controls. */
+.settings-panel {
+  height: min(94dvh, 900px);
+  max-height: min(94dvh, 900px);
+}
+#touchSensitivitySlider,
+#controllerSensitivitySlider,
+#mouseSensitivitySlider {
+  width: 100%;
+  accent-color: #6ea8ff;
+}
