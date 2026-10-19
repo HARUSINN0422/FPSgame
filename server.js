@@ -3,7 +3,39 @@ const fs = require("fs");
 const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
-const { execFile, spawn } = require("child_process");
+const { execFile, spawn, spawnSync } = require("child_process");
+
+// 自動更新で古いプロセスから直接起動された場合も、fpsというscreenセッションに戻す。
+// 通常の@reboot screen起動では標準出力がTTYなので、そのままサーバーを起動する。
+const FPS_SCREEN_WRAPPED_ENV = "FPS_SCREEN_WRAPPED";
+const FPS_SCREEN_WORKDIR = "/home/harusinn/Desktop/FPSgame";
+const FPS_SCREEN_COMMAND = "sleep 2; cd /home/harusinn/Desktop/FPSgame && exec /usr/bin/node server.js";
+
+if (process.env[FPS_SCREEN_WRAPPED_ENV] !== "1" && !process.stdout.isTTY) {
+  const screenEnv = { ...process.env, [FPS_SCREEN_WRAPPED_ENV]: "1" };
+  delete screenEnv.STY;
+  let screenResult;
+  try {
+    screenResult = spawnSync("/usr/bin/screen", [
+      "-dmS", "fps", "bash", "-c", FPS_SCREEN_COMMAND
+    ], {
+      cwd: FPS_SCREEN_WORKDIR,
+      env: screenEnv,
+      stdio: "ignore",
+      timeout: 10000
+    });
+  } catch (error) {
+    console.error("[Startup] screenへの切り替えに失敗しました:", error);
+    process.exit(1);
+  }
+
+  if (screenResult.error || screenResult.status !== 0) {
+    console.error("[Startup] screenへの切り替えに失敗しました:",
+      screenResult.error || "screen exit status " + screenResult.status);
+    process.exit(1);
+  }
+  process.exit(0);
+}
 
 const PORT = 3007;
 const AUTO_UPDATE_INTERVAL = 60 * 1000;
