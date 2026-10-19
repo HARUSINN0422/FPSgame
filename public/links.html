@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1018">
+  <title>LINK HUB | サイトリンク集</title>
+  <meta name="description" content="よく使うWebサイトや便利なサービスをまとめたリンク集。">
+  <style>
+    :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#080c12;color:#f4f7fb}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 15% 0%,rgba(48,100,145,.28),transparent 42%),radial-gradient(ellipse at 100% 25%,rgba(78,69,130,.18),transparent 35%),#080c12}
+    a{color:inherit;text-decoration:none}
+    .wrap{width:min(1120px,calc(100% - 32px));margin:auto;padding:30px 0 48px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:54px}
+    .brand{display:flex;align-items:center;gap:11px;font-weight:900;letter-spacing:.08em}
+    .brand-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,#76b8ff,#6d7cff);color:#07111e;font-size:20px;box-shadow:0 8px 28px #3c80cc33}
+    .top-label{font-size:12px;color:#8d9aaa;border:1px solid #263343;border-radius:999px;padding:8px 12px}
+    .hero{max-width:760px;margin-bottom:34px}
+    .eyebrow{font-size:12px;font-weight:800;letter-spacing:.22em;color:#83baff}
+    h1{font-size:clamp(36px,7vw,66px);line-height:1.04;letter-spacing:-.045em;margin:13px 0 16px}
+    h1 span{color:#83baff}
+    .hero p{color:#9ba9b9;line-height:1.8;margin:0;max-width:590px}
+    .search-wrap{margin:28px 0 22px;position:relative}
+    .search-wrap:before{content:"⌕";position:absolute;left:17px;top:9px;font-size:27px;color:#8495a8}
+    #search{width:100%;height:54px;border:1px solid #263343;border-radius:15px;padding:0 18px 0 48px;background:rgba(17,24,34,.88);color:#fff;font:inherit;outline:none;box-shadow:0 12px 35px #0002}
+    #search:focus{border-color:#72b2fa;box-shadow:0 0 0 3px #72b2fa20}
+    .filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:32px}
+    .filter{border:1px solid #293746;background:#111923;color:#aeb9c7;border-radius:999px;padding:9px 15px;font:inherit;font-size:13px;cursor:pointer;transition:.18s}
+    .filter:hover,.filter.active{color:#fff;background:#203a54;border-color:#5a9ee7}
+    .section-head{display:flex;justify-content:space-between;align-items:end;gap:12px;margin:0 0 15px}
+    h2{font-size:19px;margin:0;letter-spacing:-.02em}
+    #count{font-size:12px;color:#8290a0}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+    .link-card{position:relative;display:flex;gap:14px;align-items:flex-start;min-height:118px;padding:18px;border:1px solid #26313e;border-radius:17px;background:linear-gradient(145deg,rgba(22,30,41,.94),rgba(13,18,26,.94));transition:transform .18s,border-color .18s,background .18s;overflow:hidden}
+    .link-card:after{content:"↗";position:absolute;right:16px;top:15px;color:#687b8f;font-size:17px}
+    .link-card:hover{transform:translateY(-3px);border-color:#528bc2;background:linear-gradient(145deg,#1b2a3b,#111923)}
+    .link-icon{display:grid;place-items:center;flex:0 0 45px;width:45px;height:45px;border-radius:13px;background:#202c3a;font-size:23px}
+    .link-copy{min-width:0;padding-right:7px}
+    .link-copy h3{font-size:15px;margin:2px 0 7px;font-weight:750}
+    .link-copy p{font-size:12px;line-height:1.6;color:#92a0b0;margin:0}
+    .tag{display:inline-block;margin-top:10px;font-size:10px;letter-spacing:.04em;color:#85baff;background:#233b52;padding:4px 7px;border-radius:6px}
+    .empty{display:none;padding:32px;text-align:center;color:#91a0b0;border:1px dashed #2a3949;border-radius:16px}
+    footer{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:48px;padding-top:18px;border-top:1px solid #202b37;color:#68798b;font-size:12px}
+    @media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}header{margin-bottom:42px}}
+    @media(max-width:520px){.wrap{width:min(100% - 22px,1120px);padding-top:18px}.grid{grid-template-columns:1fr;gap:10px}.link-card{min-height:100px;padding:15px}header{margin-bottom:38px}.top-label{font-size:10px}.hero p{font-size:14px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="#" aria-label="LINK HUB ホーム"><span class="brand-mark">↗</span><span>LINK HUB</span></a>
+      <span class="top-label">PERSONAL WEB DIRECTORY</span>
+    </header>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">YOUR WEB STARTING POINT</div>
+        <h1>必要なサイトへ、<br><span>すぐアクセス。</span></h1>
+        <p>よく使うWebサイトや便利なサービスをひとつにまとめたリンク集。検索やカテゴリから目的のサイトを見つけられます。</p>
+      </section>
+      <div class="search-wrap"><input id="search" type="search" placeholder="サイト名・サービス名で検索..." autocomplete="off" aria-label="サイトを検索"></div>
+      <nav class="filters" aria-label="カテゴリ">
+        <button class="filter active" data-category="all">すべて</button>
+        <button class="filter" data-category="search">検索・SNS</button>
+        <button class="filter" data-category="dev">開発</button>
+        <button class="filter" data-category="ai">AI・制作</button>
+        <button class="filter" data-category="game">ゲーム</button>
+        <button class="filter" data-category="tools">便利ツール</button>
+      </nav>
+      <div class="section-head"><h2>リンク一覧</h2><span id="count">15 sites</span></div>
+      <section class="grid" id="grid">
+        <a class="link-card" data-category="search" data-search="google グーグル 検索" href="https://www.google.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">🔎</span><div class="link-copy"><h3>Google</h3><p>Web検索、画像、情報を探す。</p><span class="tag">SEARCH</span></div></a>
+        <a class="link-card" data-category="search" data-search="youtube ユーチューブ 動画" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">▶️</span><div class="link-copy"><h3>YouTube</h3><p>動画や配信を視聴する。</p><span class="tag">VIDEO</span></div></a>
+        <a class="link-card" data-category="search" data-search="reddit レディット コミュニティ" href="https://www.reddit.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">💬</span><div class="link-copy"><h3>Reddit</h3><p>コミュニティやユーザーの情報を探す。</p><span class="tag">COMMUNITY</span></div></a>
+        <a class="link-card" data-category="dev" data-search="github ギットハブ コード リポジトリ" href="https://github.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">⌘</span><div class="link-copy"><h3>GitHub</h3><p>ソースコードの管理と公開。</p><span class="tag">DEVELOPMENT</span></div></a>
+        <a class="link-card" data-category="dev" data-search="cloudflare クラウドフレア dns セキュリティ" href="https://www.cloudflare.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">☁️</span><div class="link-copy"><h3>Cloudflare</h3><p>DNS、通信保護、Web配信。</p><span class="tag">WEB / DNS</span></div></a>
+        <a class="link-card" data-category="dev" data-search="supabase データベース 認証 backend" href="https://supabase.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">⚡</span><div class="link-copy"><h3>Supabase</h3><p>データベースや認証機能を構築。</p><span class="tag">BACKEND</span></div></a>
+        <a class="link-card" data-category="dev" data-search="vercel web deploy デプロイ" href="https://vercel.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">▲</span><div class="link-copy"><h3>Vercel</h3><p>Webサイトやアプリを公開。</p><span class="tag">DEPLOY</span></div></a>
+        <a class="link-card" data-category="dev" data-search="stackoverflow プログラミング 質問" href="https://stackoverflow.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">▤</span><div class="link-copy"><h3>Stack Overflow</h3><p>プログラミングの質問と回答。</p><span class="tag">Q&amp;A</span></div></a>
+        <a class="link-card" data-category="ai" data-search="chatgpt openai ai チャット" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">✳</span><div class="link-copy"><h3>ChatGPT</h3><p>調べもの、文章、アイデア、コード。</p><span class="tag">AI</span></div></a>
+        <a class="link-card" data-category="ai" data-search="comfyui 画像生成 ai" href="https://www.comfy.org/" target="_blank" rel="noopener noreferrer"><span class="link-icon">🎨</span><div class="link-copy"><h3>ComfyUI</h3><p>ノード形式で画像生成AIを構築。</p><span class="tag">GENERATIVE AI</span></div></a>
+        <a class="link-card" data-category="ai" data-search="canva デザイン サムネイル" href="https://www.canva.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">🖌️</span><div class="link-copy"><h3>Canva</h3><p>画像、資料、サムネイルをデザイン。</p><span class="tag">DESIGN</span></div></a>
+        <a class="link-card" data-category="game" data-search="itch.io インディーゲーム 公開" href="https://itch.io/" target="_blank" rel="noopener noreferrer"><span class="link-icon">🎮</span><div class="link-copy"><h3>itch.io</h3><p>インディーゲームを探す・公開する。</p><span class="tag">INDIE GAMES</span></div></a>
+        <a class="link-card" data-category="game" data-search="gamebanana ゲーム mod" href="https://gamebanana.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">🍌</span><div class="link-copy"><h3>GameBanana</h3><p>ゲームのMODやファン制作コンテンツ。</p><span class="tag">MODS</span></div></a>
+        <a class="link-card" data-category="tools" data-search="speedtest インターネット 回線速度" href="https://www.speedtest.net/" target="_blank" rel="noopener noreferrer"><span class="link-icon">↯</span><div class="link-copy"><h3>Speedtest</h3><p>インターネット回線の速度を測定。</p><span class="tag">NETWORK</span></div></a>
+        <a class="link-card" data-category="tools" data-search="translate google 翻訳 英語" href="https://translate.google.com/" target="_blank" rel="noopener noreferrer"><span class="link-icon">文</span><div class="link-copy"><h3>Google 翻訳</h3><p>文章やWebページを翻訳。</p><span class="tag">TRANSLATE</span></div></a>
+      </section>
+      <div class="empty" id="empty">一致するサイトがありません。別のキーワードで検索してください。</div>
+    </main>
+    <footer><span>LINK HUB — よく使うサイトをひとつに。</span><span>外部サイトを開くリンク集</span></footer>
+  </div>
+  <script>
+    const search = document.getElementById('search');
+    const cards = [...document.querySelectorAll('.link-card')];
+    const filters = [...document.querySelectorAll('.filter')];
+    const count = document.getElementById('count');
+    const empty = document.getElementById('empty');
+    let category = 'all';
+    function update(){
+      const query = search.value.trim().toLocaleLowerCase();
+      let shown = 0;
+      cards.forEach(card => {
+        const matchesCategory = category === 'all' || card.dataset.category === category;
+        const matchesText = (card.dataset.search + ' ' + card.innerText).toLocaleLowerCase().includes(query);
+        const visible = matchesCategory && matchesText;
+        card.hidden = !visible;
+        if(visible) shown++;
+      });
+      count.textContent = shown + ' sites';
+      empty.style.display = shown ? 'none' : 'block';
+    }
+    search.addEventListener('input', update);
+    filters.forEach(button => button.addEventListener('click', () => {
+      category = button.dataset.category;
+      filters.forEach(item => item.classList.toggle('active', item === button));
+      update();
+    }));
+    update();
+  </script>
+</body>
+</html>
