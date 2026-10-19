@@ -1,6 +1,11 @@
 import * as THREE from "three";
 
+const socketPath = location.pathname.startsWith("/FPSgame/")
+  ? "/FPSgame/socket.io/"
+  : "/socket.io/";
+
 const socket = io({
+  path: socketPath,
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 500,
