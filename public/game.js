@@ -160,6 +160,11 @@ function setCookie(name, value, days = 365) {
 const DEFAULT_SETTINGS = {
   sensitivity: 1,
   allowLookWhileActionHeld: true,
+  keyboard: {
+    forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
+    jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
+    weapon1: "Digit1", weapon2: "Digit2", fire: "KeyF"
+  },
   layout: {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
     jumpButton: { x: 128, y: 48, side: "right", size: 72 },
@@ -192,6 +197,7 @@ function loadGameSettings() {
     return {
       sensitivity: THREE.MathUtils.clamp(Number(saved.sensitivity) || 1, 0.4, 5.0),
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
+      keyboard: { ...DEFAULT_SETTINGS.keyboard, ...(saved.keyboard || {}) },
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
         jumpButton: { ...DEFAULT_SETTINGS.layout.jumpButton, ...(saved.layout?.jumpButton || {}) },
@@ -320,6 +326,44 @@ function updateSettingsUi() {
   gameSettings.layout.scopeButton.size = Math.round(scopeSize);
   if (scopeSizeSlider) scopeSizeSlider.value = String(scopeSize);
   if (scopeSizeValue) scopeSizeValue.textContent = Math.round(scopeSize) + "px";
+  refreshKeyBindingLabels();
+}
+
+const KEY_BINDING_LABELS = {
+  forward: "前進", back: "後退", left: "左移動", right: "右移動",
+  jump: "ジャンプ", crouch: "しゃがむ", reload: "リロード",
+  switchWeapon: "武器切替", weapon1: "武器スロット1", weapon2: "武器スロット2", fire: "発射"
+};
+let pendingKeyBindingAction = null;
+
+function keyCodeLabel(code) {
+  if (!code) return "未設定";
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  if (code.startsWith("Numpad")) return "Num " + code.slice(6);
+  const labels = {
+    Space: "Space", Escape: "Esc", Enter: "Enter", Tab: "Tab",
+    Backspace: "Backspace", ShiftLeft: "左Shift", ShiftRight: "右Shift",
+    ControlLeft: "左Ctrl", ControlRight: "右Ctrl", AltLeft: "左Alt", AltRight: "右Alt",
+    ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+    CapsLock: "Caps Lock", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
+    Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Backquote: "\`",
+    Backslash: "\\"
+  };
+  return labels[code] || code;
+}
+
+function refreshKeyBindingLabels() {
+  document.querySelectorAll("[data-keybind-action]").forEach((button) => {
+    const action = button.dataset.keybindAction;
+    if (pendingKeyBindingAction === action) {
+      button.textContent = "キーを押す…（Escで取消）";
+      button.classList.add("waiting-for-key");
+    } else {
+      button.textContent = keyCodeLabel(gameSettings.keyboard?.[action] || DEFAULT_SETTINGS.keyboard[action]) + " に変更";
+      button.classList.remove("waiting-for-key");
+    }
+  });
 }
 
 function setupSettings() {
@@ -334,8 +378,40 @@ function setupSettings() {
   const status = document.getElementById("layoutEditStatus");
   const editDone = document.getElementById("layoutEditDoneButton");
 
+  const settingsTabs = Array.from(panel?.querySelectorAll("[data-settings-tab]") || []);
+  const activateSettingsTab = (tabName) => {
+    settingsTabs.forEach((button) => {
+      const active = button.dataset.settingsTab === tabName;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    panel?.querySelectorAll("[data-settings-content]").forEach((section) => {
+      const active = section.dataset.settingsContent === tabName;
+      section.classList.toggle("active", active);
+      section.hidden = !active;
+    });
+  };
+  settingsTabs.forEach((button) => button.addEventListener("click", () => {
+    if (pendingKeyBindingAction) {
+      pendingKeyBindingAction = null;
+      refreshKeyBindingLabels();
+    }
+    activateSettingsTab(button.dataset.settingsTab);
+  }));
+
+  panel?.querySelectorAll("[data-keybind-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      pendingKeyBindingAction = button.dataset.keybindAction;
+      const status = document.getElementById("keyBindingStatus");
+      if (status) status.textContent = KEY_BINDING_LABELS[pendingKeyBindingAction] + "に割り当てるキーを押してください。Escでキャンセルできます。";
+      activateSettingsTab("mouse");
+      refreshKeyBindingLabels();
+    });
+  });
+
   const open = () => {
     updateSettingsUi();
+    activateSettingsTab("general");
     panel?.classList.remove("hidden");
   };
   const stopLayoutEditing = () => {
@@ -2416,39 +2492,84 @@ window.addEventListener("mouseup", (e) => {
 window.addEventListener("blur", stopFiring);
 
 window.addEventListener("keydown", (e) => {
-  if (e.code === "KeyW" || e.code === "ArrowUp") movement.forward = true;
-  if (e.code === "KeyS" || e.code === "ArrowDown") movement.back = true;
-  if (e.code === "KeyA" || e.code === "ArrowLeft") movement.left = true;
-  if (e.code === "KeyD" || e.code === "ArrowRight") movement.right = true;
-  if (e.code === "KeyC") setCrouch(true);
-
-  if (e.code === "Space") {
+  if (pendingKeyBindingAction) {
     e.preventDefault();
-    if (myState?.health <= 0) {
-      requestRespawn();
-    } else {
-      jump();
+    e.stopImmediatePropagation();
+    if (e.code === "Escape") {
+      pendingKeyBindingAction = null;
+      refreshKeyBindingLabels();
+      const status = document.getElementById("keyBindingStatus");
+      if (status) status.textContent = "キー設定をキャンセルしました。";
+      return;
+    }
+
+    const action = pendingKeyBindingAction;
+    const conflict = Object.entries(gameSettings.keyboard).find(([otherAction, code]) =>
+      otherAction !== action && code === e.code
+    );
+    pendingKeyBindingAction = null;
+    if (conflict) {
+      refreshKeyBindingLabels();
+      const status = document.getElementById("keyBindingStatus");
+      if (status) status.textContent = keyCodeLabel(e.code) + " は「" + KEY_BINDING_LABELS[conflict[0]] + "」に割り当て済みです。";
+      return;
+    }
+
+    gameSettings.keyboard[action] = e.code;
+    saveGameSettings();
+    refreshKeyBindingLabels();
+    const status = document.getElementById("keyBindingStatus");
+    if (status) status.textContent = KEY_BINDING_LABELS[action] + "を「" + keyCodeLabel(e.code) + "」に設定しました。";
+    return;
+  }
+
+  if (!document.getElementById("settingsPanel")?.classList.contains("hidden")) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+
+  const keys = gameSettings.keyboard || DEFAULT_SETTINGS.keyboard;
+  if (e.code === keys.forward) movement.forward = true;
+  if (e.code === keys.back) movement.back = true;
+  if (e.code === keys.left) movement.left = true;
+  if (e.code === keys.right) movement.right = true;
+  if (e.code === keys.crouch) setCrouch(true);
+
+  if (e.code === keys.jump) {
+    e.preventDefault();
+    if (!e.repeat) {
+      if (myState?.health <= 0) requestRespawn();
+      else jump();
     }
   }
-
-  if (e.code === "KeyR") {
+  if (e.code === keys.reload) {
     e.preventDefault();
-    reload();
+    if (!e.repeat) reload();
   }
-  if (e.code === "KeyQ") {
+  if (e.code === keys.switchWeapon) {
     e.preventDefault();
-    switchWeapon();
+    if (!e.repeat) switchWeapon();
   }
-  if (e.code === "Digit1") selectWeaponSlot(0);
-  if (e.code === "Digit2") selectWeaponSlot(1);
+  if (e.code === keys.weapon1) {
+    e.preventDefault();
+    if (!e.repeat) selectWeaponSlot(0);
+  }
+  if (e.code === keys.weapon2) {
+    e.preventDefault();
+    if (!e.repeat) selectWeaponSlot(1);
+  }
+  if (e.code === keys.fire && !e.repeat) {
+    e.preventDefault();
+    startFiring();
+  }
 });
 
 window.addEventListener("keyup", (e) => {
-  if (e.code === "KeyW" || e.code === "ArrowUp") movement.forward = false;
-  if (e.code === "KeyS" || e.code === "ArrowDown") movement.back = false;
-  if (e.code === "KeyA" || e.code === "ArrowLeft") movement.left = false;
-  if (e.code === "KeyD" || e.code === "ArrowRight") movement.right = false;
-  if (e.code === "KeyC") setCrouch(false);
+  const keys = gameSettings.keyboard || DEFAULT_SETTINGS.keyboard;
+  if (e.code === keys.forward) movement.forward = false;
+  if (e.code === keys.back) movement.back = false;
+  if (e.code === keys.left) movement.left = false;
+  if (e.code === keys.right) movement.right = false;
+  if (e.code === keys.crouch) setCrouch(false);
+  if (e.code === keys.fire) stopFiring();
 });
 
 window.addEventListener("blur", () => {
