@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=settings-tabs-1">
+  <link rel="stylesheet" href="style.css?v=input-sensitivity-3">
 </head>
 <body>
   <div id="game"></div>
@@ -24,7 +24,7 @@
         <button type="button" class="settings-tab active" data-settings-tab="general" role="tab" aria-selected="true">一般</button>
         <button type="button" class="settings-tab" data-settings-tab="touch" role="tab" aria-selected="false">タッチ操作</button>
         <button type="button" class="settings-tab" data-settings-tab="controller" role="tab" aria-selected="false">コントローラー操作</button>
-        <button type="button" class="settings-tab" data-settings-tab="mouse" role="tab" aria-selected="false">マウス操作</button>
+        <button type="button" class="settings-tab" data-settings-tab="keymouse" role="tab" aria-selected="false">キーマウ操作</button>
       </div>
 
       <div class="settings-tab-panel active" data-settings-content="general" role="tabpanel">
@@ -42,16 +42,16 @@
             <div><strong>プレイヤースキン</strong><p>キャラクターの見た目をペイントして変更できます。</p></div>
             <button id="settingsSkinEditorButton" class="settings-skin-change-button" type="button">スキン変更</button>
           </div>
-          <label class="setting-row">
-            <span>視点感度（全操作共通） <strong id="sensitivityValue">1.00</strong></span>
-            <input id="sensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
-          </label>
         </div>
       </div>
 
       <div class="settings-tab-panel" data-settings-content="touch" role="tabpanel" hidden>
         <div class="settings-group">
           <div class="settings-group-title">タッチ操作</div>
+          <div class="setting-section">
+            <strong>タッチ視点感度 <span><strong id="touchSensitivityValue">1.00</strong></span></strong>
+            <input id="touchSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
+          </div>
           <div class="setting-section">
             <strong>タッチ移動スティックのサイズ</strong>
             <span class="setting-value"><strong id="movePadSizeValue">150px</strong></span>
@@ -100,6 +100,10 @@
         <div class="settings-group">
           <div class="settings-group-title">コントローラー操作</div>
           <div class="setting-section">
+            <strong>コントローラー視点感度 <span><strong id="controllerSensitivityValue">1.00</strong></span></strong>
+            <input id="controllerSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
+          </div>
+          <div class="setting-section">
             <strong>Bluetoothコントローラー</strong>
             <p>先に端末のBluetooth設定でコントローラーをペアリングしてください。その後「接続を確認」を押すとゲームパッドを検出します。</p>
             <div class="settings-actions"><button id="gamepadConnectButton">接続を確認</button></div>
@@ -108,16 +112,17 @@
         </div>
       </div>
 
-      <div class="settings-tab-panel" data-settings-content="mouse" role="tabpanel" hidden>
+            <div class="settings-tab-panel" data-settings-content="keymouse" role="tabpanel" hidden>
         <div class="settings-group">
-          <div class="settings-group-title">マウス操作</div>
+          <div class="settings-group-title">マウス設定</div>
           <div class="setting-section">
-            <p>マウスを動かして視点を操作します。ゲーム画面をクリックするとマウス視点操作が有効になり、左クリックで発射します（Escで解除）。</p>
+            <strong>マウス視点感度 <span><strong id="mouseSensitivityValue">1.00</strong></span></strong>
+            <input id="mouseSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
           </div>
         </div>
         <div class="settings-group">
-          <div class="settings-group-title">キーボード操作</div>
-          <p>「変更」を押してから割り当てたいキーを押してください。Escで設定をキャンセルできます。変更はこの端末に保存されます。</p>
+          <div class="settings-group-title">キーボード・マウス割り当て</div>
+          <p>各「変更」を押し、割り当てたいキーまたはマウスボタンを押してください。Escでキャンセルできます。</p>
           <div class="keybind-grid">
             <div class="keybind-row"><span>前進</span><button type="button" data-keybind-action="forward">変更</button></div>
             <div class="keybind-row"><span>後退</span><button type="button" data-keybind-action="back">変更</button></div>
@@ -130,8 +135,9 @@
             <div class="keybind-row"><span>武器スロット1</span><button type="button" data-keybind-action="weapon1">変更</button></div>
             <div class="keybind-row"><span>武器スロット2</span><button type="button" data-keybind-action="weapon2">変更</button></div>
             <div class="keybind-row"><span>発射（長押し）</span><button type="button" data-keybind-action="fire">変更</button></div>
+            <div class="keybind-row"><span>スコープ（長押し）</span><button type="button" data-keybind-action="scope">変更</button></div>
           </div>
-          <div id="keyBindingStatus" class="setting-status" aria-live="polite">変更を押してキーを割り当てます。</div>
+          <div id="keyBindingStatus" class="setting-status" aria-live="polite">変更を押してキーまたはマウスボタンを割り当てます。</div>
         </div>
       </div>
 
@@ -350,6 +356,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-live-apply-7"></script>
-  <script type="module" src="game.js?v=settings-tabs-2"></script>
+  <script type="module" src="game.js?v=input-sensitivity-3"></script>
 </body>
 </html>
