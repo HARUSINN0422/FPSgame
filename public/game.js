@@ -2513,9 +2513,12 @@ window.addEventListener("keydown", (e) => {
     }
 
     const action = pendingKeyBindingAction;
+    const arrowAlias = ({
+      ArrowUp: "forward", ArrowDown: "back", ArrowLeft: "left", ArrowRight: "right"
+    })[e.code];
     const conflict = Object.entries(gameSettings.keyboard).find(([otherAction, code]) =>
       otherAction !== action && code === e.code
-    );
+    ) || (arrowAlias && arrowAlias !== action ? [arrowAlias, e.code] : null);
     pendingKeyBindingAction = null;
     if (conflict) {
       refreshKeyBindingLabels();
@@ -2536,10 +2539,10 @@ window.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
 
   const keys = gameSettings.keyboard || DEFAULT_SETTINGS.keyboard;
-  if (e.code === keys.forward) movement.forward = true;
-  if (e.code === keys.back) movement.back = true;
-  if (e.code === keys.left) movement.left = true;
-  if (e.code === keys.right) movement.right = true;
+  if (e.code === keys.forward || e.code === "ArrowUp") movement.forward = true;
+  if (e.code === keys.back || e.code === "ArrowDown") movement.back = true;
+  if (e.code === keys.left || e.code === "ArrowLeft") movement.left = true;
+  if (e.code === keys.right || e.code === "ArrowRight") movement.right = true;
   if (e.code === keys.crouch) setCrouch(true);
 
   if (e.code === keys.jump) {
@@ -2573,10 +2576,10 @@ window.addEventListener("keydown", (e) => {
 
 window.addEventListener("keyup", (e) => {
   const keys = gameSettings.keyboard || DEFAULT_SETTINGS.keyboard;
-  if (e.code === keys.forward) movement.forward = false;
-  if (e.code === keys.back) movement.back = false;
-  if (e.code === keys.left) movement.left = false;
-  if (e.code === keys.right) movement.right = false;
+  if (e.code === keys.forward || e.code === "ArrowUp") movement.forward = false;
+  if (e.code === keys.back || e.code === "ArrowDown") movement.back = false;
+  if (e.code === keys.left || e.code === "ArrowLeft") movement.left = false;
+  if (e.code === keys.right || e.code === "ArrowRight") movement.right = false;
   if (e.code === keys.crouch) setCrouch(false);
   if (e.code === keys.fire) stopFiring();
 });
