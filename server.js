@@ -227,27 +227,41 @@ function checkForUpdates() {
             if (npmStdout) console.log(npmStdout.trim());
             console.log("[AutoUpdate] 更新完了。新しいNode.jsプロセスを起動します。");
 
-            // 再起動後のプロセスは画面/SSHの端末ではなくログファイルへ出力する。
-            // これにより親プロセス終了後や端末切断後の write EIO を防ぐ。
-            const childLogFd = fs.openSync(SERVER_LOG_FILE, "a");
+            // @rebootと同じscreenセッション名・実行パスで再起動する。
+            // 新しいNode.jsは、旧プロセスが3007番ポートを解放するまで2秒待って起動する。
+            // screen内から再びscreenを起動するため、親セッションのSTYは引き継がない。
+            const restartEnv = { ...process.env };
+            delete restartEnv.STY;
+            const restartCommand =
+              "sleep 2; cd /home/harusinn/Desktop/FPSgame && exec /usr/bin/node server.js";
             let child;
             try {
-              child = spawn(process.execPath, [__filename], {
-                cwd: __dirname,
+              child = spawn("/usr/bin/screen", [
+                "-dmS", "fps", "bash", "-c", restartCommand
+              ], {
+                cwd: "/home/harusinn/Desktop/FPSgame",
                 detached: true,
-                stdio: ["ignore", childLogFd, childLogFd],
-                env: process.env
+                stdio: "ignore",
+                env: restartEnv
               });
-            } finally {
-              fs.closeSync(childLogFd);
+            } catch (error) {
+              saveLatestError(error, "AutoUpdate restart screen");
+              appendServerLog("ERROR", ["[AutoUpdate] screenで再起動できません:", error]);
+              updateInProgress = false;
+              return;
             }
 
             child.once("error", (error) => {
-              saveLatestError(error, "AutoUpdate restart spawn");
-              appendServerLog("ERROR", ["[AutoUpdate] 新しいNode.jsプロセスを起動できません:", error]);
+              saveLatestError(error, "AutoUpdate restart screen");
+              appendServerLog("ERROR", ["[AutoUpdate] screenで再起動できません:", error]);
             });
-            child.unref();
-            process.exit(0);
+            child.once("spawn", () => {
+              appendServerLog("INFO", [
+                "[AutoUpdate] screen -dmS fps bash -c \"" + restartCommand + "\" を起動しました。"
+              ]);
+              child.unref();
+              process.exit(0);
+            });
           });
         });
       });
