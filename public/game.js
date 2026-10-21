@@ -188,6 +188,7 @@ const DEFAULT_SETTINGS = {
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
     kdHud: { x: 0, y: 0 },
+    areaHud: { x: 0, y: 0 },
     fullscreenButton: { x: 0, y: 0 },
     settingsButton: { x: 0, y: 0 },
     reloadButton: { x: 0, y: 0 }
@@ -235,6 +236,7 @@ function loadGameSettings() {
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
         kdHud: { ...DEFAULT_SETTINGS.layout.kdHud, ...(saved.layout?.kdHud || {}) },
+        areaHud: { ...DEFAULT_SETTINGS.layout.areaHud, ...(saved.layout?.areaHud || {}) },
         fullscreenButton: { ...DEFAULT_SETTINGS.layout.fullscreenButton, ...(saved.layout?.fullscreenButton || {}) },
         settingsButton: { ...DEFAULT_SETTINGS.layout.settingsButton, ...(saved.layout?.settingsButton || {}) },
         reloadButton: { ...DEFAULT_SETTINGS.layout.reloadButton, ...(saved.layout?.reloadButton || {}) }
@@ -282,6 +284,7 @@ function applyButtonLayout() {
     ["minimap", gameSettings.layout.minimap],
     ["healthHud", gameSettings.layout.healthHud],
     ["kdHud", gameSettings.layout.kdHud],
+    ["areaHud", gameSettings.layout.areaHud],
     ["fullscreenButton", gameSettings.layout.fullscreenButton],
     ["settingsButton", gameSettings.layout.settingsButton],
     ["ammoHud", gameSettings.layout.reloadButton]
@@ -292,7 +295,12 @@ function applyButtonLayout() {
     if (!el) continue;
     const x = Number(cfg?.x) || 0;
     const y = Number(cfg?.y) || 0;
-    el.style.transform = "translate(" + x + "px, " + y + "px)";
+    if (id === "areaHud") {
+      el.style.setProperty("--layout-x", x + "px");
+      el.style.setProperty("--layout-y", y + "px");
+    } else {
+      el.style.transform = "translate(" + x + "px, " + y + "px)";
+    }
   }
 
   const knob = document.getElementById("moveKnob");
@@ -515,7 +523,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -770,7 +778,12 @@ function setupDraggableOffset(id, settingKey) {
 
     cfg.x = Math.round(startOffsetX + e.clientX - startX);
     cfg.y = Math.round(startOffsetY + e.clientY - startY);
-    el.style.transform = "translate3d(" + cfg.x + "px, " + cfg.y + "px, 0)";
+    if (id === "areaHud") {
+      el.style.setProperty("--layout-x", cfg.x + "px");
+      el.style.setProperty("--layout-y", cfg.y + "px");
+    } else {
+      el.style.transform = "translate3d(" + cfg.x + "px, " + cfg.y + "px, 0)";
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -2670,6 +2683,7 @@ setupDraggableButton("scopeButton", "scopeButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
 setupDraggableOffset("kdHud", "kdHud");
+setupDraggableOffset("areaHud", "areaHud");
 
 // MAP/HPバーは親要素やCanvasのイベント状態に左右されないよう、
 // 配置編集中だけdocument側でもドラッグを拾う。
@@ -2678,6 +2692,7 @@ setupDraggableOffset("kdHud", "kdHud");
     ["minimap", "minimap"],
     ["healthHud", "healthHud"],
     ["kdHud", "kdHud"],
+    ["areaHud", "areaHud"],
     ["settingsButton", "settingsButton"],
     ["ammoHud", "reloadButton"]
   ]);
