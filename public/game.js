@@ -661,7 +661,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -2737,7 +2737,12 @@ setupDraggableOffset("areaHud", "areaHud");
 
     cfg.x = Math.round(active.x + e.clientX - active.startX);
     cfg.y = Math.round(active.y + e.clientY - active.startY);
-    el.style.transform = "translate3d(" + cfg.x + "px, " + cfg.y + "px, 0)";
+    if (active.id === "areaHud") {
+      el.style.setProperty("--layout-x", cfg.x + "px");
+      el.style.setProperty("--layout-y", cfg.y + "px");
+    } else {
+      el.style.transform = "translate3d(" + cfg.x + "px, " + cfg.y + "px, 0)";
+    }
 
     e.preventDefault();
     e.stopPropagation();
