@@ -1069,14 +1069,18 @@ input {
 }
 
 
-/* コントローラー操作時は設定ボタン以外のゲームUIを隠す。 */
-body.controller-mode #touchUi,
-body.controller-mode #hud > * {
+/* コントローラー操作時はタッチ用操作ボタンだけを隠し、HUDは表示する。 */
+body.controller-mode #touchUi {
   display: none !important;
 }
 
 body.controller-mode #hud {
   pointer-events: none !important;
+}
+
+/* UI編集時はコントローラー接続中でもタッチUIを表示して配置を変更できる。 */
+body.controller-mode #touchUi.layout-editing {
+  display: block !important;
 }
 
 /* 設定ボタンはbody直下なのでコントローラー操作中も表示される。 */
