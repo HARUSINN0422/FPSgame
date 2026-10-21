@@ -220,7 +220,18 @@ p {
   font-size: 30px;
   line-height: 1;
   opacity: .92;
+  pointer-events: none;
+  user-select: none;
 }
+#crosshair.weapon-pistol { font-size: 30px; font-weight: 500; }
+#crosshair.weapon-rifle { font-size: 28px; font-weight: 300; }
+#crosshair.weapon-shotgun {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  font-size: 22px; line-height: 1;
+}
+#crosshair.weapon-marksman { font-size: 28px; font-weight: 300; }
+#crosshair.weapon-sniper { font-size: 20px; font-weight: 300; }
+body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .25; }
 
 #ammoHud {
   position: absolute;
