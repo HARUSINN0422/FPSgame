@@ -959,7 +959,6 @@ function buildWorld(data) {
 }
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
-  const canvas = document.getElementById("minimapCanvas");
   if (!canvas || !myState || !worldData?.world) return;
 
   const world = worldData.world;
