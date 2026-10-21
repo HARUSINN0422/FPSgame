@@ -231,7 +231,7 @@ p {
 }
 #crosshair.weapon-marksman { font-size: 28px; font-weight: 300; }
 #crosshair.weapon-sniper { font-size: 20px; font-weight: 300; }
-body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .25; }
+body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
 
 #ammoHud {
   position: absolute;
