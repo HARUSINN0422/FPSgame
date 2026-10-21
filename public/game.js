@@ -188,7 +188,7 @@ const DEFAULT_SETTINGS = {
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
     kdHud: { x: 0, y: 0 },
-    areaHud: { x: 0, y: 0 },
+    areaHud: { x: 0, y: 0, size: 100 }
     fullscreenButton: { x: 0, y: 0 },
     settingsButton: { x: 0, y: 0 },
     reloadButton: { x: 0, y: 0 }
@@ -298,6 +298,8 @@ function applyButtonLayout() {
     if (id === "areaHud") {
       el.style.setProperty("--layout-x", x + "px");
       el.style.setProperty("--layout-y", y + "px");
+      const scale = THREE.MathUtils.clamp(Number(cfg?.size) || 100, 60, 150) / 100;
+      el.style.setProperty("--area-hud-scale", String(scale));
     } else {
       el.style.transform = "translate(" + x + "px, " + y + "px)";
     }
@@ -325,6 +327,13 @@ function updateSettingsUi() {
     if (slider) slider.value = String(settingValue);
     if (value) value.textContent = settingValue.toFixed(2);
   }
+
+  const areaHudSizeSlider = document.getElementById("areaHudSizeSlider");
+  const areaHudSizeValue = document.getElementById("areaHudSizeValue");
+  const areaHudSize = THREE.MathUtils.clamp(Number(gameSettings.layout.areaHud.size) || 100, 60, 150);
+  gameSettings.layout.areaHud.size = Math.round(areaHudSize);
+  if (areaHudSizeSlider) areaHudSizeSlider.value = String(areaHudSize);
+  if (areaHudSizeValue) areaHudSizeValue.textContent = Math.round(areaHudSize) + "%";
 
   const movePadSizeSlider = document.getElementById("movePadSizeSlider");
   const movePadSizeValue = document.getElementById("movePadSizeValue");
@@ -601,6 +610,15 @@ function setupSettings() {
       saveGameSettings();
     });
   }
+
+  const areaHudSizeSlider = document.getElementById("areaHudSizeSlider");
+  areaHudSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(areaHudSizeSlider.value) || 100, 60, 150);
+    gameSettings.layout.areaHud.size = Math.round(size);
+    applyButtonLayout();
+    updateSettingsUi();
+    saveGameSettings();
+  });
 
   const movePadSizeSlider = document.getElementById("movePadSizeSlider");
   movePadSizeSlider?.addEventListener("input", () => {
@@ -2692,7 +2710,6 @@ setupDraggableOffset("areaHud", "areaHud");
     ["minimap", "minimap"],
     ["healthHud", "healthHud"],
     ["kdHud", "kdHud"],
-    ["areaHud", "areaHud"],
     ["settingsButton", "settingsButton"],
     ["ammoHud", "reloadButton"]
   ]);
