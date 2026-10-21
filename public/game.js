@@ -90,6 +90,9 @@ let activeGamepad = null;
 let controllerMode = false;
 let gamepadJumpHeld = false;
 let gamepadReloadHeld = false;
+let gamepadCrouchHeld = false;
+let gamepadSwitchHeld = false;
+let gamepadScopeHeld = false;
 let gamepadFireHeld = false;
 let controllerRespawnRequested = false;
 const clock = new THREE.Clock();
@@ -162,6 +165,9 @@ const DEFAULT_SETTINGS = {
   touchSensitivity: 1,
   controllerSensitivity: 1,
   mouseSensitivity: 1,
+  aimAssistEnabled: true,
+  aimAssistStrength: 45,
+  controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
   keyboard: {
@@ -208,6 +214,9 @@ function loadGameSettings() {
       touchSensitivity: THREE.MathUtils.clamp(Number(saved.touchSensitivity) || legacySensitivity, 0.4, 5.0),
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
+      aimAssistEnabled: saved.aimAssistEnabled !== false,
+      aimAssistStrength: THREE.MathUtils.clamp(Number(saved.aimAssistStrength ?? DEFAULT_SETTINGS.aimAssistStrength), 0, 100),
+      controllerButtons: { ...DEFAULT_SETTINGS.controllerButtons, ...(saved.controllerButtons || {}) },
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
       keyboard: savedKeyboard,
@@ -356,6 +365,18 @@ function updateSettingsUi() {
     if (label) label.textContent = jumpCrouchLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
 
+  const aimAssistToggle = document.getElementById("aimAssistEnabledToggle");
+  if (aimAssistToggle) aimAssistToggle.checked = gameSettings.aimAssistEnabled !== false;
+  const aimAssistStrength = THREE.MathUtils.clamp(Number(gameSettings.aimAssistStrength ?? 45), 0, 100);
+  gameSettings.aimAssistStrength = aimAssistStrength;
+  const aimAssistSlider = document.getElementById("aimAssistStrengthSlider");
+  const aimAssistValue = document.getElementById("aimAssistStrengthValue");
+  if (aimAssistSlider) aimAssistSlider.value = String(aimAssistStrength);
+  if (aimAssistValue) aimAssistValue.textContent = Math.round(aimAssistStrength) + "%";
+  for (const select of document.querySelectorAll("[data-controller-button]")) {
+    const action = select.dataset.controllerButton;
+    select.value = String(Number(gameSettings.controllerButtons?.[action] ?? DEFAULT_SETTINGS.controllerButtons[action]));
+  }
   refreshKeyBindingLabels();
 }
 
@@ -490,6 +511,7 @@ function setupSettings() {
     layoutEditing = false;
     status?.classList.add("hidden");
     document.getElementById("touchUi")?.classList.remove("layout-editing");
+    document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
     for (const id of ["minimap", "healthHud", "kdHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
@@ -540,6 +562,25 @@ function setupSettings() {
   });
   close?.addEventListener("click", closePanel);
   done?.addEventListener("click", closePanel);
+
+  document.getElementById("aimAssistEnabledToggle")?.addEventListener("change", (event) => {
+    gameSettings.aimAssistEnabled = Boolean(event.target.checked);
+    saveGameSettings();
+  });
+  document.getElementById("aimAssistStrengthSlider")?.addEventListener("input", (event) => {
+    gameSettings.aimAssistStrength = THREE.MathUtils.clamp(Number(event.target.value) || 0, 0, 100);
+    updateSettingsUi();
+    saveGameSettings();
+  });
+  panel?.querySelectorAll("[data-controller-button]")?.forEach((select) => {
+    select.addEventListener("change", () => {
+      const action = select.dataset.controllerButton;
+      const index = Number(select.value);
+      if (!Number.isInteger(index) || index < 0 || index > 15) return;
+      gameSettings.controllerButtons[action] = index;
+      saveGameSettings();
+    });
+  });
 
   for (const [sliderId, settingName] of [
     ["touchSensitivitySlider", "touchSensitivity"],
@@ -608,6 +649,7 @@ function setupSettings() {
   edit?.addEventListener("click", () => {
     layoutEditing = true;
     status?.classList.remove("hidden");
+    document.getElementById("touchUi")?.classList.remove("hidden");
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
@@ -1472,6 +1514,40 @@ function updateRemotePlayers(players) {
   document.getElementById("playerCount").textContent = String(players.length);
 }
 
+function updateAimAssist() {
+  if (!joined || !myState || gameSettings.aimAssistEnabled === false) return;
+  const touchDevice = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+  if (!controllerMode && !touchDevice) return;
+  const strength = THREE.MathUtils.clamp(Number(gameSettings.aimAssistStrength ?? 45), 0, 100) / 100;
+  if (strength <= 0) return;
+  const origin = camera.position.clone();
+  let best = null;
+  for (const obj of remotePlayers.values()) {
+    const target = obj.userData.playerState;
+    if (!target || target.health <= 0 || !obj.visible) continue;
+    if (selectedGameMode === "Area" && target.team && myState.team && target.team === myState.team) continue;
+    const point = obj.position.clone().add(new THREE.Vector3(0, target.crouched ? 0.72 : 1.12, 0));
+    const offset = point.clone().sub(origin);
+    const distance = offset.length();
+    if (distance > 38 || distance < 0.1) continue;
+    const targetYaw = Math.atan2(-offset.x, -offset.z);
+    const targetPitch = Math.atan2(offset.y, Math.hypot(offset.x, offset.z));
+    const yawDelta = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw));
+    const pitchDelta = targetPitch - pitch;
+    if (Math.abs(yawDelta) > 0.22 + strength * 0.14 || Math.abs(pitchDelta) > 0.18 + strength * 0.12) continue;
+    aimAssistRaycaster.set(origin, offset.clone().normalize());
+    const blockers = aimAssistRaycaster.intersectObjects(worldGroup.children, true);
+    if (blockers.length && blockers[0].distance < distance - 0.45) continue;
+    const score = Math.abs(yawDelta) * 1.15 + Math.abs(pitchDelta) + distance * 0.0015;
+    if (!best || score < best.score) best = { yawDelta, pitchDelta, score };
+  }
+  if (!best) return;
+  const pull = 0.012 + strength * 0.16;
+  yaw += best.yawDelta * pull;
+  pitch = THREE.MathUtils.clamp(pitch + best.pitchDelta * pull, -1.35, 1.35);
+}
+const aimAssistRaycaster = new THREE.Raycaster();
+
 function updateCamera() {
   if (!myState) return;
   const targetCameraHeight = myState.crouched ? 1.0 : 1.62;
@@ -1484,7 +1560,7 @@ function updateCamera() {
 function applyControllerMode(enabled) {
   controllerMode = enabled;
   document.body.classList.toggle("controller-mode", enabled);
-  document.getElementById("touchUi")?.classList.toggle("hidden", enabled);
+  if (!layoutEditing) document.getElementById("touchUi")?.classList.toggle("hidden", enabled);
   document.getElementById("gamepadStatus")?.replaceChildren(
     document.createTextNode(enabled && activeGamepad ? ("接続中: " + (activeGamepad.id || "Gamepad")) : "未接続")
   );
@@ -1533,10 +1609,13 @@ function pollGamepad(now) {
   pitch -= ry * lookSpeed;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 
-  const jumpPressed = Boolean(pad.buttons?.[0]?.pressed);
-  const reloadPressed = Boolean(pad.buttons?.[1]?.pressed);
-  const crouchPressed = Boolean(pad.buttons?.[2]?.pressed);
-  const firePressed = Boolean(pad.buttons?.[7]?.pressed);
+  const buttonFor = (action) => Number(gameSettings.controllerButtons?.[action] ?? DEFAULT_SETTINGS.controllerButtons[action]);
+  const jumpPressed = Boolean(pad.buttons?.[buttonFor("jump")]?.pressed);
+  const reloadPressed = Boolean(pad.buttons?.[buttonFor("reload")]?.pressed);
+  const crouchPressed = Boolean(pad.buttons?.[buttonFor("crouch")]?.pressed);
+  const switchPressed = Boolean(pad.buttons?.[buttonFor("switchWeapon")]?.pressed);
+  const scopePressed = Boolean(pad.buttons?.[buttonFor("scope")]?.pressed);
+  const firePressed = Boolean(pad.buttons?.[buttonFor("fire")]?.pressed);
 
   if (jumpPressed && !gamepadJumpHeld) {
     if (myState?.health <= 0) {
@@ -1546,9 +1625,17 @@ function pollGamepad(now) {
     }
   }
   if (reloadPressed && !gamepadReloadHeld) reload();
+  if (switchPressed && !gamepadSwitchHeld) selectWeaponSlot(activeWeaponSlot === 0 ? 1 : 0);
+  if (scopePressed && !gamepadScopeHeld && selectedWeapon === "sniper") {
+    scopeEnabled = !scopeEnabled;
+    updateScopeButton();
+  }
   crouchHeld = crouchPressed;
   gamepadJumpHeld = jumpPressed;
   gamepadReloadHeld = reloadPressed;
+  gamepadCrouchHeld = crouchPressed;
+  gamepadSwitchHeld = switchPressed;
+  gamepadScopeHeld = scopePressed;
 
   // コントローラーの射撃ボタンは、長押し中に武器の発射間隔で連射する。
   if (firePressed) {
@@ -2880,6 +2967,7 @@ function animate(now) {
   clock.getDelta();
 
   pollGamepad(now);
+  updateAimAssist();
   sendInput(now);
   updateCamera();
   updateMinimap();
