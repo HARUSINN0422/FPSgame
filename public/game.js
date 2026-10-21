@@ -113,6 +113,8 @@ let selectedPrimaryWeapon = "pistol";
 let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
 let scopeEnabled = false;
+let lastWeaponSwitchAt = 0;
+const WEAPON_SWITCH_COOLDOWN_MS = 250;
 let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
@@ -165,6 +167,7 @@ const DEFAULT_SETTINGS = {
   touchSensitivity: 1,
   controllerSensitivity: 1,
   mouseSensitivity: 1,
+  sniperSensitivity: 1,
   touchAimAssistEnabled: true,
   controllerAimAssistEnabled: true,
   aimAssistEnabled: true,
@@ -217,6 +220,7 @@ function loadGameSettings() {
       touchSensitivity: THREE.MathUtils.clamp(Number(saved.touchSensitivity) || legacySensitivity, 0.4, 5.0),
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
+      sniperSensitivity: THREE.MathUtils.clamp(Number(saved.sniperSensitivity) || 1, 0.2, 2.0),
       touchAimAssistEnabled: saved.touchAimAssistEnabled ?? saved.aimAssistEnabled !== false,
       controllerAimAssistEnabled: saved.controllerAimAssistEnabled ?? saved.aimAssistEnabled !== false,
       aimAssistEnabled: saved.aimAssistEnabled !== false,
@@ -317,12 +321,13 @@ function updateSettingsUi() {
   const sensitivityControls = [
     ["touchSensitivitySlider", "touchSensitivityValue", "touchSensitivity"],
     ["controllerSensitivitySlider", "controllerSensitivityValue", "controllerSensitivity"],
-    ["mouseSensitivitySlider", "mouseSensitivityValue", "mouseSensitivity"]
+    ["mouseSensitivitySlider", "mouseSensitivityValue", "mouseSensitivity"],
+    ["sniperSensitivitySlider", "sniperSensitivityValue", "sniperSensitivity"]
   ];
   for (const [sliderId, valueId, settingName] of sensitivityControls) {
     const slider = document.getElementById(sliderId);
     const value = document.getElementById(valueId);
-    const settingValue = THREE.MathUtils.clamp(Number(gameSettings[settingName]) || 1, 0.4, 5.0);
+    const settingValue = THREE.MathUtils.clamp(Number(gameSettings[settingName]) || 1, settingName === "sniperSensitivity" ? 0.2 : 0.4, settingName === "sniperSensitivity" ? 2.0 : 5.0);
     gameSettings[settingName] = settingValue;
     if (slider) slider.value = String(settingValue);
     if (value) value.textContent = settingValue.toFixed(2);
@@ -602,10 +607,11 @@ function setupSettings() {
   for (const [sliderId, settingName] of [
     ["touchSensitivitySlider", "touchSensitivity"],
     ["controllerSensitivitySlider", "controllerSensitivity"],
-    ["mouseSensitivitySlider", "mouseSensitivity"]
+    ["mouseSensitivitySlider", "mouseSensitivity"],
+    ["sniperSensitivitySlider", "sniperSensitivity"]
   ]) {
     document.getElementById(sliderId)?.addEventListener("input", (event) => {
-      gameSettings[settingName] = THREE.MathUtils.clamp(Number(event.target.value) || 1, 0.4, 5.0);
+      gameSettings[settingName] = THREE.MathUtils.clamp(Number(event.target.value) || 1, settingName === "sniperSensitivity" ? 0.2 : 0.4, settingName === "sniperSensitivity" ? 2.0 : 5.0);
       updateSettingsUi();
       saveGameSettings();
     });
@@ -1399,6 +1405,14 @@ function createRemotePlayer() {
   const weapon = createWeaponMesh("pistol");
 
   root.add(torso, head, armL, armR, legL, legR, ...outerMeshes, weapon);
+  const skinOutlineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.9, depthTest: true });
+  for (const mesh of [head, torso, armR, armL, legR, legL]) {
+    const outline = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), skinOutlineMaterial.clone());
+    outline.scale.setScalar(1.006);
+    outline.renderOrder = 3;
+    mesh.add(outline);
+  }
+
   root.userData.skinMeshes = {
     base: { head, torso, armR, armL, legR, legL },
     overlay: { head: headOuter, torso: torsoOuter, armR: armROuter, armL: armLOuter, legR: legROuter, legL: legLOuter }
@@ -1647,7 +1661,7 @@ function pollGamepad(now) {
   joystick.strafe = lx;
   joystick.forward = -ly;
 
-  const lookSpeed = .045 * gameSettings.controllerSensitivity;
+  const lookSpeed = .045 * gameSettings.controllerSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
   yaw -= rx * lookSpeed;
   pitch -= ry * lookSpeed;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
@@ -1794,11 +1808,14 @@ function setScopeEnabled(enabled) {
 
 function selectWeaponSlot(slot) {
   if (!joined || myState?.health <= 0) return;
+  const now = performance.now();
+  if (now - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
   const nextSlot = Number(slot);
   const slots = Array.isArray(myState?.weaponSlots) ? myState.weaponSlots : weaponSlots;
   if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot > 1 || !slots[nextSlot]) return;
   if (nextSlot === activeWeaponSlot && selectedWeapon === slots[nextSlot]) return;
   stopFiring();
+  lastWeaponSwitchAt = now;
   activeWeaponSlot = nextSlot;
   weaponSlots = [...slots];
   selectedWeapon = weaponSlots[nextSlot];
@@ -2630,8 +2647,8 @@ document.addEventListener("pointermove", (event) => {
   previous.x = event.clientX;
   previous.y = event.clientY;
 
-  yaw -= dx * .0045 * gameSettings.touchSensitivity;
-  pitch -= dy * .0045 * gameSettings.touchSensitivity;
+  yaw -= dx * .0045 * gameSettings.touchSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  pitch -= dy * .0045 * gameSettings.touchSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
   event.preventDefault();
 }, { capture: true, passive: false });
@@ -2862,8 +2879,8 @@ document.addEventListener("pointerlockchange", () => {
 document.addEventListener("mousemove", (e) => {
   if (!pointerLocked) return;
 
-  yaw -= e.movementX * .0028 * gameSettings.mouseSensitivity;
-  pitch -= e.movementY * .0028 * gameSettings.mouseSensitivity;
+  yaw -= e.movementX * .0028 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  pitch -= e.movementY * .0028 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 });
 
