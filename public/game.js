@@ -165,8 +165,10 @@ const DEFAULT_SETTINGS = {
   touchSensitivity: 1,
   controllerSensitivity: 1,
   mouseSensitivity: 1,
+  touchAimAssistEnabled: true,
+  controllerAimAssistEnabled: true,
   aimAssistEnabled: true,
-  aimAssistStrength: 45,
+  aimAssistStrength: 10,
   controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
@@ -214,8 +216,10 @@ function loadGameSettings() {
       touchSensitivity: THREE.MathUtils.clamp(Number(saved.touchSensitivity) || legacySensitivity, 0.4, 5.0),
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
+      touchAimAssistEnabled: saved.touchAimAssistEnabled ?? saved.aimAssistEnabled !== false,
+      controllerAimAssistEnabled: saved.controllerAimAssistEnabled ?? saved.aimAssistEnabled !== false,
       aimAssistEnabled: saved.aimAssistEnabled !== false,
-      aimAssistStrength: THREE.MathUtils.clamp(Number(saved.aimAssistStrength ?? DEFAULT_SETTINGS.aimAssistStrength), 0, 100),
+      aimAssistStrength: 10,
       controllerButtons: { ...DEFAULT_SETTINGS.controllerButtons, ...(saved.controllerButtons || {}) },
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
@@ -365,14 +369,11 @@ function updateSettingsUi() {
     if (label) label.textContent = jumpCrouchLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
 
-  const aimAssistToggle = document.getElementById("aimAssistEnabledToggle");
-  if (aimAssistToggle) aimAssistToggle.checked = gameSettings.aimAssistEnabled !== false;
-  const aimAssistStrength = THREE.MathUtils.clamp(Number(gameSettings.aimAssistStrength ?? 45), 0, 100);
-  gameSettings.aimAssistStrength = aimAssistStrength;
-  const aimAssistSlider = document.getElementById("aimAssistStrengthSlider");
-  const aimAssistValue = document.getElementById("aimAssistStrengthValue");
-  if (aimAssistSlider) aimAssistSlider.value = String(aimAssistStrength);
-  if (aimAssistValue) aimAssistValue.textContent = Math.round(aimAssistStrength) + "%";
+  const touchAimAssistToggle = document.getElementById("touchAimAssistEnabledToggle");
+  if (touchAimAssistToggle) touchAimAssistToggle.checked = gameSettings.touchAimAssistEnabled !== false;
+  const controllerAimAssistToggle = document.getElementById("controllerAimAssistEnabledToggle");
+  if (controllerAimAssistToggle) controllerAimAssistToggle.checked = gameSettings.controllerAimAssistEnabled !== false;
+  gameSettings.aimAssistStrength = 10;
   for (const select of document.querySelectorAll("[data-controller-button]")) {
     const action = select.dataset.controllerButton;
     select.value = String(Number(gameSettings.controllerButtons?.[action] ?? DEFAULT_SETTINGS.controllerButtons[action]));
@@ -563,13 +564,12 @@ function setupSettings() {
   close?.addEventListener("click", closePanel);
   done?.addEventListener("click", closePanel);
 
-  document.getElementById("aimAssistEnabledToggle")?.addEventListener("change", (event) => {
-    gameSettings.aimAssistEnabled = Boolean(event.target.checked);
+  document.getElementById("touchAimAssistEnabledToggle")?.addEventListener("change", (event) => {
+    gameSettings.touchAimAssistEnabled = Boolean(event.target.checked);
     saveGameSettings();
   });
-  document.getElementById("aimAssistStrengthSlider")?.addEventListener("input", (event) => {
-    gameSettings.aimAssistStrength = THREE.MathUtils.clamp(Number(event.target.value) || 0, 0, 100);
-    updateSettingsUi();
+  document.getElementById("controllerAimAssistEnabledToggle")?.addEventListener("change", (event) => {
+    gameSettings.controllerAimAssistEnabled = Boolean(event.target.checked);
     saveGameSettings();
   });
   panel?.querySelectorAll("[data-controller-button]")?.forEach((select) => {
@@ -1486,7 +1486,14 @@ function updateRemotePlayers(players) {
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
     obj.userData.crouched = Boolean(p.crouched);
-    obj.scale.y = obj.userData.crouched ? 0.62 : 1;
+    const crouchScale = obj.userData.crouched ? 0.62 : 1;
+    obj.scale.y = crouchScale;
+    // 全身を低くしつつ、頭部と頭部スキンのサイズだけは維持する。
+    const headScaleY = obj.userData.crouched ? 1 / crouchScale : 1;
+    for (const headMesh of [obj.userData.skinMeshes?.base?.head, obj.userData.skinMeshes?.overlay?.head]) {
+      if (!headMesh) continue;
+      headMesh.scale.y = headScaleY;
+    }
     obj.visible = p.health > 0;
 
     const shield = obj.userData.invulnerabilityShield;
@@ -1515,11 +1522,16 @@ function updateRemotePlayers(players) {
 }
 
 function updateAimAssist() {
-  if (!joined || !myState || gameSettings.aimAssistEnabled === false) return;
+  if (!joined || !myState) return;
   const touchDevice = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
-  if (!controllerMode && !touchDevice) return;
-  const strength = THREE.MathUtils.clamp(Number(gameSettings.aimAssistStrength ?? 45), 0, 100) / 100;
-  if (strength <= 0) return;
+  if (controllerMode) {
+    if (gameSettings.controllerAimAssistEnabled === false) return;
+  } else if (touchDevice) {
+    if (gameSettings.touchAimAssistEnabled === false) return;
+  } else {
+    return;
+  }
+  const strength = 0.10;
   const origin = camera.position.clone();
   let best = null;
   for (const obj of remotePlayers.values()) {
@@ -1627,8 +1639,7 @@ function pollGamepad(now) {
   if (reloadPressed && !gamepadReloadHeld) reload();
   if (switchPressed && !gamepadSwitchHeld) selectWeaponSlot(activeWeaponSlot === 0 ? 1 : 0);
   if (scopePressed && !gamepadScopeHeld && selectedWeapon === "sniper") {
-    scopeEnabled = !scopeEnabled;
-    updateScopeButton();
+    setScopeEnabled(!scopeEnabled);
   }
   crouchHeld = crouchPressed;
   gamepadJumpHeld = jumpPressed;
@@ -1709,6 +1720,22 @@ function weaponDisplayName(id) {
   return ({ pistol: "ハンドガン", rifle: "ライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
 }
 
+function updateWeaponReticle() {
+  const crosshair = document.getElementById("crosshair");
+  if (!crosshair) return;
+  const reticles = {
+    pistol: ["weapon-pistol", "+"],
+    rifle: ["weapon-rifle", "┼"],
+    shotgun: ["weapon-shotgun", "◎"],
+    marksman: ["weapon-marksman", "⊙"],
+    sniper: ["weapon-sniper", "·"]
+  };
+  const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
+  crosshair.classList.remove("weapon-pistol", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.add(className);
+  crosshair.textContent = glyph;
+}
+
 function updateWeaponSwitchButton() {
   const button = document.getElementById("switchWeaponButton");
   if (button) {
@@ -1717,6 +1744,7 @@ function updateWeaponSwitchButton() {
     button.title = weaponDisplayName(selectedWeapon);
   }
   updateScopeButton();
+  updateWeaponReticle();
 }
 function updateScopeButton() {
   const button = document.getElementById("scopeButton");
