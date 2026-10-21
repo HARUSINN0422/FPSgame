@@ -1789,6 +1789,7 @@ io.on("connection", (socket) => {
     p.jumpQueuedUntil = 0;
     p.health = 100;
     p.ammo = WEAPONS[p.weapon].magazineSize;
+    if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
     p.lastFire = 0;
     p.input.crouch = false;
@@ -1873,6 +1874,7 @@ function rotateMeleeMap() {
     p.pitch = 0;
     p.health = 100;
     p.ammo = WEAPONS[p.weapon].magazineSize;
+    if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
     p.lastFire = 0;
     p.velocityY = 0;
