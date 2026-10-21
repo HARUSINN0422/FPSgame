@@ -1348,6 +1348,28 @@ function createRemotePlayer() {
   root.add(invulnerabilityShield);
   root.userData.invulnerabilityShield = invulnerabilityShield;
 
+  // 名前はキャラクターモデル/スキンとは独立したSpriteとして表示する。
+  const nameCanvas = document.createElement("canvas");
+  nameCanvas.width = 512;
+  nameCanvas.height = 96;
+  const nameTexture = new THREE.CanvasTexture(nameCanvas);
+  nameTexture.colorSpace = THREE.SRGBColorSpace;
+  const nameSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: nameTexture,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false
+  }));
+  nameSprite.scale.set(2.8, 0.52, 1);
+  nameSprite.position.set(0, 2.15, 0);
+  nameSprite.renderOrder = 10;
+  root.add(nameSprite);
+  root.userData.nameCanvas = nameCanvas;
+  root.userData.nameTexture = nameTexture;
+  root.userData.nameSprite = nameSprite;
+  root.userData.nameText = "";
+  root.userData.nameColor = "";
+
   root.userData.targetPosition = new THREE.Vector3();
   root.userData.targetYaw = 0;
   root.userData.hasNetworkTransform = false;
@@ -1398,6 +1420,27 @@ function updateRemotePlayers(players) {
       }
     }
     obj.userData.playerState = p;
+    const nameSprite = obj.userData.nameSprite;
+    const teamColor = p.mode === "Area"
+      ? (p.team === "blue" ? "#54b7ff" : "#ff6565")
+      : "#ffffff";
+    if (nameSprite && (obj.userData.nameText !== p.name || obj.userData.nameColor !== teamColor)) {
+      const canvas = obj.userData.nameCanvas;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "bold 44px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(0,0,0,0.95)";
+      ctx.lineWidth = 10;
+      ctx.strokeText(String(p.name || "Player"), canvas.width / 2, canvas.height / 2);
+      ctx.fillStyle = teamColor;
+      ctx.fillText(String(p.name || "Player"), canvas.width / 2, canvas.height / 2);
+      obj.userData.nameTexture.needsUpdate = true;
+      obj.userData.nameText = p.name;
+      obj.userData.nameColor = teamColor;
+    }
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
     obj.userData.crouched = Boolean(p.crouched);
