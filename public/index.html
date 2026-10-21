@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=area-hud-layout-1">
+  <link rel="stylesheet" href="style.css?v=area-hud-layout-2">
 </head>
 <body>
   <div id="game"></div>
@@ -47,6 +47,11 @@
           <div class="settings-group-title">UI編集</div>
           <div class="setting-section">
             <p>画面上のボタンやHUD（エリア進行率を含む）をドラッグして配置を変更できます。</p>
+            <div class="setting-section">
+              <strong>エリア進行HUDのサイズ <span class="setting-value"><strong id="areaHudSizeValue">100%</strong></span></strong>
+              <input id="areaHudSizeSlider" type="range" min="60" max="150" step="5" value="100">
+              <p>エリア制圧の見出し・進行バー・パーセント表示をまとめて拡大／縮小します。</p>
+            </div>
             <div class="settings-actions">
               <button id="layoutEditButton">UI編集</button>
               <button id="layoutResetButton">配置を初期化</button>
@@ -383,6 +388,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-live-apply-7"></script>
-  <script type="module" src="game.js?v=area-hud-layout-1"></script>
+  <script type="module" src="game.js?v=area-hud-layout-2"></script>
 </body>
 </html>
