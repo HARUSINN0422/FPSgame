@@ -709,20 +709,24 @@ function updateBot(p, now) {
   const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
   const dir = directionFromAngles(p.yaw, p.pitch);
   const wallDistance = rayHitsObstacle(origin, dir, Math.min(distance, WEAPONS[p.weapon].range), p);
+  const visible = distance <= WEAPONS[p.weapon].range && (wallDistance === null || wallDistance >= distance - 0.7);
   if (holdObjective) {
     // エリア確保中は敵を狙って射撃するが、追いかけてエリア外へ出ない。
     p.input.forward = 0;
     p.input.strafe = 0;
+  } else if (!visible) {
+    // 射線が通らず撃ち合っていない間は、壁を避けながら最大速度で索敵する。
+    if (wallDistance !== null && wallDistance < 2.4) p.yaw += Math.sin(now / 900) >= 0 ? 0.42 : -0.42;
+    p.input.forward = 1;
+    p.input.strafe = Math.sin(now / 850) * 0.2;
   } else if (distance > 5) {
-    p.input.forward = wallDistance !== null && wallDistance < distance - 1 ? 0.35 : 1;
+    p.input.forward = 1;
     p.input.strafe = Math.sin(now / 850) * 0.35;
   } else {
     p.input.forward = -0.2;
     p.input.strafe = Math.sin(now / 500) * 0.5;
   }
   p.input.crouch = false;
-
-  const visible = distance <= WEAPONS[p.weapon].range && (wallDistance === null || wallDistance >= distance - 0.7);
   if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < 0.78) {
     // 約半分の発射で意図的に照準をずらし、BOTの命中率を下げる。
     const originalYaw = p.yaw;
