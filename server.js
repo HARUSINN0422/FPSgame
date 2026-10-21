@@ -727,8 +727,8 @@ function updateBot(p, now) {
     p.input.strafe = Math.sin(now / 500) * 0.5;
   }
   p.input.crouch = false;
-  // エリアモードのBOTは通常モードより発射頻度・命中率を下げる。
-  const botFireChance = isAreaBot ? 0.48 : 0.78;
+  // 両モードのBOTは、射線が通り照準条件を満たしたとき60%の確率で射撃する。
+  const botFireChance = 0.60;
   const botAimOffChance = isAreaBot ? 0.82 : 0.5;
   if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < botFireChance) {
     const originalYaw = p.yaw;
@@ -1101,9 +1101,10 @@ function fireShot(shooter) {
   if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
 
   const pelletCount = weapon.pellets || 1;
+  const shooterHeight = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const origin = {
     x: shooter.x,
-    y: shooter.y + PLAYER_HEIGHT - 0.15,
+    y: shooter.y + shooterHeight - 0.15,
     z: shooter.z
   };
 
