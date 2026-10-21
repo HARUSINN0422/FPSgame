@@ -188,7 +188,7 @@ const DEFAULT_SETTINGS = {
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
     kdHud: { x: 0, y: 0 },
-    areaHud: { x: 0, y: 0, size: 100 }
+    areaHud: { x: 0, y: 0, size: 100 },
     fullscreenButton: { x: 0, y: 0 },
     settingsButton: { x: 0, y: 0 },
     reloadButton: { x: 0, y: 0 }
