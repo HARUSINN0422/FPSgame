@@ -114,7 +114,7 @@ let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
 let scopeEnabled = false;
 let lastWeaponSwitchAt = -Infinity;
-const WEAPON_SWITCH_COOLDOWN_MS = 250;
+const WEAPON_SWITCH_COOLDOWN_MS = 800;
 let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
@@ -1816,6 +1816,11 @@ function selectWeaponSlot(slot) {
   if (nextSlot === activeWeaponSlot && selectedWeapon === slots[nextSlot]) return;
   stopFiring();
   lastWeaponSwitchAt = now;
+  const switchReticle = document.getElementById("crosshair");
+  switchReticle?.classList.add("weapon-switch-blocked");
+  window.setTimeout(() => {
+    if (lastWeaponSwitchAt === now) switchReticle?.classList.remove("weapon-switch-blocked");
+  }, WEAPON_SWITCH_COOLDOWN_MS);
   activeWeaponSlot = nextSlot;
   weaponSlots = [...slots];
   selectedWeapon = weaponSlots[nextSlot];
