@@ -1230,7 +1230,7 @@ function fireShot(shooter) {
     let visualYaw = shooter.yaw;
     let visualPitch = shooter.pitch;
     if (weapon.spread) {
-      const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 4.5 : 1;
+      const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
       const movementSpreadMultiplier = shooter.grounded ? 1 : 2.0;
       const visualSpread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
       visualYaw += (Math.random() - 0.5) * visualSpread;
