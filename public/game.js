@@ -1058,7 +1058,11 @@ function updateMinimap() {
     if (selectedGameMode === "Area" && enemy.team === myState.team) continue;
 
     const ex = Number(enemy.x), ez = Number(enemy.z);
-    let spotted = showAllEnemies;
+    // 乱戦では、プレイヤーからマップの長辺の半分以上離れた敵もミニマップに表示する。
+    const enemyDistance = Math.hypot(ex - myState.x, ez - myState.z);
+    const showDistantMeleeEnemy = selectedGameMode === "Melee"
+      && enemyDistance >= Math.max(worldWidth, worldDepth) / 2;
+    let spotted = showAllEnemies || showDistantMeleeEnemy;
     if (!spotted) {
       for (const observer of observers) {
         const dx = ex - observer.x;
