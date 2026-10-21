@@ -43,7 +43,7 @@ const AUTO_UPDATE_BRANCH = "main";
 const TICK_RATE = 20;
 // マップデータは map/<ゲームモード>/*.json から読み込みます。
 const PLAYER_SPEED = 6.5;
-const CROUCH_SPEED = 4.2;
+const CROUCH_SPEED = 3.2;
 const PLAYER_RADIUS = 0.45;
 const PLAYER_HEIGHT = 1.7;
 const CROUCH_HEIGHT = 1.0;
