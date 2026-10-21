@@ -1132,8 +1132,8 @@ body.controller-mode #settingsButton {
 .area-hud {
   position: fixed;
   z-index: 4;
-  top: max(82px, calc(82px + env(safe-area-inset-top)));
-  left: 50%;
+  top: calc(max(82px, calc(82px + env(safe-area-inset-top))) + var(--layout-y, 0px));
+  left: calc(50% + var(--layout-x, 0px));
   transform: translateX(-50%);
   width: min(420px, 54vw);
   padding: 9px 12px;
@@ -1168,7 +1168,7 @@ body.controller-mode #settingsButton {
 #areaResultCloseButton { margin-top: 8px; }
 
 @media (max-width: 620px) {
-  .area-hud { top: max(76px, calc(76px + env(safe-area-inset-top))); width: min(390px, 72vw); padding: 7px 9px; }
+  .area-hud { top: calc(max(76px, calc(76px + env(safe-area-inset-top))) + var(--layout-y, 0px)); width: min(390px, 72vw); padding: 7px 9px; }
   .area-hud-header { font-size: 10px; margin-bottom: 4px; }
   .area-progress-row { grid-template-columns: 34px minmax(0,1fr) 38px; gap: 4px; font-size: 9px; }
   .area-progress-track { height: 10px; }
@@ -1534,4 +1534,16 @@ body.controller-mode #settingsButton {
 #mouseSensitivitySlider {
   width: 100%;
   accent-color: #6ea8ff;
+}
+
+
+/* UI編集時はエリア進行率HUDもドラッグ可能にする。 */
+.area-hud.layout-editing-target {
+  pointer-events: auto !important;
+  touch-action: none !important;
+  cursor: move !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  outline: 2px dashed rgba(110, 190, 255, .9);
+  outline-offset: 3px;
 }
