@@ -727,13 +727,16 @@ function updateBot(p, now) {
     p.input.strafe = Math.sin(now / 500) * 0.5;
   }
   p.input.crouch = false;
-  if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < 0.78) {
-    // 約半分の発射で意図的に照準をずらし、BOTの命中率を下げる。
+  // エリアモードのBOTは通常モードより発射頻度・命中率を下げる。
+  const botFireChance = isAreaBot ? 0.48 : 0.78;
+  const botAimOffChance = isAreaBot ? 0.82 : 0.5;
+  if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < botFireChance) {
     const originalYaw = p.yaw;
     const originalPitch = p.pitch;
-    if (Math.random() < 0.5) {
-      p.yaw += (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.18);
-      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * 0.24, -1.0, 1.0);
+    if (Math.random() < botAimOffChance) {
+      const aimOffset = isAreaBot ? 0.3 + Math.random() * 0.32 : 0.2 + Math.random() * 0.18;
+      p.yaw += (Math.random() < 0.5 ? -1 : 1) * aimOffset;
+      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * (isAreaBot ? 0.38 : 0.24), -1.0, 1.0);
     }
     fireShot(p);
     p.yaw = originalYaw;
