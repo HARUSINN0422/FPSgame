@@ -959,6 +959,7 @@ function buildWorld(data) {
 }
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
+  const canvas = document.getElementById("minimapCanvas");
   if (!canvas || !myState || !worldData?.world) return;
 
   const world = worldData.world;
@@ -1038,6 +1039,65 @@ function updateMinimap() {
   ctx.beginPath();
   ctx.arc(px, pz, 5, 0, Math.PI * 2);
   ctx.fill();
+
+  // 無敵中は敵全員を表示。それ以外は自分（エリアでは味方も）の視界に入った敵だけ表示。
+  const showAllEnemies = Number(myState.invulnerableUntil || 0) > Date.now();
+  const observers = [{ x: myState.x, y: myState.y || 0, z: myState.z, yaw, team: myState.team }];
+  if (selectedGameMode === "Area") {
+    for (const obj of remotePlayers.values()) {
+      const ally = obj.userData.playerState;
+      if (ally && ally.health > 0 && ally.team === myState.team && ally.mode === "Area") {
+        observers.push({ x: obj.position.x, y: obj.position.y, z: obj.position.z, yaw: obj.rotation.y, team: ally.team });
+      }
+    }
+  }
+
+  const raycaster = new THREE.Raycaster();
+  for (const obj of remotePlayers.values()) {
+    const enemy = obj.userData.playerState;
+    if (!enemy || enemy.health <= 0 || enemy.finished) continue;
+    if (selectedGameMode === "Area" && enemy.team === myState.team) continue;
+
+    const ex = Number(enemy.x), ez = Number(enemy.z);
+    let spotted = showAllEnemies;
+    if (!spotted) {
+      for (const observer of observers) {
+        const dx = ex - observer.x;
+        const dz = ez - observer.z;
+        const distance = Math.hypot(dx, dz);
+        if (distance < 0.01 || distance > 45) continue;
+        const targetYaw = Math.atan2(-dx, -dz);
+        const yawDiff = Math.atan2(Math.sin(targetYaw - observer.yaw), Math.cos(targetYaw - observer.yaw));
+        if (Math.abs(yawDiff) > Math.PI * 0.24) continue;
+
+        const origin = new THREE.Vector3(observer.x, observer.y + 1.35, observer.z);
+        const target = new THREE.Vector3(ex, Number(enemy.y || 0) + 1.0, ez);
+        const direction = target.clone().sub(origin);
+        const rayDistance = direction.length();
+        direction.normalize();
+        raycaster.set(origin, direction);
+        raycaster.far = Math.max(0, rayDistance - 0.8);
+        const blockers = raycaster.intersectObjects(worldGroup.children, true);
+        if (!blockers.length) {
+          spotted = true;
+          break;
+        }
+      }
+    }
+
+    if (!spotted) continue;
+    const exMap = mapX(ex);
+    const ezMap = mapZ(ez);
+    ctx.fillStyle = selectedGameMode === "Area" ? (enemy.team === "blue" ? "#4aa5ff" : "#ff5c5c") : "#ff4d4d";
+    ctx.beginPath();
+    ctx.arc(exMap, ezMap, showAllEnemies ? 5 : 4, 0, Math.PI * 2);
+    ctx.fill();
+    if (showAllEnemies) {
+      ctx.strokeStyle = "rgba(255,255,255,.9)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
 }
 
 function createWeaponMesh(weapon) {
@@ -1334,6 +1394,7 @@ function updateRemotePlayers(players) {
         if (material?.color) material.color.copy(clothingColor);
       }
     }
+    obj.userData.playerState = p;
     obj.userData.targetPosition.set(p.x, p.y || 0, p.z);
     obj.userData.targetYaw = p.yaw || 0;
     obj.userData.crouched = Boolean(p.crouched);
@@ -1825,6 +1886,8 @@ socket.on("mapChanged", ({ map } = {}) => {
   setScopeEnabled(false);
   yaw = 0;
   pitch = 0;
+  // worldイベントとの順序差で旧マップの描画が残った場合に備え、切替通知時にも再構築する。
+  if (worldData) buildWorld(worldData);
   if (!mapChangeCountdownElement) return;
 
   if (mapChangeNoticeTimeout) clearTimeout(mapChangeNoticeTimeout);
