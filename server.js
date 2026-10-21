@@ -196,7 +196,7 @@ const WEAPONS = {
   },
   sniper: {
     name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
-    falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 5,
+    falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
     reloadTime: 1900, automatic: false
   }
 };
@@ -1118,7 +1118,10 @@ function fireShot(shooter) {
     if (weapon.spread) {
       // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
       const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
-      const movementSpreadMultiplier = shooter.grounded ? 1 : 2.0;
+      const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
+        Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
+      const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
+      const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) * movingShotMultiplier;
       const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
       yaw += (Math.random() - 0.5) * spread;
       pitch += (Math.random() - 0.5) * spread;
@@ -1357,6 +1360,50 @@ function broadcastAreaQueueStatus() {
   }
 }
 
+function tryJoinExistingAreaMatch(socket, entry) {
+  for (const match of areaMatches.values()) {
+    if (match.finished || match.playerIds.length >= 6) continue;
+    const botId = match.playerIds.find((id) => {
+      const player = players.get(id);
+      return player?.isBot && player.mode === AREA_MODE && player.matchId === match.id;
+    });
+    if (!botId) continue;
+
+    const bot = players.get(botId);
+    const spawn = [bot.x, bot.y, bot.z];
+    const player = createAreaPlayer({
+      id: socket.id,
+      name: entry.name,
+      skin: entry.skin,
+      weapon: entry.weapon,
+      secondaryWeapon: entry.secondaryWeapon,
+      team: bot.team,
+      matchId: match.id,
+      isBot: false,
+      botSpawnIndex: 0
+    }, spawn);
+    players.delete(botId);
+    const index = match.playerIds.indexOf(botId);
+    if (index >= 0) match.playerIds[index] = socket.id;
+    match.humanIds.push(socket.id);
+    players.set(socket.id, player);
+
+    socket.emit("world", getWorldPayloadForMap(areaMap, AREA_MODE));
+    socket.emit("joined", { player: publicPlayer(player, true) });
+    socket.emit("areaMatchStarted", {
+      matchId: match.id,
+      team: player.team,
+      botCount: match.playerIds.filter((id) => players.get(id)?.isBot).length,
+      map: getMapInfo(areaMap, AREA_MODE)
+    });
+    broadcastPlayers();
+    sendAreaMatchState(match, true);
+    console.log("[Area] BOTを新規参加者に置換:", match.id, "team:", player.team);
+    return true;
+  }
+  return false;
+}
+
 function queueAreaPlayer(socket, data = {}) {
   if (players.has(socket.id)) {
     socket.emit("areaQueueError", { message: "現在の対戦を終了してからモードを変更してください。" });
@@ -1378,6 +1425,9 @@ function queueAreaPlayer(socket, data = {}) {
   if (entry.secondaryWeapon === entry.weapon) {
     entry.secondaryWeapon = entry.weapon === "rifle" ? "shotgun" : "rifle";
   }
+
+  // 進行中のエリア戦が6人未満なら、待機列に入れずBOT枠へ即参加する。
+  if (tryJoinExistingAreaMatch(socket, entry)) return;
 
   if (areaQueue.length === 0) {
     areaQueueStartedAt = Date.now();
