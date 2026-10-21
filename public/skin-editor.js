@@ -1,6 +1,37 @@
 const SKIN_STORAGE_KEY = "fps_player_skin_v1";
 const SKIN_SIZE = 64;
 
+// キャラクター本体に使われるベース面だけを検査する。
+// 外側レイヤーや未使用領域は通常から透明なので、判定対象に含めない。
+const SKIN_BASE_FACE_RECTS = [
+  [0,8,8,8], [16,8,8,8], [8,0,8,8], [16,0,8,8], [8,8,8,8], [24,8,8,8],
+  [16,20,4,12], [28,20,4,12], [20,16,8,4], [28,16,8,4], [20,20,8,12], [32,20,8,12],
+  [40,20,4,12], [48,20,4,12], [44,16,4,4], [48,16,4,4], [44,20,4,12], [52,20,4,12],
+  [0,20,4,12], [8,20,4,12], [4,16,4,4], [8,16,4,4], [4,20,4,12], [12,20,4,12],
+  [32,52,4,12], [40,52,4,12], [36,48,4,4], [40,48,4,4], [36,52,4,12], [44,52,4,12],
+  [16,52,4,12], [24,52,4,12], [20,48,4,4], [24,48,4,4], [20,52,4,12], [28,52,4,12]
+];
+
+function hasMostlyErasedBaseSkin() {
+  if (!skinCtx) return false;
+  const pixels = skinCtx.getImageData(0, 0, SKIN_SIZE, SKIN_SIZE).data;
+  const checked = new Uint8Array(SKIN_SIZE * SKIN_SIZE);
+  let total = 0;
+  let transparent = 0;
+  for (const [x, y, w, h] of SKIN_BASE_FACE_RECTS) {
+    for (let py = y; py < y + h; py++) {
+      for (let px = x; px < x + w; px++) {
+        const index = py * SKIN_SIZE + px;
+        if (checked[index]) continue;
+        checked[index] = 1;
+        total++;
+        if (pixels[index * 4 + 3] < 16) transparent++;
+      }
+    }
+  }
+  return total > 0 && transparent / total >= 0.5;
+}
+
 const editorPanel = document.getElementById("skinEditorPanel");
 const skinCanvas = document.getElementById("skinCanvas");
 const skinCtx = skinCanvas?.getContext("2d", { willReadFrequently: true });
@@ -265,8 +296,17 @@ function loadSkinDataUrl(dataUrl) {
       skinCtx.clearRect(0, 0, SKIN_SIZE, SKIN_SIZE);
       skinCtx.imageSmoothingEnabled = false;
       skinCtx.drawImage(image, 0, 0, SKIN_SIZE, SKIN_SIZE);
-      drawGuides();
-      drawPreview();
+      if (hasMostlyErasedBaseSkin()) {
+        makeDefaultSkin();
+        const defaultDataUrl = skinCanvas.toDataURL("image/png");
+        localStorage.setItem(SKIN_STORAGE_KEY, defaultDataUrl);
+        window.applyPlayerSkinToServer?.(defaultDataUrl);
+        document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl: defaultDataUrl } }));
+        if (statusEl) statusEl.textContent = "スキンの半分以上が透明だったため、初期スキンに戻しました。";
+      } else {
+        drawGuides();
+        drawPreview();
+      }
       resolve(true);
     };
     image.onerror = () => resolve(false);
