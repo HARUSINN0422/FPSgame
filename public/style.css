@@ -1134,7 +1134,8 @@ body.controller-mode #settingsButton {
   z-index: 4;
   top: calc(max(82px, calc(82px + env(safe-area-inset-top))) + var(--layout-y, 0px));
   left: calc(50% + var(--layout-x, 0px));
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(var(--area-hud-scale, 1));
+  transform-origin: top center;
   width: min(420px, 54vw);
   padding: 9px 12px;
   border: 1px solid rgba(255,255,255,.2);
