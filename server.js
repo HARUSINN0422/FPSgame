@@ -651,7 +651,7 @@ function updateBot(p, now) {
       p.input.forward = 0.34;
       p.input.strafe = turnDirection * 0.72;
     } else {
-      p.input.forward = clamp(distance / 8, 0.45, 0.95);
+      p.input.forward = 1;
       p.input.strafe = Math.sin(now / 1100 + (p.botOffset || 0)) * 0.12;
     }
     p.input.crouch = false;
@@ -681,7 +681,7 @@ function updateBot(p, now) {
       p.yaw += (Math.random() < 0.5 ? -1 : 1) * (0.9 + Math.random() * 1.1);
       p.botWanderTurnAt = now + 500;
     }
-    p.input.forward = 0.42;
+    p.input.forward = 1;
     p.input.strafe = Math.sin(now / 1100) * 0.22;
     p.input.crouch = false;
     return;
@@ -714,16 +714,16 @@ function updateBot(p, now) {
     p.input.forward = 0;
     p.input.strafe = 0;
   } else if (distance > 5) {
-    p.input.forward = wallDistance !== null && wallDistance < distance - 1 ? 0.12 : 0.45;
+    p.input.forward = wallDistance !== null && wallDistance < distance - 1 ? 0.35 : 1;
     p.input.strafe = Math.sin(now / 850) * 0.35;
   } else {
-    p.input.forward = -0.08;
+    p.input.forward = -0.2;
     p.input.strafe = Math.sin(now / 500) * 0.5;
   }
   p.input.crouch = false;
 
   const visible = distance <= WEAPONS[p.weapon].range && (wallDistance === null || wallDistance >= distance - 0.7);
-  if (visible && Math.abs(yawDelta) < 0.12 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval) {
+  if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < 0.78) {
     // 約半分の発射で意図的に照準をずらし、BOTの命中率を下げる。
     const originalYaw = p.yaw;
     const originalPitch = p.pitch;
@@ -1057,6 +1057,7 @@ function finishReload(p, now = Date.now()) {
 
   const weapon = WEAPONS[p.weapon];
   p.ammo = weapon.magazineSize;
+  if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
   p.reloadingUntil = 0;
   return true;
 }
@@ -1090,6 +1091,7 @@ function fireShot(shooter) {
 
   shooter.lastFire = now;
   shooter.ammo -= 1;
+  if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
 
   const pelletCount = weapon.pellets || 1;
   const origin = {
@@ -1107,7 +1109,7 @@ function fireShot(shooter) {
 
     if (weapon.spread) {
       // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
-      const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 4.5 : 1;
+      const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
       const movementSpreadMultiplier = shooter.grounded ? 1 : 2.0;
       const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
       yaw += (Math.random() - 0.5) * spread;
@@ -1277,6 +1279,7 @@ function publicPlayer(p, includeSkin = false) {
     weaponSlots: Array.isArray(p.weaponSlots) ? [...p.weaponSlots] : [p.weapon],
     activeWeaponSlot: Number(p.activeWeaponSlot) || 0,
     ammo: p.ammo,
+    weaponAmmo: Array.isArray(p.weaponAmmo) ? [...p.weaponAmmo] : [p.ammo],
     reloading: p.reloadingUntil > Date.now(),
     respawnAt: p.respawnAt || 0,
     invulnerableUntil: p.invulnerableUntil || 0,
@@ -1313,6 +1316,7 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, team, match
     weaponSlots: [weapon, secondaryWeapon],
     activeWeaponSlot: 0,
     ammo: WEAPONS[weapon].magazineSize,
+    weaponAmmo: [WEAPONS[weapon].magazineSize, WEAPONS[secondaryWeapon].magazineSize],
     reloadingUntil: 0,
     lastFire: 0,
     velocityY: 0,
@@ -1707,6 +1711,7 @@ io.on("connection", (socket) => {
       weaponSlots,
       activeWeaponSlot: 0,
       ammo: WEAPONS[weapon].magazineSize,
+      weaponAmmo: [WEAPONS[weapon].magazineSize, WEAPONS[secondaryWeapon].magazineSize],
       reloadingUntil: 0,
       lastFire: 0,
       velocityY: 0,
@@ -1813,6 +1818,8 @@ io.on("connection", (socket) => {
     p.weaponSlots[p.activeWeaponSlot || 0] = nextWeapon;
     p.weapon = nextWeapon;
     p.ammo = WEAPONS[nextWeapon].magazineSize;
+    if (!Array.isArray(p.weaponAmmo)) p.weaponAmmo = [p.ammo, WEAPONS[p.weaponSlots[1] || nextWeapon].magazineSize];
+    p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
     p.lastFire = 0;
   });
@@ -1824,9 +1831,11 @@ io.on("connection", (socket) => {
     if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
     if (nextSlot === p.activeWeaponSlot && nextWeapon === p.weapon) return;
+    if (!Array.isArray(p.weaponAmmo)) p.weaponAmmo = [WEAPONS[p.weaponSlots[0]].magazineSize, WEAPONS[p.weaponSlots[1] || p.weaponSlots[0]].magazineSize];
+    p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.activeWeaponSlot = nextSlot;
     p.weapon = nextWeapon;
-    p.ammo = WEAPONS[nextWeapon].magazineSize;
+    p.ammo = Math.max(0, Math.min(WEAPONS[nextWeapon].magazineSize, Number(p.weaponAmmo[nextSlot]) || 0));
     p.reloadingUntil = 0;
     p.lastFire = 0;
   });
