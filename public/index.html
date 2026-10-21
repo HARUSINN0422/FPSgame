@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=touch-slide-look-1">
+  <link rel="stylesheet" href="style.css?v=controller-aimassist-ui-2">
 </head>
 <body>
   <div id="game"></div>
@@ -41,6 +41,29 @@
           <div class="settings-skin-action">
             <div><strong>プレイヤースキン</strong><p>キャラクターの見た目をペイントして変更できます。</p></div>
             <button id="settingsSkinEditorButton" class="settings-skin-change-button" type="button">スキン変更</button>
+          </div>
+        </div>
+        <div class="settings-group">
+          <div class="settings-group-title">エイムアシスト</div>
+          <label class="setting-section look-toggle-row">
+            <strong>エイムアシスト（タッチ・コントローラー）</strong>
+            <span><input id="aimAssistEnabledToggle" type="checkbox" checked> 有効</span>
+          </label>
+          <div class="setting-section">
+            <strong>強さ <span id="aimAssistStrengthValue" class="setting-value">45%</span></strong>
+            <input id="aimAssistStrengthSlider" type="range" min="0" max="100" step="5" value="45">
+            <p>0%で無効、100%で強く照準を引き寄せます。壁の向こうの相手には作用しません。</p>
+          </div>
+        </div>
+        <div class="settings-group">
+          <div class="settings-group-title">UI編集</div>
+          <div class="setting-section">
+            <p>画面上のボタンやHUDをドラッグして配置を変更できます。</p>
+            <div class="settings-actions">
+              <button id="layoutEditButton">UI編集</button>
+              <button id="layoutResetButton">配置を初期化</button>
+            </div>
+            <div id="layoutEditStatus" class="setting-status hidden">UI編集を開始すると設定画面が閉じます。表示されたUIをドラッグしてください。</div>
           </div>
         </div>
       </div>
@@ -88,17 +111,6 @@
             <p>ONにすると、ジャンプまたはしゃがみボタンを押したまま、その指をスライドして視点を操作できます。</p>
           </label>
         </div>
-        <div class="settings-group">
-          <div class="settings-group-title">ボタン配置</div>
-          <div class="setting-section">
-            <p>「配置を編集」を押したあと、移動スティック・JUMP・CROUCH・RELOAD・FIRE・武器切替・スコープ・MAP・HPバー・K/D表示などをドラッグして移動できます。</p>
-            <div class="settings-actions">
-              <button id="layoutEditButton">配置を編集</button>
-              <button id="layoutResetButton">配置を初期化</button>
-            </div>
-            <div id="layoutEditStatus" class="setting-status hidden">配置編集を開始すると設定画面が閉じます。ボタンをドラッグして動かしてください。</div>
-          </div>
-        </div>
       </div>
 
       <div class="settings-tab-panel" data-settings-content="controller" role="tabpanel" hidden>
@@ -107,6 +119,18 @@
           <div class="setting-section">
             <strong>コントローラー視点感度 <span><strong id="controllerSensitivityValue">1.00</strong></span></strong>
             <input id="controllerSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-title">コントローラーボタン割り当て</div>
+            <p>各操作に使うボタンを選択できます。</p>
+            <div class="keybind-grid controller-bind-grid">
+              <div class="keybind-row"><span>ジャンプ</span><select data-controller-button="jump"><option value="0">A / × (0)</option><option value="1">B / ○ (1)</option><option value="2">X / □ (2)</option><option value="3">Y / △ (3)</option><option value="4">LB / L1 (4)</option><option value="5">RB / R1 (5)</option><option value="6">LT / L2 (6)</option><option value="7">RT / R2 (7)</option><option value="8">Back / Share (8)</option><option value="9">Start / Options (9)</option><option value="10">L3 (10)</option><option value="11">R3 (11)</option><option value="12">十字上 (12)</option><option value="13">十字下 (13)</option><option value="14">十字左 (14)</option><option value="15">十字右 (15)</option></select></div>
+              <div class="keybind-row"><span>リロード</span><select data-controller-button="reload"><option value="0">A / × (0)</option><option value="1">B / ○ (1)</option><option value="2">X / □ (2)</option><option value="3">Y / △ (3)</option><option value="4">LB / L1 (4)</option><option value="5">RB / R1 (5)</option><option value="6">LT / L2 (6)</option><option value="7">RT / R2 (7)</option><option value="8">Back / Share (8)</option><option value="9">Start / Options (9)</option><option value="10">L3 (10)</option><option value="11">R3 (11)</option><option value="12">十字上 (12)</option><option value="13">十字下 (13)</option><option value="14">十字左 (14)</option><option value="15">十字右 (15)</option></select></div>
+              <div class="keybind-row"><span>しゃがむ</span><select data-controller-button="crouch"><option value="0">A / × (0)</option><option value="1">B / ○ (1)</option><option value="2">X / □ (2)</option><option value="3">Y / △ (3)</option><option value="4">LB / L1 (4)</option><option value="5">RB / R1 (5)</option><option value="6">LT / L2 (6)</option><option value="7">RT / R2 (7)</option><option value="8">Back / Share (8)</option><option value="9">Start / Options (9)</option><option value="10">L3 (10)</option><option value="11">R3 (11)</option><option value="12">十字上 (12)</option><option value="13">十字下 (13)</option><option value="14">十字左 (14)</option><option value="15">十字右 (15)</option></select></div>
+              <div class="keybind-row"><span>武器切替</span><select data-controller-button="switchWeapon"><option value="0">A / × (0)</option><option value="1">B / ○ (1)</option><option value="2">X / □ (2)</option><option value="3">Y / △ (3)</option><option value="4">LB / L1 (4)</option><option value="5">RB / R1 (5)</option><option value="6">LT / L2 (6)</option><option value="7">RT / R2 (7)</option><option value="8">Back / Share (8)</option><option value="9">Start / Options (9)</option><option value="10">L3 (10)</option><option value="11">R3 (11)</option><option value="12">十字上 (12)</option><option value="13">十字下 (13)</option><option value="14">十字左 (14)</option><option value="15">十字右 (15)</option></select></div>
+              <div class="keybind-row"><span>スコープ</span><select data-controller-button="scope"><option value="0">A / × (0)</option><option value="1">B / ○ (1)</option><option value="2">X / □ (2)</option><option value="3">Y / △ (3)</option><option value="4">LB / L1 (4)</option><option value="5">RB / R1 (5)</option><option value="6">LT / L2 (6)</option><option value="7">RT / R2 (7)</option><option value="8">Back / Share (8)</option><option value="9">Start / Options (9)</option><option value="10">L3 (10)</option><option value="11">R3 (11)</option><option value="12">十字上 (12)</option><option value="13">十字下 (13)</option><option value="14">十字左 (14)</option><option value="15">十字右 (15)</option></select></div>
+              <div class="keybind-row"><span>発射</span><select data-controller-button="fire"><option value="0">A / × (0)</option><option value="1">B / ○ (1)</option><option value="2">X / □ (2)</option><option value="3">Y / △ (3)</option><option value="4">LB / L1 (4)</option><option value="5">RB / R1 (5)</option><option value="6">LT / L2 (6)</option><option value="7">RT / R2 (7)</option><option value="8">Back / Share (8)</option><option value="9">Start / Options (9)</option><option value="10">L3 (10)</option><option value="11">R3 (11)</option><option value="12">十字上 (12)</option><option value="13">十字下 (13)</option><option value="14">十字左 (14)</option><option value="15">十字右 (15)</option></select></div>
+            </div>
           </div>
           <div class="setting-section">
             <strong>Bluetoothコントローラー</strong>
