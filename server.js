@@ -1805,8 +1805,8 @@ io.on("connection", (socket) => {
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
     const requestedMode = data.mode === TRAINING_MODE ? TRAINING_MODE : MAP_MODE;
-    const spawn = pickSpawn();
     const trainingMap = requestedMode === TRAINING_MODE ? createTrainingMap() : null;
+    const spawn = trainingMap ? trainingMap.spawnPoints[0] : pickSpawn();
     socket.emit("world", trainingMap ? getWorldPayloadForMap(trainingMap, TRAINING_MODE) : getWorldPayload());
 
     players.set(socket.id, {
