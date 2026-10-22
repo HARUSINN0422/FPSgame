@@ -466,6 +466,7 @@ app.get("/{*splat}", (_req, res) => {
 const players = new Map();
 
 const MAP_ROOT = path.join(__dirname, "map");
+const MAP_OVERRIDE_ROOT = path.join(__dirname, "data", "maps");
 const MAP_MODE = "Melee";
 const AREA_MODE = "Area";
 const TRAINING_MODE = "Training";
@@ -477,14 +478,20 @@ const AREA_PROGRESS_PER_PERCENT_MS = 1500;
 const AREA_BOT_NAMES = ["Liam", "Noah", "Oliver", "James", "Elijah", "Mateo", "Theodore", "Henry", "Lucas", "Jack"];
 
 function loadMapsForMode(mode) {
-  const modeDirectory = path.join(MAP_ROOT, mode);
-  const files = fs.readdirSync(modeDirectory)
-    .filter((file) => file.toLowerCase().endsWith(".json"))
-    .sort();
+  const filePaths = new Map();
+  for (const modeDirectory of [path.join(MAP_ROOT, mode), path.join(MAP_OVERRIDE_ROOT, mode)]) {
+    fs.mkdirSync(modeDirectory, { recursive: true });
+    for (const file of fs.readdirSync(modeDirectory)
+      .filter((file) => file.toLowerCase().endsWith(".json"))
+      .sort()) {
+      filePaths.set(file, path.join(modeDirectory, file));
+    }
+  }
+  const files = Array.from(filePaths.keys()).sort();
 
   const maps = [];
   for (const file of files) {
-    const fullPath = path.join(modeDirectory, file);
+    const fullPath = filePaths.get(file);
     try {
       const mapData = JSON.parse(fs.readFileSync(fullPath, "utf8"));
       if (
@@ -646,16 +653,23 @@ app.get("/api/admin/maps", adminAuth, (req, res) => {
       const filename = safeMapFilename(String(req.query.file));
       const mode = String(req.query.mode || MAP_MODE);
       if (!filename || ![MAP_MODE, AREA_MODE].includes(mode)) return res.status(400).json({ error: "マップ指定が不正です" });
-      const target = path.join(MAP_ROOT, mode, filename);
+      const overrideTarget = path.join(MAP_OVERRIDE_ROOT, mode, filename);
+      const baseTarget = path.join(MAP_ROOT, mode, filename);
+      const target = fs.existsSync(overrideTarget) ? overrideTarget : baseTarget;
       if (!fs.existsSync(target)) return res.status(404).json({ error: "マップが見つかりません" });
       return res.json({ map: JSON.parse(fs.readFileSync(target, "utf8")) });
     }
     const maps = [];
     for (const mode of [MAP_MODE, AREA_MODE]) {
-      const dir = path.join(MAP_ROOT, mode);
-      for (const filename of fs.readdirSync(dir).filter(f => f.endsWith(".json")).sort()) {
+      const filenames = new Set();
+      for (const dir of [path.join(MAP_ROOT, mode), path.join(MAP_OVERRIDE_ROOT, mode)]) {
+        for (const filename of fs.readdirSync(dir).filter(f => f.endsWith(".json"))) filenames.add(filename);
+      }
+      for (const filename of Array.from(filenames).sort()) {
         try {
-          const item = JSON.parse(fs.readFileSync(path.join(dir, filename), "utf8"));
+          const overrideTarget = path.join(MAP_OVERRIDE_ROOT, mode, filename);
+          const target = fs.existsSync(overrideTarget) ? overrideTarget : path.join(MAP_ROOT, mode, filename);
+          const item = JSON.parse(fs.readFileSync(target, "utf8"));
           maps.push({ mode, filename, id: item.id, name: item.name });
         } catch (_) {}
       }
@@ -673,7 +687,7 @@ app.post("/api/admin/maps", adminAuth, (req, res) => {
   const suppliedFilename = req.body?.filename ? safeMapFilename(String(req.body.filename)) : null;
   if (req.body?.filename && !suppliedFilename) return res.status(400).json({ error: "ファイル名が不正です" });
   const filename = suppliedFilename || (mapData.id + ".json");
-  const target = path.join(MAP_ROOT, mode, filename);
+  const target = path.join(MAP_OVERRIDE_ROOT, mode, filename);
   try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     if (!suppliedFilename && fs.existsSync(target)) return res.status(409).json({ error: "同じIDのマップが既にあります。一覧から既存マップを読み込んで編集してください" });
