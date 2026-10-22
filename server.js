@@ -408,7 +408,9 @@ function getMapInfo(map, mode = MAP_MODE) {
 }
 
 function getMapForPlayer(player) {
-  return player?.mode === AREA_MODE ? areaMap : activeMap;
+  if (player?.mode === AREA_MODE) return areaMap;
+  if (player?.mode === TRAINING_MODE) return player.trainingMap || activeMap;
+  return activeMap;
 }
 
 function getMapCollectionsForPlayer(player) {
@@ -1714,7 +1716,7 @@ function createTrainingBotsForPlayer(player) {
     const id = "training-bot:" + player.id + ":" + index;
     players.set(id, {
       id, name: "練習BOT " + (index + 1), skin: "", mode: TRAINING_MODE,
-      team: null, matchId: player.matchId, finished: false, isBot: true,
+      team: null, matchId: player.matchId, trainingMap: player.trainingMap || activeMap, finished: false, isBot: true,
       x: spawn[0], y: spawn[1] || 0, z: spawn[2],
       yaw: Math.atan2(-(player.x - spawn[0]), -(player.z - spawn[2])), pitch: 0,
       health: 100, kills: 0, deaths: 0, weapon: "rifle",
@@ -1792,6 +1794,7 @@ io.on("connection", (socket) => {
       mode: requestedMode,
       team: null,
       matchId: requestedMode === TRAINING_MODE ? socket.id : null,
+      trainingMap: requestedMode === TRAINING_MODE ? activeMap : null,
       finished: false,
       isBot: false,
       x: spawn[0],
