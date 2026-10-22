@@ -2426,7 +2426,8 @@ socket.on("connect", () => {
       name: playerName,
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
-      skin: window.getPlayerSkinData?.()
+      skin: window.getPlayerSkinData?.(),
+      mode: selectedGameMode === "Training" ? "Training" : "free-for-all"
     };
     if (selectedGameMode === "Area") {
       document.getElementById("modeScreen")?.classList.add("hidden");
@@ -2505,6 +2506,25 @@ document.getElementById("confirmLoadoutButton")?.addEventListener("click", () =>
 document.getElementById("backToLoadoutButton")?.addEventListener("click", () => {
   document.getElementById("modeScreen")?.classList.add("hidden");
   document.getElementById("weaponScreen")?.classList.remove("hidden");
+});
+
+document.getElementById("shootingRangeModeButton")?.addEventListener("click", () => {
+  if (joined) return;
+  const name = savePlayerName();
+  selectedGameMode = "Training";
+  areaResultOpen = false;
+  selectedWeapon = selectedPrimaryWeapon;
+  weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("areaQueuePanel")?.classList.add("hidden");
+  document.getElementById("areaResultPanel")?.classList.add("hidden");
+  socket.emit("join", {
+    name,
+    weapon: selectedPrimaryWeapon,
+    secondaryWeapon: selectedSecondaryWeapon,
+    mode: "Training",
+    skin: window.getPlayerSkinData?.()
+  });
 });
 
 document.getElementById("freeForAllModeButton")?.addEventListener("click", () => {
