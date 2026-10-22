@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 const SKIN_STORAGE_KEY = "fps_player_skin_v1";
 const SKIN_SIZE = 64;
 
@@ -43,8 +45,18 @@ const colorInput = document.getElementById("skinColor");
 const brushSizeInput = document.getElementById("skinBrushSize");
 const brushSizeValue = document.getElementById("skinBrushSizeValue");
 const statusEl = document.getElementById("skinEditorStatus");
+const skin3DCanvas = document.getElementById("skin3DCanvas");
 
 let activeTool = "pencil";
+let skinRenderer = null;
+let skinScene = null;
+let skinCamera = null;
+let skinTexture = null;
+let skinModel = null;
+let skinRaycaster = null;
+let skinPointer = null;
+let rotatePointer = null;
+let lastRotatePoint = null;
 let drawingPointer = null;
 let lastCell = null;
 let undoStack = [];
@@ -93,6 +105,17 @@ function makeDefaultSkin() {
   skinCtx.imageSmoothingEnabled = false;
   drawGuides();
   drawPreview();
+  skinTexture?.dispose();
+  if (skinCanvas && skinRenderer) {
+    skinTexture = new THREE.CanvasTexture(skinCanvas);
+    skinTexture.magFilter = THREE.NearestFilter;
+    skinTexture.minFilter = THREE.NearestFilter;
+    skinTexture.colorSpace = THREE.SRGBColorSpace;
+    skinModel?.traverse((object) => {
+      if (object.isMesh) object.material.map = skinTexture;
+    });
+    skinTexture.needsUpdate = true;
+  }
 }
 
 function drawGuides() {
@@ -199,6 +222,182 @@ function drawPreview() {
   crop(36, 52, 4, 12, 88, 40, 16, 64);   // left arm
   crop(4, 20, 4, 12, 40, 112, 20, 64);   // right leg
   crop(20, 52, 4, 12, 68, 112, 20, 64);  // left leg
+}
+
+function buildSkinPart(name, dimensions, position, faceRects) {
+  const geometry = new THREE.BoxGeometry(...dimensions);
+  const uv = geometry.attributes.uv;
+  // BoxGeometry faces are +X, -X, +Y, -Y, +Z, -Z; map each to its skin-atlas rectangle.
+  for (let face = 0; face < 6; face++) {
+    const [x, y, w, h] = faceRects[face];
+    for (let vertex = face * 4; vertex < face * 4 + 4; vertex++) {
+      const u = uv.getX(vertex);
+      const v = uv.getY(vertex);
+      uv.setXY(vertex, (x + u * w) / SKIN_SIZE, 1 - (y + (1 - v) * h) / SKIN_SIZE);
+    }
+  }
+  uv.needsUpdate = true;
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+    map: skinTexture, roughness: 0.92, metalness: 0, transparent: true, alphaTest: 0.02
+  }));
+  mesh.name = name;
+  mesh.position.set(...position);
+  skinModel.add(mesh);
+  return mesh;
+}
+
+function init3DSkinEditor() {
+  if (!skin3DCanvas || skinRenderer) return;
+  skinRenderer = new THREE.WebGLRenderer({ canvas: skin3DCanvas, antialias: false, alpha: true });
+  skinRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  skinRenderer.setSize(480, 480, false);
+  skinRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  skinScene = new THREE.Scene();
+  skinScene.background = new THREE.Color("#202a36");
+  skinCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  skinCamera.position.set(7.5, 6.2, 10);
+  skinCamera.lookAt(0, 0.2, 0);
+  skinScene.add(new THREE.HemisphereLight(0xffffff, 0x566273, 2.2));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 2.1);
+  keyLight.position.set(5, 9, 7);
+  skinScene.add(keyLight);
+  skinTexture = new THREE.CanvasTexture(skinCanvas);
+  skinTexture.magFilter = THREE.NearestFilter;
+  skinTexture.minFilter = THREE.NearestFilter;
+  skinTexture.colorSpace = THREE.SRGBColorSpace;
+  skinModel = new THREE.Group();
+  skinScene.add(skinModel);
+  const head = [[0,8,8,8],[16,8,8,8],[8,0,8,8],[16,0,8,8],[8,8,8,8],[24,8,8,8]];
+  const torso = [[16,20,4,12],[28,20,4,12],[20,16,8,4],[28,16,8,4],[20,20,8,12],[32,20,8,12]];
+  const rightArm = [[40,20,4,12],[48,20,4,12],[44,16,4,4],[48,16,4,4],[44,20,4,12],[52,20,4,12]];
+  const leftArm = [[32,52,4,12],[40,52,4,12],[36,48,4,4],[40,48,4,4],[36,52,4,12],[44,52,4,12]];
+  const rightLeg = [[0,20,4,12],[8,20,4,12],[4,16,4,4],[8,16,4,4],[4,20,4,12],[12,20,4,12]];
+  const leftLeg = [[16,52,4,12],[24,52,4,12],[20,48,4,4],[24,48,4,4],[20,52,4,12],[28,52,4,12]];
+  buildSkinPart("head", [1,1,1], [0,2.45,0], head);
+  buildSkinPart("torso", [1,1.5,0.5], [0,0.85,0], torso);
+  buildSkinPart("rightArm", [0.5,1.5,0.5], [-0.75,0.85,0], rightArm);
+  buildSkinPart("leftArm", [0.5,1.5,0.5], [0.75,0.85,0], leftArm);
+  buildSkinPart("rightLeg", [0.5,1.5,0.5], [-0.25,-0.65,0], rightLeg);
+  buildSkinPart("leftLeg", [0.5,1.5,0.5], [0.25,-0.65,0], leftLeg);
+  skinRaycaster = new THREE.Raycaster();
+  skinRenderer.domElement.addEventListener("contextmenu", (event) => event.preventDefault());
+  skinRenderer.domElement.addEventListener("pointerdown", on3DSkinPointerDown);
+  skinRenderer.domElement.addEventListener("pointermove", on3DSkinPointerMove);
+  skinRenderer.domElement.addEventListener("pointerup", on3DSkinPointerUp);
+  skinRenderer.domElement.addEventListener("pointercancel", on3DSkinPointerUp);
+  skinRenderer.domElement.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    skinCamera.position.multiplyScalar(event.deltaY > 0 ? 1.08 : 0.92);
+    skinCamera.position.clampLength(5, 18);
+    render3DSkin();
+  }, { passive: false });
+  render3DSkin();
+}
+
+function render3DSkin() {
+  if (!skinRenderer || !skinScene || !skinCamera) return;
+  const rect = skin3DCanvas.getBoundingClientRect();
+  const width = Math.max(1, Math.round(rect.width * Math.min(window.devicePixelRatio || 1, 2)));
+  const height = Math.max(1, Math.round(rect.height * Math.min(window.devicePixelRatio || 1, 2)));
+  if (skinRenderer.domElement.width !== width || skinRenderer.domElement.height !== height) {
+    skinRenderer.setSize(rect.width, rect.height, false);
+    skinCamera.aspect = rect.width / Math.max(1, rect.height);
+    skinCamera.updateProjectionMatrix();
+  }
+  skinRenderer.render(skinScene, skinCamera);
+}
+
+function get3DHit(event) {
+  const rect = skin3DCanvas.getBoundingClientRect();
+  const pointer = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  skinRaycaster.setFromCamera(pointer, skinCamera);
+  return skinRaycaster.intersectObjects(skinModel.children, false)[0] || null;
+}
+
+function paint3DHit(hit) {
+  if (!hit?.uv || !skinCtx) return;
+  const x = Math.max(0, Math.min(SKIN_SIZE - 1, Math.floor(hit.uv.x * SKIN_SIZE)));
+  const y = Math.max(0, Math.min(SKIN_SIZE - 1, Math.floor((1 - hit.uv.y) * SKIN_SIZE)));
+  paintCell(x, y);
+  skinTexture.needsUpdate = true;
+  drawPreview();
+  render3DSkin();
+}
+
+function on3DSkinPointerDown(event) {
+  if (event.button === 2 || activeTool === "rotate") {
+    rotatePointer = event.pointerId;
+    lastRotatePoint = { x: event.clientX, y: event.clientY };
+    skin3DCanvas.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    return;
+  }
+  if (event.button !== 0) return;
+  event.preventDefault();
+  const hit = get3DHit(event);
+  if (!hit) return;
+  if (activeTool === "fill") {
+    saveUndoState();
+    const x = Math.max(0, Math.min(SKIN_SIZE - 1, Math.floor(hit.uv.x * SKIN_SIZE)));
+    const y = Math.max(0, Math.min(SKIN_SIZE - 1, Math.floor((1 - hit.uv.y) * SKIN_SIZE)));
+    floodFill(x, y);
+    skinTexture.needsUpdate = true;
+    render3DSkin();
+    return;
+  }
+  saveUndoState();
+  skinPointer = event.pointerId;
+  skin3DCanvas.setPointerCapture(event.pointerId);
+  paint3DHit(hit);
+}
+
+function on3DSkinPointerMove(event) {
+  if (event.pointerId === rotatePointer && lastRotatePoint) {
+    const dx = event.clientX - lastRotatePoint.x;
+    const dy = event.clientY - lastRotatePoint.y;
+    skinModel.rotation.y += dx * 0.012;
+    skinModel.rotation.x = Math.max(-0.45, Math.min(0.45, skinModel.rotation.x + dy * 0.006));
+    lastRotatePoint = { x: event.clientX, y: event.clientY };
+    render3DSkin();
+    return;
+  }
+  if (event.pointerId !== skinPointer) return;
+  const hit = get3DHit(event);
+  if (hit) paint3DHit(hit);
+}
+
+function on3DSkinPointerUp(event) {
+  if (event.pointerId === skinPointer) skinPointer = null;
+  if (event.pointerId === rotatePointer) {
+    rotatePointer = null;
+    lastRotatePoint = null;
+  }
+}
+
+function paintTransparentBasePixelsYellow() {
+  if (!skinCtx) return;
+  const image = skinCtx.getImageData(0, 0, SKIN_SIZE, SKIN_SIZE);
+  const pixels = image.data;
+  for (const [x, y, w, h] of SKIN_BASE_FACE_RECTS) {
+    for (let py = y; py < y + h; py++) {
+      for (let px = x; px < x + w; px++) {
+        const offset = (py * SKIN_SIZE + px) * 4;
+        if (pixels[offset + 3] === 0) {
+          pixels[offset] = 255;
+          pixels[offset + 1] = 230;
+          pixels[offset + 2] = 0;
+          pixels[offset + 3] = 255;
+        }
+      }
+    }
+  }
+  skinCtx.putImageData(image, 0, 0);
+  skinTexture && (skinTexture.needsUpdate = true);
+  drawPreview();
+  render3DSkin();
 }
 
 function saveUndoState() {
@@ -326,6 +525,8 @@ async function openSkinEditor() {
   lastCell = null;
   editorPanel?.classList.remove("hidden");
   editorPanel?.setAttribute("aria-hidden", "false");
+  init3DSkinEditor();
+  requestAnimationFrame(render3DSkin);
 }
 
 function closeSkinEditor() {
@@ -346,12 +547,14 @@ document.getElementById("skinEditorCloseButton")?.addEventListener("click", clos
 document.querySelectorAll("[data-skin-tool]").forEach((button) => {
   button.addEventListener("click", () => {
     activeTool = button.dataset.skinTool;
+    if (skin3DCanvas) skin3DCanvas.style.cursor = activeTool === "rotate" ? "grab" : "crosshair";
     document.querySelectorAll("[data-skin-tool]").forEach((item) => {
       item.classList.toggle("active", item === button);
     });
     if (statusEl) {
       statusEl.textContent = activeTool === "pencil" ? "ペン：ドラッグして描画"
-        : activeTool === "eraser" ? "消しゴム：ドラッグして透明にする"
+        : activeTool === "eraser" ? "消しゴム：ドラッグして透明にする（保存時は黄色になります）"
+        : activeTool === "rotate" ? "回転：ドラッグして3Dモデルを回転"
         : "塗りつぶし：選択色で同じ色の領域を塗る";
     }
   });
@@ -408,6 +611,8 @@ document.getElementById("skinUndoButton")?.addEventListener("click", () => {
   if (!previous) return;
   skinCtx.putImageData(previous, 0, 0);
   updatePreview();
+  if (skinTexture) skinTexture.needsUpdate = true;
+  render3DSkin();
   if (statusEl) statusEl.textContent = "1回分を元に戻しました";
 });
 
@@ -415,6 +620,8 @@ document.getElementById("skinClearButton")?.addEventListener("click", () => {
   saveUndoState();
   skinCtx.clearRect(0, 0, SKIN_SIZE, SKIN_SIZE);
   updatePreview();
+  if (skinTexture) skinTexture.needsUpdate = true;
+  render3DSkin();
   if (statusEl) statusEl.textContent = "キャンバスを透明にしました。必要な部分を描いてください";
 });
 
@@ -422,12 +629,15 @@ document.getElementById("skinResetButton")?.addEventListener("click", () => {
   saveUndoState();
   makeDefaultSkin();
   updatePreview();
+  if (skinTexture) skinTexture.needsUpdate = true;
+  render3DSkin();
   if (statusEl) statusEl.textContent = "初期スキンに戻しました（保存するまで適用されません）";
 });
 
 document.getElementById("skinSaveButton")?.addEventListener("click", async () => {
   const saveButton = document.getElementById("skinSaveButton");
   try {
+    paintTransparentBasePixelsYellow();
     const dataUrl = skinCanvas.toDataURL("image/png");
     localStorage.setItem(SKIN_STORAGE_KEY, dataUrl);
     if (saveButton) saveButton.disabled = true;
@@ -460,6 +670,8 @@ if (!localStorage.getItem(SKIN_STORAGE_KEY)) {
   localStorage.setItem(SKIN_STORAGE_KEY, initialSkin);
 }
 window.getPlayerSkinData = () => localStorage.getItem(SKIN_STORAGE_KEY) || skinCanvas.toDataURL("image/png");
+
+window.addEventListener("resize", render3DSkin);
 
 const brushPreview = document.getElementById("skinBrushSize");
 updateBrushLabel();
