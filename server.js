@@ -459,10 +459,6 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, port: PORT, players: players.size });
 });
 
-app.get("/{*splat}", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
 const players = new Map();
 
 const MAP_ROOT = path.join(__dirname, "map");
@@ -2326,6 +2322,12 @@ setInterval(() => {
   updateAreaMatches(dt, now);
   broadcastState();
 }, 1000 / TICK_RATE);
+
+// Keep the SPA fallback after all API routes so unknown API requests never receive index.html.
+app.get("/{*splat}", (req, res, next) => {
+  if (req.path.startsWith("/api/")) return res.status(404).json({ error: "APIが見つかりません" });
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Mobile FPS server running on http://0.0.0.0:${PORT}`);
