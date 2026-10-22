@@ -170,8 +170,8 @@ const DEFAULT_SETTINGS = {
   sniperSensitivity: 1,
   touchAimAssistEnabled: false,
   controllerAimAssistEnabled: false,
-  touchAimAssistStrength: 0,
-  controllerAimAssistStrength: 0,
+  touchAimAssistStrength: 10,
+  controllerAimAssistStrength: 10,
   aimAssistEnabled: false,
   aimAssistStrength: 0,
   controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
@@ -223,8 +223,12 @@ function loadGameSettings() {
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
       sniperSensitivity: THREE.MathUtils.clamp(Number(saved.sniperSensitivity) || 1, 0.2, 2.0),
-      touchAimAssistStrength: [0, 5, 10].includes(Number(saved.touchAimAssistStrength)) ? Number(saved.touchAimAssistStrength) : 0,
-      controllerAimAssistStrength: [0, 5, 10].includes(Number(saved.controllerAimAssistStrength)) ? Number(saved.controllerAimAssistStrength) : 0,
+      touchAimAssistStrength: saved.touchAimAssistStrength != null && [0, 5, 10].includes(Number(saved.touchAimAssistStrength))
+        ? Number(saved.touchAimAssistStrength)
+        : (typeof saved.touchAimAssistEnabled === "boolean" ? (saved.touchAimAssistEnabled ? 10 : 0) : 10),
+      controllerAimAssistStrength: saved.controllerAimAssistStrength != null && [0, 5, 10].includes(Number(saved.controllerAimAssistStrength))
+        ? Number(saved.controllerAimAssistStrength)
+        : (typeof saved.controllerAimAssistEnabled === "boolean" ? (saved.controllerAimAssistEnabled ? 10 : 0) : 10),
       touchAimAssistEnabled: Number(saved.touchAimAssistStrength ?? (saved.touchAimAssistEnabled === true ? 10 : 0)) > 0,
       controllerAimAssistEnabled: Number(saved.controllerAimAssistStrength ?? (saved.controllerAimAssistEnabled === true ? 10 : 0)) > 0,
       aimAssistEnabled: false,
