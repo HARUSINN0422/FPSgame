@@ -172,6 +172,18 @@ const WEAPONS = {
     reloadTime: 1000,
     automatic: false
   },
+  smg: {
+    name: "Submachine Gun",
+    damage: 9,
+    fireInterval: 107,
+    range: 68,
+    spread: 0.045,
+    falloffStart: 20,
+    minDamageMultiplier: 0.45,
+    magazineSize: 30,
+    reloadTime: 1300,
+    automatic: true
+  },
   rifle: {
     name: "Rifle",
     damage: 18,
