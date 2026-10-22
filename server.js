@@ -565,6 +565,10 @@ function createTrainingMap() {
       [6, 0, -5]
     ],
     obstacles: [{ x: 0, z: -11, w: 12, d: 1, h: 2.8 }],
+    floorTiles: [
+      { id: "fire", type: "fire", x: 8, z: -8, w: 4, d: 4 },
+      { id: "slime", type: "slime", x: -8, z: -8, w: 4, d: 4 }
+    ],
     ramps: [],
     elevatedPlatforms: []
   };
@@ -596,6 +600,7 @@ function getWorldPayloadForMap(map, mode) {
     obstacles: map.obstacles || [],
     ramps: map.ramps || [],
     elevatedPlatforms: map.elevatedPlatforms || [],
+    floorTiles: mode === TRAINING_MODE ? (map.floorTiles || []) : [],
     world: map.world,
     ...(mode === AREA_MODE && map.areaZone ? { areaZone: map.areaZone } : {}),
     weapons: Object.fromEntries(
@@ -1079,6 +1084,13 @@ function updateCrouchState(p) {
   }
 }
 
+function isOnFloorTile(p, type) {
+  if (p?.mode !== TRAINING_MODE) return false;
+  const map = getMapForPlayer(p);
+  return (map.floorTiles || []).some((tile) => tile.type === type &&
+    Math.abs(p.x - tile.x) <= tile.w / 2 && Math.abs(p.z - tile.z) <= tile.d / 2);
+}
+
 function movePlayer(p, dt) {
   const now = Date.now();
   updateCrouchState(p);
@@ -1096,7 +1108,7 @@ function movePlayer(p, dt) {
 
   // ジャンプ入力は短時間保持する。坂の上でも接地していればジャンプできる。
   if (p.jumpQueuedUntil >= now && (p.grounded || now - p.lastGroundedAt <= 140)) {
-    p.velocityY = JUMP_SPEED;
+    p.velocityY = JUMP_SPEED * (isOnFloorTile(p, "slime") ? 0.5 : 1);
     p.grounded = false;
     p.jumpQueuedUntil = 0;
   }
@@ -1111,7 +1123,7 @@ function movePlayer(p, dt) {
 
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
-  let moveSpeed = baseMoveSpeed;
+  let moveSpeed = baseMoveSpeed * (isOnFloorTile(p, "slime") ? 0.5 : 1);
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
   } else if (p.damageSlowUntil > now) {
@@ -2071,7 +2083,8 @@ io.on("connection", (socket) => {
       respawnAt: 0,
       invulnerableUntil: 0,
       damageHitstopUntil: 0,
-      damageSlowUntil: 0
+      damageSlowUntil: 0,
+      fireFloorDamageAt: 0
     });
 
     if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
@@ -2316,6 +2329,18 @@ setInterval(() => {
       if (p.isBot) updateBot(p, now);
       finishReload(p, now);
       movePlayer(p, dt);
+      // 射撃場の燃える床は、接地中に500msごとに15ダメージ。
+      if (isOnFloorTile(p, "fire") && p.y <= getGroundHeight(p.x, p.z, p.y, p) + 0.08 &&
+          now >= (p.fireFloorDamageAt || 0)) {
+        p.fireFloorDamageAt = now + 500;
+        p.health = Math.max(0, p.health - 15);
+        if (p.health <= 0) {
+          p.respawnAt = now + 5000;
+          p.deaths = (p.deaths || 0) + 1;
+        }
+      } else if (!isOnFloorTile(p, "fire")) {
+        p.fireFloorDamageAt = 0;
+      }
     }
   }
 
