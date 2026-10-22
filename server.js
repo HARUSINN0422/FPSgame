@@ -198,7 +198,7 @@ const WEAPONS = {
   },
   shotgun: {
     name: "Shotgun", damage: 10, fireInterval: 750, range: 40, pellets: 8,
-    spread: 0.30, falloffStart: 10, minDamageMultiplier: 0.30,
+    spread: 0.24, falloffStart: 10, minDamageMultiplier: 0.30,
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
   marksman: {
