@@ -1261,6 +1261,8 @@ body.controller-mode #settingsButton {
   height: 100%;
   touch-action: none;
   cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .skin-3d-stage { background: #202a36; }
 #skin3DCanvas:active { cursor: crosshair; }
