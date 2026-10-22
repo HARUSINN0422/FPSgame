@@ -142,6 +142,7 @@ let pointerLocked = false;
 
 const weaponConfig = {
   pistol: { fireInterval: 400, automatic: false },
+  smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
   shotgun: { fireInterval: 750, automatic: false },
   marksman: { fireInterval: 450, automatic: true },
@@ -1195,19 +1196,20 @@ function createWeaponMesh(weapon) {
   const group = new THREE.Group();
   const material = new THREE.MeshStandardMaterial({
     color: weapon === "shotgun" ? 0x9a9a9a : weapon === "rifle" ? 0x4d6b4f
-      : weapon === "marksman" ? 0x647b89 : weapon === "sniper" ? 0x7b6247 : 0x303030,
+      : weapon === "smg" ? 0x6b6650 : weapon === "marksman" ? 0x647b89
+      : weapon === "sniper" ? 0x7b6247 : 0x303030,
     roughness: .7,
     metalness: .25
   });
 
   const barrelLength = weapon === "sniper" ? 1.0 : weapon === "marksman" ? .82
-    : weapon === "shotgun" ? .55 : weapon === "rifle" ? .7 : .42;
+    : weapon === "shotgun" ? .55 : weapon === "rifle" ? .7 : weapon === "smg" ? .48 : .42;
   const barrel = new THREE.Mesh(new THREE.BoxGeometry(.10, .10, barrelLength), material);
   barrel.position.z = -barrelLength / 2;
   group.add(barrel);
 
   const stock = new THREE.Mesh(
-    new THREE.BoxGeometry(weapon === "rifle" ? .16 : .13, .16, .28),
+    new THREE.BoxGeometry(["rifle", "smg"].includes(weapon) ? .16 : .13, .16, .28),
     material
   );
   stock.position.z = .16;
@@ -1776,7 +1778,7 @@ function reload() {
 }
 
 function weaponDisplayName(id) {
-  return ({ pistol: "ハンドガン", rifle: "ライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+  return ({ pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -1784,13 +1786,14 @@ function updateWeaponReticle() {
   if (!crosshair) return;
   const reticles = {
     pistol: ["weapon-pistol", "+"],
+    smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
     shotgun: ["weapon-shotgun", "◎"],
     marksman: ["weapon-marksman", "⊙"],
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-pistol", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
 }
@@ -1995,7 +1998,7 @@ function createTracer(event) {
 
   // 全武器で弾の色を統一する。
   const bulletColor = 0xffe0a3;
-  const isRifle = ["rifle", "marksman", "sniper"].includes(event.weapon);
+  const isRifle = ["smg", "rifle", "marksman", "sniper"].includes(event.weapon);
 
   for (const pellet of entries) {
     const dir = directionFromAngles(pellet.yaw, pellet.pitch);
