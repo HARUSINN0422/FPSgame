@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=skin-3d-touch-rotate-2">
+  <link rel="stylesheet" href="style.css?v=skin-pinch-aim-assist-3">
 </head>
 <body>
   <div id="game"></div>
@@ -72,11 +72,15 @@
       <div class="settings-tab-panel" data-settings-content="touch" role="tabpanel" hidden>
         <div class="settings-group">
           <div class="settings-group-title">タッチ操作</div>
-          <label class="setting-section look-toggle-row">
-            <strong>エイムアシスト（10%固定）</strong>
-            <span><input id="touchAimAssistEnabledToggle" type="checkbox" checked> 有効</span>
-            <p>タッチ操作時の照準補助をON/OFFできます。</p>
-          </label>
+          <div class="setting-section">
+            <strong>エイムアシスト</strong>
+            <select id="touchAimAssistStrengthSelect">
+              <option value="0">OFF</option>
+              <option value="5">5%（頭に吸い付く）</option>
+              <option value="10">10%（胴体に吸い付く）</option>
+            </select>
+            <p>タッチ操作時の照準補助の強さと狙う位置を選択します。</p>
+          </div>
           <div class="setting-section">
             <strong>タッチ視点感度 <span><strong id="touchSensitivityValue">1.00</strong></span></strong>
             <input id="touchSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
@@ -122,11 +126,15 @@
       <div class="settings-tab-panel" data-settings-content="controller" role="tabpanel" hidden>
         <div class="settings-group">
           <div class="settings-group-title">コントローラー操作</div>
-          <label class="setting-section look-toggle-row">
-            <strong>エイムアシスト（10%固定）</strong>
-            <span><input id="controllerAimAssistEnabledToggle" type="checkbox" checked> 有効</span>
-            <p>コントローラー操作時の照準補助をON/OFFできます。</p>
-          </label>
+          <div class="setting-section">
+            <strong>エイムアシスト</strong>
+            <select id="controllerAimAssistStrengthSelect">
+              <option value="0">OFF</option>
+              <option value="5">5%（頭に吸い付く）</option>
+              <option value="10">10%（胴体に吸い付く）</option>
+            </select>
+            <p>コントローラー操作時の照準補助の強さと狙う位置を選択します。</p>
+          </div>
           <div class="setting-section">
             <strong>コントローラー視点感度 <span><strong id="controllerSensitivityValue">1.00</strong></span></strong>
             <input id="controllerSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
@@ -395,6 +403,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-3d-touch-rotate-2"></script>
-  <script type="module" src="game.js?v=shooting-range-compact-2"></script>
+  <script type="module" src="game.js?v=skin-pinch-aim-assist-3"></script>
 </body>
 </html>
