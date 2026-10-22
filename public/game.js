@@ -170,6 +170,8 @@ socket.on("weaponConfigUpdated", (configs = {}) => {
     if (weaponConfig[id] && Number.isFinite(Number(config.fireInterval))) {
       weaponConfig[id].fireInterval = Math.max(1, Number(config.fireInterval));
     }
+    const card = document.querySelector('.weapon-card[data-weapon="' + id + '"] span');
+    if (card && typeof config.description === "string") card.textContent = config.description;
   }
 });
 
