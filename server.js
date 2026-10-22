@@ -621,7 +621,7 @@ function getMapRotationStatus() {
 console.log("[Map] モード:", MAP_MODE, "マップ:", activeMap.name, "(" + activeMap.id + ")");
 
 function safeMapFilename(value) {
-  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}\\.json$/.test(value) ? value : null;
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}\.json$/.test(value) ? value : null;
 }
 function validateMapData(mapData) {
   if (!mapData || typeof mapData !== "object" || typeof mapData.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(mapData.id) ||
