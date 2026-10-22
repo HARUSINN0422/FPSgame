@@ -448,7 +448,7 @@ app.post("/api/admin/weapons", adminAuth, (req, res) => {
       Object.assign(WEAPONS[id], next[id]);
     }
     res.json({ ok: true, weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { ...weapon, label: WEAPON_LABELS[id] || id }])) });
-    io.emit("weaponConfigUpdated", Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { fireInterval: weapon.fireInterval }])));
+    io.emit("weaponConfigUpdated", Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { fireInterval: weapon.fireInterval, description: weapon.description || "" }])));
   } catch (error) {
     console.error("[Admin] 武器設定を保存できません:", error);
     res.status(500).json({ error: "武器設定を保存できませんでした" });
