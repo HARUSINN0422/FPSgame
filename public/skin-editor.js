@@ -57,6 +57,9 @@ let skinRaycaster = null;
 let skinPointer = null;
 let rotatePointer = null;
 let lastRotatePoint = null;
+const skinPointers = new Map();
+let pinchStartDistance = 0;
+let pinchStartCameraDistance = 0;
 let drawingPointer = null;
 let lastCell = null;
 let undoStack = [];
@@ -328,6 +331,20 @@ function paint3DHit(hit) {
 }
 
 function on3DSkinPointerDown(event) {
+  if (event.pointerType === "touch") {
+    skinPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (skinPointers.size >= 2) {
+      skinPointer = null;
+      rotatePointer = null;
+      lastRotatePoint = null;
+      const points = [...skinPointers.values()];
+      pinchStartDistance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
+      pinchStartCameraDistance = skinCamera.position.distanceTo(new THREE.Vector3(0, 0.2, 0));
+      skin3DCanvas.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+      return;
+    }
+  }
   if (event.button === 2 || activeTool === "rotate") {
     rotatePointer = event.pointerId;
     lastRotatePoint = { x: event.clientX, y: event.clientY };
@@ -363,6 +380,19 @@ function on3DSkinPointerDown(event) {
 }
 
 function on3DSkinPointerMove(event) {
+  if (skinPointers.has(event.pointerId)) skinPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (skinPointers.size >= 2) {
+    const points = [...skinPointers.values()];
+    const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
+    const targetDistance = THREE.MathUtils.clamp(pinchStartCameraDistance * pinchStartDistance / distance, 5, 18);
+    const target = new THREE.Vector3(0, 0.2, 0);
+    const direction = skinCamera.position.clone().sub(target).normalize();
+    skinCamera.position.copy(target.add(direction.multiplyScalar(targetDistance)));
+    skinCamera.lookAt(0, 0.2, 0);
+    render3DSkin();
+    event.preventDefault();
+    return;
+  }
   if (event.pointerId === rotatePointer && lastRotatePoint) {
     const dx = event.clientX - lastRotatePoint.x;
     const dy = event.clientY - lastRotatePoint.y;
@@ -378,6 +408,11 @@ function on3DSkinPointerMove(event) {
 }
 
 function on3DSkinPointerUp(event) {
+  skinPointers.delete(event.pointerId);
+  if (skinPointers.size < 2) {
+    pinchStartDistance = 0;
+    pinchStartCameraDistance = 0;
+  }
   if (event.pointerId === skinPointer) skinPointer = null;
   if (event.pointerId === rotatePointer) {
     rotatePointer = null;
