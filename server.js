@@ -443,7 +443,10 @@ app.post("/api/admin/weapons", adminAuth, (req, res) => {
         .filter(key => weapon[key] !== undefined).map(key => [key, weapon[key]])
     )]));
     fs.writeFileSync(WEAPON_CONFIG_FILE, JSON.stringify(persisted, null, 2) + "\n", "utf8");
-    for (const id of Object.keys(WEAPONS)) Object.assign(WEAPONS[id], next[id]);
+    for (const id of Object.keys(WEAPONS)) {
+      if (!Object.prototype.hasOwnProperty.call(next[id], "pellets")) delete WEAPONS[id].pellets;
+      Object.assign(WEAPONS[id], next[id]);
+    }
     res.json({ ok: true, weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { ...weapon, label: WEAPON_LABELS[id] || id }])) });
     io.emit("weaponConfigUpdated", Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { fireInterval: weapon.fireInterval }])));
   } catch (error) {
