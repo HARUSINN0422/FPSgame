@@ -166,9 +166,9 @@ const WEAPONS = {
     fireInterval: 400,
     range: 68,
     spread: 0.018,
-    falloffStart: 12,
-    minDamageMultiplier: 0.35,
-    magazineSize: 12,
+    falloffStart: 11,
+    minDamageMultiplier: 0.32,
+    magazineSize: 4,
     reloadTime: 1000,
     automatic: false
   },
@@ -186,13 +186,13 @@ const WEAPONS = {
   },
   shotgun: {
     name: "Shotgun", damage: 10, fireInterval: 750, range: 40, pellets: 8,
-    spread: 0.30, falloffStart: 8, minDamageMultiplier: 0.25,
+    spread: 0.30, falloffStart: 10, minDamageMultiplier: 0.30,
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
   marksman: {
-    name: "Marksman", damage: 35, fireInterval: 500, range: 100, spread: 0.006,
+    name: "Marksman", damage: 35, fireInterval: 450, range: 100, spread: 0.006,
     falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 20,
-    reloadTime: 1300, automatic: false
+    reloadTime: 1300, automatic: true
   },
   sniper: {
     name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
