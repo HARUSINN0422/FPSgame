@@ -324,6 +324,7 @@ const players = new Map();
 const MAP_ROOT = path.join(__dirname, "map");
 const MAP_MODE = "Melee";
 const AREA_MODE = "Area";
+const TRAINING_MODE = "Training";
 const MAP_ROTATION_INTERVAL_MS = 10 * 60 * 1000;
 const MAP_CHANGE_COUNTDOWN_MS = 5 * 1000;
 const AREA_QUEUE_DURATION_MS = 20 * 1000;
@@ -507,7 +508,7 @@ function isSameGame(a, b) {
   const modeA = a.mode || MAP_MODE;
   const modeB = b.mode || MAP_MODE;
   if (modeA !== modeB) return false;
-  if (modeA === AREA_MODE) return Boolean(a.matchId && a.matchId === b.matchId);
+  if (modeA === AREA_MODE || modeA === TRAINING_MODE) return Boolean(a.matchId && a.matchId === b.matchId);
   return true;
 }
 
@@ -1132,6 +1133,7 @@ function fireShot(shooter) {
 
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
+      if (shooter.mode === TRAINING_MODE && !target.isBot) continue;
       if (shooter.mode === AREA_MODE && target.team === shooter.team) continue;
       // リスポーン直後3秒間は被弾しない。
       if (target.invulnerableUntil > now) continue;
@@ -1694,6 +1696,39 @@ function removeAreaPlayer(socketId) {
   broadcastPlayers();
 }
 
+function removeTrainingBots(matchId) {
+  for (const [id, player] of players) {
+    if (player.isBot && player.mode === TRAINING_MODE && player.matchId === matchId) players.delete(id);
+  }
+}
+
+function createTrainingBotsForPlayer(player) {
+  if (!player || player.mode !== TRAINING_MODE) return;
+  const candidates = spawnPoints
+    .filter((spawn) => Math.hypot(spawn[0] - player.x, spawn[2] - player.z) >= 7)
+    .sort((a, b) => Math.hypot(a[0] - player.x, a[2] - player.z) - Math.hypot(b[0] - player.x, b[2] - player.z));
+  const targetSpawns = candidates.length
+    ? candidates.slice(0, 4)
+    : [[player.x + 8, 0, player.z - 8], [player.x - 8, 0, player.z - 8], [player.x + 8, 0, player.z + 8], [player.x - 8, 0, player.z + 8]];
+  targetSpawns.forEach((spawn, index) => {
+    const id = "training-bot:" + player.id + ":" + index;
+    players.set(id, {
+      id, name: "練習BOT " + (index + 1), skin: "", mode: TRAINING_MODE,
+      team: null, matchId: player.matchId, finished: false, isBot: true,
+      x: spawn[0], y: spawn[1] || 0, z: spawn[2],
+      yaw: Math.atan2(-(player.x - spawn[0]), -(player.z - spawn[2])), pitch: 0,
+      health: 100, kills: 0, deaths: 0, weapon: "rifle",
+      weaponSlots: ["rifle", "marksman"], activeWeaponSlot: 0,
+      ammo: WEAPONS.rifle.magazineSize,
+      weaponAmmo: [WEAPONS.rifle.magazineSize, WEAPONS.marksman.magazineSize],
+      reloadingUntil: 0, lastFire: 0, velocityY: 0, grounded: true,
+      lastGroundedAt: Date.now(), jumpQueuedUntil: 0,
+      input: { forward: 0, strafe: 0, crouch: false }, crouched: false,
+      respawnAt: 0, invulnerableUntil: 0, damageHitstopUntil: 0, damageSlowUntil: 0
+    });
+  });
+}
+
 io.on("connection", (socket) => {
   socket.emit("world", getWorldPayload());
   socket.emit("mapRotationStatus", getMapRotationStatus());
@@ -1725,6 +1760,7 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
     if (player) players.delete(socket.id);
     syncBots();
     broadcastPlayers();
@@ -1745,16 +1781,17 @@ io.on("connection", (socket) => {
     const weaponSlots = [weapon, secondaryWeapon];
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
+    const requestedMode = data.mode === TRAINING_MODE ? TRAINING_MODE : MAP_MODE;
     const spawn = pickSpawn();
-    socket.emit("world", getWorldPayload());
+    socket.emit("world", requestedMode === TRAINING_MODE ? getWorldPayloadForMap(activeMap, TRAINING_MODE) : getWorldPayload());
 
     players.set(socket.id, {
       id: socket.id,
       name,
       skin,
-      mode: MAP_MODE,
+      mode: requestedMode,
       team: null,
-      matchId: null,
+      matchId: requestedMode === TRAINING_MODE ? socket.id : null,
       finished: false,
       isBot: false,
       x: spawn[0],
@@ -1784,7 +1821,8 @@ io.on("connection", (socket) => {
       damageSlowUntil: 0
     });
 
-    syncBots();
+    if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
+    else syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
     broadcastPlayers();
   });
@@ -1906,6 +1944,7 @@ io.on("connection", (socket) => {
       removeAreaPlayer(socket.id);
       return;
     }
+    if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
     players.delete(socket.id);
     syncBots();
     broadcastPlayers();
@@ -2008,6 +2047,15 @@ setInterval(() => {
   const now = Date.now();
   for (const p of players.values()) {
     if (p.finished) continue;
+    if (p.isBot && p.mode === TRAINING_MODE) {
+      if (p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
+        p.health = 100;
+        p.respawnAt = 0;
+        p.damageHitstopUntil = 0;
+        p.damageSlowUntil = 0;
+      }
+      continue;
+    }
     if (p.isBot && p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
       respawnBot(p, now);
     }
