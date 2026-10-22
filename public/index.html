@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, maximum-scale=1, minimum-scale=1, orientation=landscape">
   <meta name="screen-orientation" content="landscape">
   <title>Mobile FPS</title>
-  <link rel="stylesheet" href="style.css?v=weapon-switch-reticle-cooldown-2">
+  <link rel="stylesheet" href="style.css?v=shooting-range-1">
 </head>
 <body>
   <div id="game"></div>
@@ -59,6 +59,14 @@
             <div id="layoutEditStatus" class="setting-status hidden">UI編集を開始すると設定画面が閉じます。表示されたUIをドラッグしてください。</div>
           </div>
         </div>
+          <div class="settings-group">
+            <div class="settings-group-title">スコープ設定</div>
+            <div class="setting-section">
+              <strong>スナイパースコープ感度 <span><strong id="sniperSensitivityValue">1.00</strong></span></strong>
+              <input id="sniperSensitivitySlider" type="range" min="0.20" max="2.00" step="0.05" value="1">
+              <p>スナイパーでスコープを覗いている間の視点感度です。</p>
+            </div>
+          </div>
       </div>
 
       <div class="settings-tab-panel" data-settings-content="touch" role="tabpanel" hidden>
@@ -151,11 +159,6 @@
             <strong>マウス視点感度 <span><strong id="mouseSensitivityValue">1.00</strong></span></strong>
             <input id="mouseSensitivitySlider" type="range" min="0.40" max="5.00" step="0.05" value="1">
           </div>
-          <div class="setting-section">
-            <strong>スナイパースコープ感度 <span><strong id="sniperSensitivityValue">1.00</strong></span></strong>
-            <input id="sniperSensitivitySlider" type="range" min="0.20" max="2.00" step="0.05" value="1">
-            <p>スナイパーでスコープを覗いている間の視点感度です。</p>
-          </div>
         </div>
         <div class="settings-group">
           <div class="settings-group-title">キーボード・マウス割り当て</div>
@@ -232,6 +235,10 @@
       <h1>ゲームモード選択</h1>
       <p>プレイするモードを選択してください。</p>
       <div class="mode-grid">
+        <button id="shootingRangeModeButton" class="mode-card" type="button">
+          <strong>射撃場</strong>
+          <span>動かないBOTを撃って武器を試せます。プレイヤーはダメージを受けません。</span>
+        </button>
         <button id="freeForAllModeButton" class="mode-card" type="button">
           <strong>乱闘モード</strong>
           <span>全員が敵の通常対戦。10分ごとにマップが切り替わります。</span>
@@ -393,6 +400,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-transparent-reset-outline-1"></script>
-  <script type="module" src="game.js?v=weapon-switch-reticle-cooldown-2"></script>
+  <script type="module" src="game.js?v=shooting-range-1"></script>
 </body>
 </html>
