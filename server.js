@@ -235,7 +235,7 @@ try {
     const saved = savedWeapons[id];
     if (!saved || typeof saved !== "object") continue;
     for (const key of ["name", "description", "damage", "fireInterval", "range", "spread", "falloffStart", "minDamageMultiplier", "magazineSize", "reloadTime", "automatic", "pellets"]) {
-      if (key in saved && typeof saved[key] === typeof WEAPONS[id][key] && (typeof saved[key] !== "number" || Number.isFinite(saved[key]))) {
+      if (key in saved && (key === "pellets" ? Number.isInteger(saved[key]) && saved[key] > 0 : typeof saved[key] === typeof WEAPONS[id][key]) && (typeof saved[key] !== "number" || Number.isFinite(saved[key]))) {
         WEAPONS[id][key] = saved[key];
       }
     }
