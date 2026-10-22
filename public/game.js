@@ -1053,6 +1053,54 @@ function buildWorld(data) {
     makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
   }
 
+  // 射撃場専用の特殊床。床タイルはサーバー側の当たり判定・効果範囲と同じ寸法。
+  for (const tile of data.floorTiles || []) {
+    const isFire = tile.type === "fire";
+    const material = new THREE.MeshStandardMaterial({
+      color: isFire ? 0xc51f24 : 0x35b96c,
+      emissive: isFire ? 0x8f0808 : 0x0b4f2b,
+      emissiveIntensity: isFire ? 0.75 : 0.35,
+      roughness: isFire ? 0.55 : 0.28,
+      metalness: isFire ? 0.05 : 0.1
+    });
+    const tileMesh = new THREE.Mesh(new THREE.PlaneGeometry(tile.w, tile.d), material);
+    tileMesh.rotation.x = -Math.PI / 2;
+    tileMesh.position.set(tile.x, 0.035, tile.z);
+    tileMesh.receiveShadow = true;
+    worldGroup.add(tileMesh);
+
+    const edge = new THREE.Mesh(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(tile.w, 0.035, tile.d)),
+      new THREE.LineBasicMaterial({ color: isFire ? 0xff5b32 : 0x9affc2 })
+    );
+    edge.position.set(tile.x, 0.045, tile.z);
+    worldGroup.add(edge);
+
+    if (isFire) {
+      // 炎の見た目を示す細い橙色の筋を床面に配置。
+      for (let i = -1; i <= 1; i++) {
+        const streak = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.16, tile.d * 0.72),
+          new THREE.MeshBasicMaterial({ color: i === 0 ? 0xffd24a : 0xff7138, transparent: true, opacity: 0.9 })
+        );
+        streak.rotation.x = -Math.PI / 2;
+        streak.position.set(tile.x + i * 1.1, 0.055, tile.z);
+        worldGroup.add(streak);
+      }
+    } else {
+      // ぬめりを表す淡い光沢の円を追加。
+      for (let i = 0; i < 5; i++) {
+        const blob = new THREE.Mesh(
+          new THREE.CircleGeometry(0.18 + (i % 2) * 0.08, 16),
+          new THREE.MeshBasicMaterial({ color: 0xb5ffd3, transparent: true, opacity: 0.55, depthWrite: false })
+        );
+        blob.rotation.x = -Math.PI / 2;
+        blob.position.set(tile.x + ((i % 3) - 1) * 1.0, 0.06, tile.z + (Math.floor(i / 3) - 0.5) * 1.2);
+        worldGroup.add(blob);
+      }
+    }
+  }
+
   for (const ramp of data.ramps || []) {
     makeRamp(ramp);
   }
