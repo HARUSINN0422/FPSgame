@@ -168,10 +168,12 @@ const DEFAULT_SETTINGS = {
   controllerSensitivity: 1,
   mouseSensitivity: 1,
   sniperSensitivity: 1,
-  touchAimAssistEnabled: true,
-  controllerAimAssistEnabled: true,
-  aimAssistEnabled: true,
-  aimAssistStrength: 10,
+  touchAimAssistEnabled: false,
+  controllerAimAssistEnabled: false,
+  touchAimAssistStrength: 0,
+  controllerAimAssistStrength: 0,
+  aimAssistEnabled: false,
+  aimAssistStrength: 0,
   controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
@@ -221,10 +223,12 @@ function loadGameSettings() {
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
       sniperSensitivity: THREE.MathUtils.clamp(Number(saved.sniperSensitivity) || 1, 0.2, 2.0),
-      touchAimAssistEnabled: saved.touchAimAssistEnabled ?? saved.aimAssistEnabled !== false,
-      controllerAimAssistEnabled: saved.controllerAimAssistEnabled ?? saved.aimAssistEnabled !== false,
-      aimAssistEnabled: saved.aimAssistEnabled !== false,
-      aimAssistStrength: 10,
+      touchAimAssistStrength: [0, 5, 10].includes(Number(saved.touchAimAssistStrength)) ? Number(saved.touchAimAssistStrength) : 0,
+      controllerAimAssistStrength: [0, 5, 10].includes(Number(saved.controllerAimAssistStrength)) ? Number(saved.controllerAimAssistStrength) : 0,
+      touchAimAssistEnabled: Number(saved.touchAimAssistStrength ?? (saved.touchAimAssistEnabled === true ? 10 : 0)) > 0,
+      controllerAimAssistEnabled: Number(saved.controllerAimAssistStrength ?? (saved.controllerAimAssistEnabled === true ? 10 : 0)) > 0,
+      aimAssistEnabled: false,
+      aimAssistStrength: 0,
       controllerButtons: { ...DEFAULT_SETTINGS.controllerButtons, ...(saved.controllerButtons || {}) },
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
@@ -391,11 +395,10 @@ function updateSettingsUi() {
     if (label) label.textContent = jumpCrouchLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
 
-  const touchAimAssistToggle = document.getElementById("touchAimAssistEnabledToggle");
-  if (touchAimAssistToggle) touchAimAssistToggle.checked = gameSettings.touchAimAssistEnabled !== false;
-  const controllerAimAssistToggle = document.getElementById("controllerAimAssistEnabledToggle");
-  if (controllerAimAssistToggle) controllerAimAssistToggle.checked = gameSettings.controllerAimAssistEnabled !== false;
-  gameSettings.aimAssistStrength = 10;
+  const touchAimAssistSelect = document.getElementById("touchAimAssistStrengthSelect");
+  if (touchAimAssistSelect) touchAimAssistSelect.value = String(gameSettings.touchAimAssistStrength ?? 0);
+  const controllerAimAssistSelect = document.getElementById("controllerAimAssistStrengthSelect");
+  if (controllerAimAssistSelect) controllerAimAssistSelect.value = String(gameSettings.controllerAimAssistStrength ?? 0);
   for (const select of document.querySelectorAll("[data-controller-button]")) {
     const action = select.dataset.controllerButton;
     select.value = String(Number(gameSettings.controllerButtons?.[action] ?? DEFAULT_SETTINGS.controllerButtons[action]));
@@ -586,12 +589,14 @@ function setupSettings() {
   close?.addEventListener("click", closePanel);
   done?.addEventListener("click", closePanel);
 
-  document.getElementById("touchAimAssistEnabledToggle")?.addEventListener("change", (event) => {
-    gameSettings.touchAimAssistEnabled = Boolean(event.target.checked);
+  document.getElementById("touchAimAssistStrengthSelect")?.addEventListener("change", (event) => {
+    gameSettings.touchAimAssistStrength = [0, 5, 10].includes(Number(event.target.value)) ? Number(event.target.value) : 0;
+    gameSettings.touchAimAssistEnabled = gameSettings.touchAimAssistStrength > 0;
     saveGameSettings();
   });
-  document.getElementById("controllerAimAssistEnabledToggle")?.addEventListener("change", (event) => {
-    gameSettings.controllerAimAssistEnabled = Boolean(event.target.checked);
+  document.getElementById("controllerAimAssistStrengthSelect")?.addEventListener("change", (event) => {
+    gameSettings.controllerAimAssistStrength = [0, 5, 10].includes(Number(event.target.value)) ? Number(event.target.value) : 0;
+    gameSettings.controllerAimAssistEnabled = gameSettings.controllerAimAssistStrength > 0;
     saveGameSettings();
   });
   panel?.querySelectorAll("[data-controller-button]")?.forEach((select) => {
@@ -1569,21 +1574,26 @@ function updateRemotePlayers(players) {
 function updateAimAssist() {
   if (!joined || !myState) return;
   const touchDevice = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+  let strengthPercent = 0;
   if (controllerMode) {
-    if (gameSettings.controllerAimAssistEnabled === false) return;
+    strengthPercent = Number(gameSettings.controllerAimAssistStrength ?? (gameSettings.controllerAimAssistEnabled ? 10 : 0));
   } else if (touchDevice) {
-    if (gameSettings.touchAimAssistEnabled === false) return;
+    strengthPercent = Number(gameSettings.touchAimAssistStrength ?? (gameSettings.touchAimAssistEnabled ? 10 : 0));
   } else {
     return;
   }
-  const strength = 0.10;
+  if (![5, 10].includes(strengthPercent)) return;
+  const strength = strengthPercent / 100;
   const origin = camera.position.clone();
   let best = null;
   for (const obj of remotePlayers.values()) {
     const target = obj.userData.playerState;
     if (!target || target.health <= 0 || !obj.visible) continue;
     if (selectedGameMode === "Area" && target.team && myState.team && target.team === myState.team) continue;
-    const point = obj.position.clone().add(new THREE.Vector3(0, target.crouched ? 0.72 : 1.12, 0));
+    const targetHeight = strengthPercent === 5
+      ? (target.crouched ? 1.02 : 1.52)
+      : (target.crouched ? 0.72 : 1.12);
+    const point = obj.position.clone().add(new THREE.Vector3(0, targetHeight, 0));
     const offset = point.clone().sub(origin);
     const distance = offset.length();
     if (distance > 38 || distance < 0.1) continue;
