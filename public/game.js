@@ -159,6 +159,7 @@ async function refreshPublicWeaponSettings() {
       if (weaponConfig[id] && Number.isFinite(Number(config.fireInterval))) {
         weaponConfig[id].fireInterval = Math.max(1, Number(config.fireInterval));
       }
+      if (weaponConfig[id] && typeof config.automatic === "boolean") weaponConfig[id].automatic = config.automatic;
       const card = document.querySelector('.weapon-card[data-weapon="' + id + '"] span');
       if (card && typeof config.description === "string") card.textContent = config.description;
     }
@@ -170,8 +171,14 @@ socket.on("weaponConfigUpdated", (configs = {}) => {
     if (weaponConfig[id] && Number.isFinite(Number(config.fireInterval))) {
       weaponConfig[id].fireInterval = Math.max(1, Number(config.fireInterval));
     }
+    if (weaponConfig[id] && typeof config.automatic === "boolean") weaponConfig[id].automatic = config.automatic;
     const card = document.querySelector('.weapon-card[data-weapon="' + id + '"] span');
     if (card && typeof config.description === "string") card.textContent = config.description;
+  }
+  if (autoFireTimer) {
+    clearInterval(autoFireTimer);
+    autoFireTimer = null;
+    if (weaponConfig[selectedWeapon]?.automatic) autoFireTimer = setInterval(fire, weaponConfig[selectedWeapon].fireInterval);
   }
 });
 
