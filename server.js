@@ -690,7 +690,7 @@ app.post("/api/admin/maps", adminAuth, (req, res) => {
   const target = path.join(MAP_OVERRIDE_ROOT, mode, filename);
   try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    if (!suppliedFilename && fs.existsSync(target)) return res.status(409).json({ error: "同じIDのマップが既にあります。一覧から既存マップを読み込んで編集してください" });
+    if (!suppliedFilename && (fs.existsSync(target) || fs.existsSync(path.join(MAP_ROOT, mode, filename)))) return res.status(409).json({ error: "同じIDのマップが既にあります。一覧から既存マップを読み込んで編集してください" });
     mapData.elevatedPlatforms = Array.isArray(mapData.elevatedPlatforms) ? mapData.elevatedPlatforms : [];
     fs.writeFileSync(target, JSON.stringify(mapData, null, 2) + "\n", "utf8");
     availableMaps = loadMapsForMode(MAP_MODE);
