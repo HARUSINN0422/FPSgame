@@ -149,6 +149,30 @@ const weaponConfig = {
   sniper: { fireInterval: 1200, automatic: false }
 };
 
+async function refreshPublicWeaponSettings() {
+  try {
+    const apiBase = location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/";
+    const response = await fetch(apiBase + "api/weapons", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = await response.json();
+    for (const [id, config] of Object.entries(data.weapons || {})) {
+      if (weaponConfig[id] && Number.isFinite(Number(config.fireInterval))) {
+        weaponConfig[id].fireInterval = Math.max(1, Number(config.fireInterval));
+      }
+      const card = document.querySelector('.weapon-card[data-weapon="' + id + '"] span');
+      if (card && typeof config.description === "string") card.textContent = config.description;
+    }
+  } catch (_) {}
+}
+refreshPublicWeaponSettings();
+socket.on("weaponConfigUpdated", (configs = {}) => {
+  for (const [id, config] of Object.entries(configs)) {
+    if (weaponConfig[id] && Number.isFinite(Number(config.fireInterval))) {
+      weaponConfig[id].fireInterval = Math.max(1, Number(config.fireInterval));
+    }
+  }
+});
+
 let localLastFire = 0;
 let autoFireTimer = null;
 
