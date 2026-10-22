@@ -566,8 +566,8 @@ function createTrainingMap() {
     ],
     obstacles: [{ x: 0, z: -11, w: 12, d: 1, h: 2.8 }],
     floorTiles: [
-      { id: "fire", type: "fire", x: 8, z: -8, w: 4, d: 4 },
-      { id: "slime", type: "slime", x: -8, z: -8, w: 4, d: 4 }
+      { id: "fire", type: "fire", x: 8, z: -8.5, w: 4, d: 4 },
+      { id: "slime", type: "slime", x: -8, z: -8.5, w: 4, d: 4 }
     ],
     ramps: [],
     elevatedPlatforms: []
@@ -2141,7 +2141,9 @@ io.on("connection", (socket) => {
     if (!p || p.finished || p.health > 0) return;
     if (!p.respawnAt || Date.now() < p.respawnAt) return;
 
-    const spawn = pickSpawnForPlayer(p, p.botSpawnIndex || 0);
+    const spawn = p.mode === TRAINING_MODE && p.trainingMap?.spawnPoints?.length
+      ? p.trainingMap.spawnPoints[0]
+      : pickSpawnForPlayer(p, p.botSpawnIndex || 0);
     p.x = spawn[0];
     p.y = spawn[1] || 0;
     p.z = spawn[2];
