@@ -235,6 +235,7 @@ body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
 #crosshair.weapon-switch-blocked { visibility: hidden !important; opacity: 0 !important; }
 
 #ammoHud {
+  pointer-events: auto;
   position: absolute;
   right: 14px;
   bottom: calc(164px + env(safe-area-inset-bottom));
