@@ -144,7 +144,7 @@ const weaponConfig = {
   pistol: { fireInterval: 400, automatic: false },
   rifle: { fireInterval: 160, automatic: true },
   shotgun: { fireInterval: 750, automatic: false },
-  marksman: { fireInterval: 500, automatic: false },
+  marksman: { fireInterval: 450, automatic: true },
   sniper: { fireInterval: 1200, automatic: false }
 };
 
