@@ -332,13 +332,21 @@ function on3DSkinPointerDown(event) {
     rotatePointer = event.pointerId;
     lastRotatePoint = { x: event.clientX, y: event.clientY };
     skin3DCanvas.setPointerCapture(event.pointerId);
+    skin3DCanvas.style.cursor = "grabbing";
     event.preventDefault();
     return;
   }
   if (event.button !== 0) return;
   event.preventDefault();
   const hit = get3DHit(event);
-  if (!hit) return;
+  // Touch/mouse drags that begin in the stage margin rotate the model; drags on the model paint it.
+  if (!hit) {
+    rotatePointer = event.pointerId;
+    lastRotatePoint = { x: event.clientX, y: event.clientY };
+    skin3DCanvas.setPointerCapture(event.pointerId);
+    skin3DCanvas.style.cursor = "grabbing";
+    return;
+  }
   if (activeTool === "fill") {
     saveUndoState();
     const x = Math.max(0, Math.min(SKIN_SIZE - 1, Math.floor(hit.uv.x * SKIN_SIZE)));
@@ -374,6 +382,7 @@ function on3DSkinPointerUp(event) {
   if (event.pointerId === rotatePointer) {
     rotatePointer = null;
     lastRotatePoint = null;
+    skin3DCanvas.style.cursor = activeTool === "rotate" ? "grab" : "crosshair";
   }
 }
 
