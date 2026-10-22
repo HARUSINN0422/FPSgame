@@ -162,12 +162,12 @@ process.on("unhandledRejection", (reason) => {
 const WEAPONS = {
   pistol: {
     name: "Pistol",
-    damage: 34,
+    damage: 50,
     fireInterval: 400,
     range: 68,
     spread: 0.018,
-    falloffStart: 16,
-    minDamageMultiplier: 0.50,
+    falloffStart: 12,
+    minDamageMultiplier: 0.35,
     magazineSize: 12,
     reloadTime: 1000,
     automatic: false
@@ -186,12 +186,12 @@ const WEAPONS = {
   },
   shotgun: {
     name: "Shotgun", damage: 10, fireInterval: 750, range: 40, pellets: 8,
-    spread: 0.15, falloffStart: 8, minDamageMultiplier: 0.25,
-    magazineSize: 8, reloadTime: 1400, automatic: false
+    spread: 0.30, falloffStart: 8, minDamageMultiplier: 0.25,
+    magazineSize: 6, reloadTime: 1400, automatic: false
   },
   marksman: {
-    name: "Marksman", damage: 42, fireInterval: 500, range: 100, spread: 0.006,
-    falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 10,
+    name: "Marksman", damage: 35, fireInterval: 500, range: 100, spread: 0.006,
+    falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 20,
     reloadTime: 1300, automatic: false
   },
   sniper: {
