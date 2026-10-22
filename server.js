@@ -213,6 +213,37 @@ const WEAPONS = {
   }
 };
 
+const WEAPON_LABELS = {
+  pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
+  shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル"
+};
+const DEFAULT_WEAPON_DESCRIPTIONS = {
+  pistol: "単発 / 胴体50ダメージ / 装弾数4発・距離減衰はやや大きめ",
+  smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
+  rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
+  shotgun: "単発 / 8発の散弾（胴体全弾命中で80ダメージ） / 近距離向け",
+  marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
+  sniper: "高威力 / 装弾数3発・連射は遅い"
+};
+const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
+for (const [id, weapon] of Object.entries(WEAPONS)) {
+  weapon.description = DEFAULT_WEAPON_DESCRIPTIONS[id] || "";
+}
+try {
+  const savedWeapons = JSON.parse(fs.readFileSync(WEAPON_CONFIG_FILE, "utf8"));
+  for (const id of Object.keys(WEAPONS)) {
+    const saved = savedWeapons[id];
+    if (!saved || typeof saved !== "object") continue;
+    for (const key of ["name", "description", "damage", "fireInterval", "range", "spread", "falloffStart", "minDamageMultiplier", "magazineSize", "reloadTime", "automatic", "pellets"]) {
+      if (key in saved && typeof saved[key] === typeof WEAPONS[id][key] && (typeof saved[key] !== "number" || Number.isFinite(saved[key]))) {
+        WEAPONS[id][key] = saved[key];
+      }
+    }
+  }
+} catch (_) {
+  // 初回起動時はserver.js内の標準設定を使用します。
+}
+
 const app = express();
 
 let updateInProgress = false;
@@ -321,7 +352,105 @@ server.on("error", (error) => {
   safeConsoleWrite(originalConsoleError, "ERROR", ["[Server Error]", error]);
 });
 
+app.use(express.json({ limit: "256kb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+const crypto = require("crypto");
+const ADMIN_PASSWORD = process.env.FPS_ADMIN_PASSWORD || "0422";
+const adminSessions = new Map();
+const loginAttempts = new Map();
+function parseCookies(req) {
+  const result = {};
+  for (const item of String(req.headers.cookie || "").split(";")) {
+    const index = item.indexOf("=");
+    if (index > 0) result[item.slice(0, index).trim()] = decodeURIComponent(item.slice(index + 1).trim());
+  }
+  return result;
+}
+function adminAuth(req, res, next) {
+  const token = parseCookies(req).fps_admin_session;
+  const expiresAt = token && adminSessions.get(token);
+  if (!expiresAt || expiresAt < Date.now()) {
+    if (token) adminSessions.delete(token);
+    return res.status(401).json({ error: "ログインが必要です" });
+  }
+  next();
+}
+app.post("/api/admin/login", (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const attempt = loginAttempts.get(ip) || { count: 0, until: 0 };
+  if (attempt.until > Date.now() && attempt.count >= 10) {
+    return res.status(429).json({ error: "試行回数が多すぎます。しばらく待ってください" });
+  }
+  const supplied = Buffer.from(String(req.body?.password || ""));
+  const expected = Buffer.from(String(ADMIN_PASSWORD));
+  const valid = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+  if (!valid) {
+    attempt.count = attempt.until > Date.now() ? attempt.count + 1 : 1;
+    attempt.until = Date.now() + 10 * 60 * 1000;
+    loginAttempts.set(ip, attempt);
+    return res.status(401).json({ error: "パスワードが違います" });
+  }
+  loginAttempts.delete(ip);
+  const token = crypto.randomBytes(32).toString("hex");
+  adminSessions.set(token, Date.now() + 12 * 60 * 60 * 1000);
+  const secure = req.secure || req.headers["x-forwarded-proto"] === "https";
+  res.setHeader("Set-Cookie", "fps_admin_session=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200" + (secure ? "; Secure" : ""));
+  res.json({ ok: true });
+});
+app.get("/api/admin/session", adminAuth, (_req, res) => res.json({ ok: true }));
+app.post("/api/admin/logout", (req, res) => {
+  const token = parseCookies(req).fps_admin_session;
+  if (token) adminSessions.delete(token);
+  res.setHeader("Set-Cookie", "fps_admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + ((req.secure || req.headers["x-forwarded-proto"] === "https") ? "; Secure" : ""));
+  res.json({ ok: true });
+});
+app.get("/api/weapons", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { description: weapon.description || DEFAULT_WEAPON_DESCRIPTIONS[id] || "", fireInterval: weapon.fireInterval }])) });
+});
+app.get("/api/admin/weapons", adminAuth, (_req, res) => {
+  res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { ...weapon, label: WEAPON_LABELS[id] || id }])) });
+});
+app.post("/api/admin/weapons", adminAuth, (req, res) => {
+  const input = req.body?.weapons;
+  if (!input || typeof input !== "object") return res.status(400).json({ error: "武器データが不正です" });
+  const next = {};
+  const numericKeys = ["damage", "fireInterval", "range", "spread", "falloffStart", "minDamageMultiplier", "magazineSize", "reloadTime", "pellets"];
+  for (const id of Object.keys(WEAPONS)) {
+    const source = input[id];
+    if (!source || typeof source !== "object") return res.status(400).json({ error: "武器データが不足しています: " + id });
+    const item = { ...WEAPONS[id] };
+    for (const key of numericKeys) {
+      if (source[key] === undefined || source[key] === "") { if (key === "pellets") delete item[key]; continue; }
+      const value = Number(source[key]);
+      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < 1) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
+        return res.status(400).json({ error: id + " の " + key + " が不正です" });
+      }
+      item[key] = value;
+    }
+    if (typeof source.name !== "string" || !source.name.trim() || source.name.length > 80) return res.status(400).json({ error: id + " の武器名が不正です" });
+    if (typeof source.description !== "string" || source.description.length > 500) return res.status(400).json({ error: id + " の説明が長すぎます" });
+    item.name = source.name.trim();
+    item.description = source.description;
+    item.automatic = source.automatic === true;
+    next[id] = item;
+  }
+  try {
+    fs.mkdirSync(path.dirname(WEAPON_CONFIG_FILE), { recursive: true });
+    const persisted = Object.fromEntries(Object.entries(next).map(([id, weapon]) => [id, Object.fromEntries(
+      ["name", "description", "damage", "fireInterval", "range", "spread", "falloffStart", "minDamageMultiplier", "magazineSize", "reloadTime", "automatic", "pellets"]
+        .filter(key => weapon[key] !== undefined).map(key => [key, weapon[key]])
+    )]));
+    fs.writeFileSync(WEAPON_CONFIG_FILE, JSON.stringify(persisted, null, 2) + "\n", "utf8");
+    for (const id of Object.keys(WEAPONS)) Object.assign(WEAPONS[id], next[id]);
+    res.json({ ok: true, weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { ...weapon, label: WEAPON_LABELS[id] || id }])) });
+    io.emit("weaponConfigUpdated", Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { fireInterval: weapon.fireInterval }])));
+  } catch (error) {
+    console.error("[Admin] 武器設定を保存できません:", error);
+    res.status(500).json({ error: "武器設定を保存できませんでした" });
+  }
+});
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, port: PORT, players: players.size });
@@ -396,9 +525,9 @@ function loadMapsForMode(mode) {
 }
 
 // 各モードのマップを別々に読み込みます。Areaは1枚の専用マップ上で独立した試合を行います。
-const availableMaps = loadMapsForMode(MAP_MODE);
-const areaMaps = loadMapsForMode(AREA_MODE);
-const areaMap = areaMaps[0];
+let availableMaps = loadMapsForMode(MAP_MODE);
+let areaMaps = loadMapsForMode(AREA_MODE);
+let areaMap = areaMaps[0];
 let activeMapIndex = 0;
 let activeMap = availableMaps[activeMapIndex];
 let WORLD = activeMap.world;
@@ -487,6 +616,80 @@ function getMapRotationStatus() {
 }
 
 console.log("[Map] モード:", MAP_MODE, "マップ:", activeMap.name, "(" + activeMap.id + ")");
+
+function safeMapFilename(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,64}\\.json$/.test(value) ? value : null;
+}
+function validateMapData(mapData) {
+  if (!mapData || typeof mapData !== "object" || typeof mapData.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(mapData.id) ||
+      typeof mapData.name !== "string" || !mapData.name.trim() || mapData.name.length > 80 ||
+      !mapData.world || !["minX", "maxX", "minZ", "maxZ"].every(key => Number.isFinite(mapData.world[key])) ||
+      mapData.world.minX >= mapData.world.maxX || mapData.world.minZ >= mapData.world.maxZ ||
+      !Array.isArray(mapData.spawnPoints) || mapData.spawnPoints.length < 1 || mapData.spawnPoints.length > 128 ||
+      !Array.isArray(mapData.obstacles) || mapData.obstacles.length > 500 ||
+      !Array.isArray(mapData.ramps) || mapData.ramps.length > 200 ||
+      (mapData.elevatedPlatforms !== undefined && (!Array.isArray(mapData.elevatedPlatforms) || mapData.elevatedPlatforms.length > 200))) return false;
+  if (!mapData.spawnPoints.every(p => Array.isArray(p) && p.length >= 3 && p.slice(0, 3).every(Number.isFinite))) return false;
+  for (const list of [mapData.obstacles, mapData.ramps, mapData.elevatedPlatforms || []]) {
+    for (const o of list) {
+      if (!o || typeof o !== "object" || !["x", "z", "w", "d", "h"].every(key => Number.isFinite(o[key])) || o.w <= 0 || o.d <= 0 || o.h < 0) return false;
+    }
+  }
+  return true;
+}
+app.get("/api/admin/maps", adminAuth, (req, res) => {
+  try {
+    if (req.query.file) {
+      const filename = safeMapFilename(String(req.query.file));
+      const mode = String(req.query.mode || MAP_MODE);
+      if (!filename || ![MAP_MODE, AREA_MODE].includes(mode)) return res.status(400).json({ error: "マップ指定が不正です" });
+      const target = path.join(MAP_ROOT, mode, filename);
+      if (!fs.existsSync(target)) return res.status(404).json({ error: "マップが見つかりません" });
+      return res.json({ map: JSON.parse(fs.readFileSync(target, "utf8")) });
+    }
+    const maps = [];
+    for (const mode of [MAP_MODE, AREA_MODE]) {
+      const dir = path.join(MAP_ROOT, mode);
+      for (const filename of fs.readdirSync(dir).filter(f => f.endsWith(".json")).sort()) {
+        try {
+          const item = JSON.parse(fs.readFileSync(path.join(dir, filename), "utf8"));
+          maps.push({ mode, filename, id: item.id, name: item.name });
+        } catch (_) {}
+      }
+    }
+    res.json({ maps });
+  } catch (error) {
+    console.error("[Admin] マップ一覧を読み込めません:", error);
+    res.status(500).json({ error: "マップを読み込めませんでした" });
+  }
+});
+app.post("/api/admin/maps", adminAuth, (req, res) => {
+  const mode = String(req.body?.mode || "");
+  const mapData = req.body?.map;
+  if (![MAP_MODE, AREA_MODE].includes(mode) || !validateMapData(mapData)) return res.status(400).json({ error: "マップデータが不正です。スポーン地点・寸法・オブジェクトを確認してください" });
+  const suppliedFilename = req.body?.filename ? safeMapFilename(String(req.body.filename)) : null;
+  if (req.body?.filename && !suppliedFilename) return res.status(400).json({ error: "ファイル名が不正です" });
+  const filename = suppliedFilename || (mapData.id + ".json");
+  const target = path.join(MAP_ROOT, mode, filename);
+  try {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    if (!suppliedFilename && fs.existsSync(target)) return res.status(409).json({ error: "同じIDのマップが既にあります。一覧から既存マップを読み込んで編集してください" });
+    mapData.elevatedPlatforms = Array.isArray(mapData.elevatedPlatforms) ? mapData.elevatedPlatforms : [];
+    fs.writeFileSync(target, JSON.stringify(mapData, null, 2) + "\n", "utf8");
+    availableMaps = loadMapsForMode(MAP_MODE);
+    areaMaps = loadMapsForMode(AREA_MODE);
+    const updatedActive = availableMaps.find(m => m.id === activeMap.id) || availableMaps[0];
+    activeMapIndex = Math.max(0, availableMaps.findIndex(m => m.id === updatedActive.id));
+    activeMap = updatedActive;
+    WORLD = activeMap.world; spawnPoints = activeMap.spawnPoints; obstacles = activeMap.obstacles; ramps = activeMap.ramps; elevatedPlatforms = activeMap.elevatedPlatforms;
+    areaMap = areaMaps.find(m => m.id === areaMap.id) || areaMaps[0];
+    io.emit("mapRotationStatus", getMapRotationStatus());
+    res.json({ ok: true, filename, map: mapData });
+  } catch (error) {
+    console.error("[Admin] マップを保存できません:", error);
+    res.status(500).json({ error: "マップを保存できませんでした" });
+  }
+});
 
 
 function clamp(v, min, max) {
