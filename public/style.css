@@ -1122,7 +1122,6 @@ body.controller-mode #settingsButton {
 
 
 /* Area capture mode UI */
-.area-mode-card { border-color: rgba(91, 180, 255, .45); background: linear-gradient(115deg, #182a3a, #171c23); }
 .area-queue-panel, .area-result-panel { width: min(520px, 100%); }
 .area-queue-progress { height: 10px; overflow: hidden; border-radius: 999px; background: #2a3038; margin: 18px 0 10px; }
 #areaQueueProgressFill { width: 0%; height: 100%; background: linear-gradient(90deg, #52a8ff, #71dcff); transition: width .2s linear; }
