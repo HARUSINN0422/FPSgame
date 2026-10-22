@@ -407,7 +407,7 @@ app.post("/api/admin/logout", (req, res) => {
 });
 app.get("/api/weapons", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { description: weapon.description || DEFAULT_WEAPON_DESCRIPTIONS[id] || "", fireInterval: weapon.fireInterval }])) });
+  res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { description: weapon.description || DEFAULT_WEAPON_DESCRIPTIONS[id] || "", fireInterval: weapon.fireInterval, automatic: weapon.automatic }])) });
 });
 app.get("/api/admin/weapons", adminAuth, (_req, res) => {
   res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { ...weapon, label: WEAPON_LABELS[id] || id }])) });
