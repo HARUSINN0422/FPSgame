@@ -403,6 +403,26 @@ let areaQueueStartedAt = 0;
 let lastAreaQueueSecond = null;
 let areaMatchSequence = 0;
 
+function createTrainingMap() {
+  return {
+    ...activeMap,
+    id: "shooting-range",
+    name: "射撃場",
+    description: "狭い練習場。壁は1つだけ配置。",
+    world: { minX: -16, maxX: 16, minZ: -16, maxZ: 16 },
+    spawnPoints: [
+      [0, 0, 10],
+      [-6, 0, -5],
+      [-2, 0, -5],
+      [2, 0, -5],
+      [6, 0, -5]
+    ],
+    obstacles: [{ x: 0, z: -11, w: 12, d: 1, h: 2.8 }],
+    ramps: [],
+    elevatedPlatforms: []
+  };
+}
+
 function getMapInfo(map, mode = MAP_MODE) {
   return { mode, id: map.id, name: map.name, description: map.description || "" };
 }
@@ -1706,12 +1726,13 @@ function removeTrainingBots(matchId) {
 
 function createTrainingBotsForPlayer(player) {
   if (!player || player.mode !== TRAINING_MODE) return;
-  const candidates = spawnPoints
+  const trainingMap = player.trainingMap || activeMap;
+  const candidates = trainingMap.spawnPoints
     .filter((spawn) => Math.hypot(spawn[0] - player.x, spawn[2] - player.z) >= 7)
     .sort((a, b) => Math.hypot(a[0] - player.x, a[2] - player.z) - Math.hypot(b[0] - player.x, b[2] - player.z));
   const targetSpawns = candidates.length
     ? candidates.slice(0, 4)
-    : [[player.x + 8, 0, player.z - 8], [player.x - 8, 0, player.z - 8], [player.x + 8, 0, player.z + 8], [player.x - 8, 0, player.z + 8]];
+    : [[player.x + 5, 0, player.z - 5], [player.x - 5, 0, player.z - 5], [player.x + 5, 0, player.z + 5], [player.x - 5, 0, player.z + 5]];
   targetSpawns.forEach((spawn, index) => {
     const id = "training-bot:" + player.id + ":" + index;
     players.set(id, {
@@ -1785,7 +1806,8 @@ io.on("connection", (socket) => {
     const skin = sanitizeSkin(data.skin);
     const requestedMode = data.mode === TRAINING_MODE ? TRAINING_MODE : MAP_MODE;
     const spawn = pickSpawn();
-    socket.emit("world", requestedMode === TRAINING_MODE ? getWorldPayloadForMap(activeMap, TRAINING_MODE) : getWorldPayload());
+    const trainingMap = requestedMode === TRAINING_MODE ? createTrainingMap() : null;
+    socket.emit("world", trainingMap ? getWorldPayloadForMap(trainingMap, TRAINING_MODE) : getWorldPayload());
 
     players.set(socket.id, {
       id: socket.id,
@@ -1794,7 +1816,7 @@ io.on("connection", (socket) => {
       mode: requestedMode,
       team: null,
       matchId: requestedMode === TRAINING_MODE ? socket.id : null,
-      trainingMap: requestedMode === TRAINING_MODE ? activeMap : null,
+      trainingMap,
       finished: false,
       isBot: false,
       x: spawn[0],
