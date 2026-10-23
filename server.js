@@ -566,8 +566,8 @@ function createTrainingMap() {
     ],
     obstacles: [{ x: 0, z: -11, w: 12, d: 1, h: 2.8 }],
     floorTiles: [
-      { id: "fire", type: "fire", x: 4, z: -8.5, w: 4, d: 4 },
-      { id: "slime", type: "slime", x: -4, z: -8.5, w: 4, d: 4 }
+      { id: "fire", type: "fire", x: 12, z: 1, w: 4, d: 4 },
+      { id: "slime", type: "slime", x: -12, z: 1, w: 4, d: 4 }
     ],
     ramps: [],
     elevatedPlatforms: []
