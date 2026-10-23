@@ -1826,6 +1826,8 @@ function setCrouch(held) {
 
 function fire() {
   if (!joined || myState?.reloading) return;
+  // 武器切替中はレティクルが隠れている時間と同じ長さだけ発射を禁止する。
+  if (performance.now() - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
