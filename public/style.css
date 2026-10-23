@@ -223,6 +223,19 @@ p {
   pointer-events: none;
   user-select: none;
 }
+#crosshair.weapon-pickaxe {
+  width: 72px;
+  height: 72px;
+  box-sizing: border-box;
+  border: 1.5px solid rgba(255,255,255,.88);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+  text-shadow: 0 0 2px rgba(0,0,0,.75);
+}
 #crosshair.weapon-pistol { font-size: 30px; font-weight: 500; }
 #crosshair.weapon-rifle { font-size: 28px; font-weight: 300; }
 #crosshair.weapon-smg { font-size: 28px; font-weight: 500; }
