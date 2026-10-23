@@ -160,6 +160,10 @@ process.on("unhandledRejection", (reason) => {
 });
 
 const WEAPONS = {
+  pickaxe: {
+    name: "Pickaxe", damage: 70, fireInterval: 650, range: 3.2, spread: 0,
+    falloffStart: 3.2, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true
+  },
   pistol: {
     name: "Pistol",
     damage: 50,
@@ -214,10 +218,11 @@ const WEAPONS = {
 };
 
 const WEAPON_LABELS = {
-  pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
+  pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
   shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
+  pickaxe: "近接攻撃 / 70ダメージ",
   pistol: "単発 / 胴体50ダメージ / 装弾数4発・距離減衰はやや大きめ",
   smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
@@ -234,7 +239,7 @@ try {
   for (const id of Object.keys(WEAPONS)) {
     const saved = savedWeapons[id];
     if (!saved || typeof saved !== "object") continue;
-    for (const key of ["name", "description", "damage", "fireInterval", "range", "spread", "falloffStart", "minDamageMultiplier", "magazineSize", "reloadTime", "automatic", "pellets"]) {
+    for (const key of ["name", "description", "damage", "fireInterval", "range", "spread", "falloffStart", "minDamageMultiplier", "magazineSize", "reloadTime", "automatic", "pellets", "melee"]) {
       if (key in saved && (key === "pellets" ? Number.isInteger(saved[key]) && saved[key] > 0 : typeof saved[key] === typeof WEAPONS[id][key]) && (typeof saved[key] !== "number" || Number.isFinite(saved[key]))) {
         WEAPONS[id][key] = saved[key];
       }
@@ -1354,14 +1359,16 @@ function fireShot(shooter) {
   if (shooter.reloadingUntil > now) return;
   if (now - shooter.lastFire < weapon.fireInterval) return;
 
-  if (shooter.ammo <= 0) {
+  if (!weapon.melee && shooter.ammo <= 0) {
     startReload(shooter);
     return;
   }
 
   shooter.lastFire = now;
-  shooter.ammo -= 1;
-  if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
+  if (!weapon.melee) {
+    shooter.ammo -= 1;
+    if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
+  }
 
   const pelletCount = weapon.pellets || 1;
   const shooterHeight = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
