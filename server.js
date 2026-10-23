@@ -1381,7 +1381,36 @@ function fireShot(shooter) {
   const hitResults = [];
   const damageByTarget = new Map();
 
-  for (let pellet = 0; pellet < pelletCount; pellet++) {
+  // ツルハシは弾丸を生成せず、正面の近距離にいる相手だけを近接判定する。
+  if (weapon.melee) {
+    const forward = directionFromAngles(shooter.yaw, shooter.pitch);
+    let best = null;
+    for (const target of players.values()) {
+      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
+      if (shooter.mode === TRAINING_MODE && !target.isBot) continue;
+      if (shooter.mode === AREA_MODE && target.team === shooter.team) continue;
+      if (target.invulnerableUntil > now) continue;
+      const dx = target.x - shooter.x;
+      const dz = target.z - shooter.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > weapon.range || distance < 0.001) continue;
+      const dot = (forward.x * dx + forward.z * dz) / distance;
+      if (dot < 0.72) continue;
+      const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
+      if (verticalDiff > 1.6) continue;
+      const wallDistance = rayHitsObstacle(origin, {x: dx / distance, y: 0, z: dz / distance}, distance, shooter);
+      if (wallDistance !== null && wallDistance < distance - 0.35) continue;
+      if (!best || distance < best.distance) best = {target, distance};
+    }
+    if (best) {
+      const damage = weapon.damage;
+      best.target.health -= damage;
+      damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, zone: "body"});
+      hitResults.push({target: best.target, damage, zone: "body", x: best.target.x, y: best.target.y + 1, z: best.target.z});
+    }
+  }
+
+  for (let pellet = 0; !weapon.melee && pellet < pelletCount; pellet++) {
     let yaw = shooter.yaw;
     let pitch = shooter.pitch;
 
@@ -1504,7 +1533,7 @@ function fireShot(shooter) {
     : null;
 
   const visualTracers = [];
-  for (let pellet = 0; pellet < pelletCount; pellet++) {
+  for (let pellet = 0; !weapon.melee && pellet < pelletCount; pellet++) {
     let visualYaw = shooter.yaw;
     let visualPitch = shooter.pitch;
     if (weapon.spread) {
