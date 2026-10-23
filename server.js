@@ -600,7 +600,7 @@ function getWorldPayloadForMap(map, mode) {
     obstacles: map.obstacles || [],
     ramps: map.ramps || [],
     elevatedPlatforms: map.elevatedPlatforms || [],
-    floorTiles: mode === TRAINING_MODE ? (map.floorTiles || []) : [],
+    floorTiles: map.floorTiles || [],
     world: map.world,
     ...(mode === AREA_MODE && map.areaZone ? { areaZone: map.areaZone } : {}),
     weapons: Object.fromEntries(
@@ -1085,7 +1085,6 @@ function updateCrouchState(p) {
 }
 
 function isOnFloorTile(p, type) {
-  if (p?.mode !== TRAINING_MODE) return false;
   const map = getMapForPlayer(p);
   return (map.floorTiles || []).some((tile) => tile.type === type &&
     Math.abs(p.x - tile.x) <= tile.w / 2 && Math.abs(p.z - tile.z) <= tile.d / 2);
@@ -2331,7 +2330,7 @@ setInterval(() => {
       if (p.isBot) updateBot(p, now);
       finishReload(p, now);
       movePlayer(p, dt);
-      // 射撃場の燃える床は、接地中に500msごとに15ダメージ。
+      // 燃える床は、接地中に500msごとに15ダメージ。
       if (isOnFloorTile(p, "fire") && p.y <= getGroundHeight(p.x, p.z, p.y, p) + 0.08 &&
           now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
