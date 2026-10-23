@@ -4,10 +4,10 @@
   "name": "Inferno Crossing",
   "description": "64×64の炎床を維持。マップ境界を外周壁の外縁に合わせ、リスポーン位置は炎床上ではなく外周の高台に設定。",
   "world": {
-    "minX": -31.5,
-    "maxX": 31.5,
-    "minZ": -31.5,
-    "maxZ": 31.5
+    "minX": -31,
+    "maxX": 31,
+    "minZ": -31,
+    "maxZ": 31
   },
   "spawnPoints": [
     [
