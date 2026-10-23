@@ -913,7 +913,7 @@ function savePlayerName() {
     value = createGuestName();
   }
 
-  playerName = value.slice(0, 16);
+  playerName = value.slice(0, 128);
   setCookie("fps_player_name", playerName);
   if (input) input.value = playerName;
   return playerName;
