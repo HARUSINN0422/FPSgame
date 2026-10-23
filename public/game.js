@@ -230,6 +230,7 @@ const DEFAULT_SETTINGS = {
     crouchButton: { x: 220, y: 48, side: "right", size: 72 },
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
+    inventoryButton: { x: 310, y: 230, side: "right", size: 88 },
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
@@ -286,6 +287,7 @@ function loadGameSettings() {
         crouchButton: { ...DEFAULT_SETTINGS.layout.crouchButton, ...(saved.layout?.crouchButton || {}) },
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
         switchWeaponButton: { ...DEFAULT_SETTINGS.layout.switchWeaponButton, ...(saved.layout?.switchWeaponButton || {}) },
+        inventoryButton: { ...DEFAULT_SETTINGS.layout.inventoryButton, ...(saved.layout?.inventoryButton || {}) },
         scopeButton: { ...DEFAULT_SETTINGS.layout.scopeButton, ...(saved.layout?.scopeButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
@@ -630,9 +632,6 @@ function setupSettings() {
 
   document.getElementById("settingsModeChangeButton")?.addEventListener("click", () => {
     navigateToLobbyScreen("modeScreen");
-  });
-  document.getElementById("settingsWeaponChangeButton")?.addEventListener("click", () => {
-    navigateToLobbyScreen("weaponScreen");
   });
 
   settingsButton?.addEventListener("click", () => {
@@ -1888,6 +1887,52 @@ function updatePickaxeReticleBounds() {
   crosshair.style.width = Math.min(innerWidth, projectedWidth) + "px";
 }
 
+
+const inventoryPanel = document.getElementById("inventoryPanel");
+function renderInventory() {
+  const container = document.getElementById("inventoryWeaponSlots");
+  if (!container) return;
+  container.replaceChildren();
+  const slots = Array.isArray(myState?.weaponSlots) ? myState.weaponSlots : weaponSlots;
+  slots.slice(0, 2).forEach((weapon, index) => {
+    const card = document.createElement("div");
+    card.className = "inventory-weapon-card" + (index === activeWeaponSlot ? " active" : "");
+    const title = document.createElement("strong");
+    title.textContent = (index + 1) + "番スロット： " + weaponDisplayName(weapon);
+    const state = document.createElement("span");
+    state.textContent = index === activeWeaponSlot ? "現在装備中" : "待機中";
+    const equip = document.createElement("button");
+    equip.type = "button";
+    equip.textContent = index === activeWeaponSlot ? "装備中" : "この武器に持ち替え";
+    equip.disabled = index === activeWeaponSlot;
+    equip.addEventListener("click", () => {
+      selectWeaponSlot(index);
+      renderInventory();
+    });
+    card.append(title, state, equip);
+    container.appendChild(card);
+  });
+}
+function openInventory() {
+  if (!joined || !inventoryPanel) return;
+  renderInventory();
+  inventoryPanel.classList.remove("hidden");
+  inventoryPanel.setAttribute("aria-hidden", "false");
+  document.getElementById("inventoryButton")?.setAttribute("aria-expanded", "true");
+}
+function closeInventory() {
+  inventoryPanel?.classList.add("hidden");
+  inventoryPanel?.setAttribute("aria-hidden", "true");
+  document.getElementById("inventoryButton")?.setAttribute("aria-expanded", "false");
+}
+document.getElementById("inventoryCloseButton")?.addEventListener("click", closeInventory);
+inventoryPanel?.addEventListener("click", (event) => {
+  if (event.target === inventoryPanel) closeInventory();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && inventoryPanel && !inventoryPanel.classList.contains("hidden")) closeInventory();
+});
+
 function updateWeaponSwitchButton() {
   const button = document.getElementById("switchWeaponButton");
   if (button) {
@@ -2445,6 +2490,7 @@ socket.on("joined", ({ player }) => {
   setConnectionStatus("接続済み", true);
   updateAmmoHud();
   updateWeaponSwitchButton();
+  closeInventory();
   if (reconnecting) showMessage("サーバーに再接続しました");
 });
 
@@ -2891,6 +2937,10 @@ function bindReloadButton(button) {
 bindReloadButton(reloadButton);
 bindReloadButton(reloadTouchButton);
 
+document.getElementById("inventoryButton")?.addEventListener("pointerdown", (e) => {
+  if (layoutEditing || !joined) return;
+  e.preventDefault(); e.stopPropagation(); openInventory();
+});
 document.getElementById("switchWeaponButton")?.addEventListener("pointerdown", (e) => {
   if (layoutEditing) return;
   e.preventDefault(); e.stopPropagation(); switchWeapon();
@@ -2906,6 +2956,7 @@ setupDraggableButton("reloadTouchButton", "reloadTouchButton");
 setupDraggableButton("crouchButton", "crouchButton");
 setupDraggableButton("fireButton", "fireButton");
 setupDraggableButton("switchWeaponButton", "switchWeaponButton");
+setupDraggableButton("inventoryButton", "inventoryButton");
 setupDraggableButton("scopeButton", "scopeButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
