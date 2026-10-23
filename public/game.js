@@ -2617,24 +2617,6 @@ document.getElementById("wanderModeButton")?.addEventListener("click", () => {
     skin: window.getPlayerSkinData?.()
   });
 });
-wanderMapPicker?.addEventListener("change", () => {
-  if (!joined) {
-    const name = savePlayerName();
-    selectedGameMode = "Wander";
-    selectedWeapon = selectedPrimaryWeapon;
-    weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
-    document.getElementById("modeScreen")?.classList.add("hidden");
-    socket.emit("join", {
-      name,
-      weapon: selectedPrimaryWeapon,
-      secondaryWeapon: selectedSecondaryWeapon,
-      mode: "Wander",
-      mapId: wanderMapPicker.value,
-      skin: window.getPlayerSkinData?.()
-    });
-  }
-});
-
 document.getElementById("shootingRangeModeButton")?.addEventListener("click", () => {
   if (joined) return;
   const name = savePlayerName();
