@@ -1053,27 +1053,20 @@ function buildWorld(data) {
     makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
   }
 
-  // 射撃場専用の特殊床。面全体を単色にして、三角形の境目のような斜め分割を見せない。
+  // 射撃場専用の特殊床。薄い直方体全体をBasicMaterialで描画し、面を完全な単色にする。
   for (const tile of data.floorTiles || []) {
     const isFire = tile.type === "fire";
     const tileMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(tile.w, tile.d),
+      new THREE.BoxGeometry(tile.w, 0.06, tile.d),
       new THREE.MeshBasicMaterial({
         color: isFire ? 0xd92727 : 0x26b866,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        toneMapped: false
       })
     );
-    tileMesh.rotation.x = -Math.PI / 2;
-    tileMesh.position.set(tile.x, 0.035, tile.z);
+    tileMesh.position.set(tile.x, 0.025, tile.z);
     tileMesh.renderOrder = 2;
     worldGroup.add(tileMesh);
-
-    const edge = new THREE.Mesh(
-      new THREE.EdgesGeometry(new THREE.BoxGeometry(tile.w, 0.035, tile.d)),
-      new THREE.LineBasicMaterial({ color: isFire ? 0xff8b55 : 0x9affc2 })
-    );
-    edge.position.set(tile.x, 0.045, tile.z);
-    worldGroup.add(edge);
   }
 
   for (const ramp of data.ramps || []) {
