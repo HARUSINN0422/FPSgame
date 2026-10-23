@@ -141,6 +141,7 @@ let lastLookY = 0;
 let pointerLocked = false;
 
 const weaponConfig = {
+  pickaxe: { fireInterval: 650, automatic: false, melee: true },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
@@ -1807,7 +1808,7 @@ function fire() {
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (myState && myState.ammo <= 0) {
+  if (selectedWeapon !== "pickaxe" && myState && myState.ammo <= 0) {
     reload();
     return;
   }
@@ -1827,13 +1828,14 @@ function reload() {
 }
 
 function weaponDisplayName(id) {
-  return ({ pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
   const crosshair = document.getElementById("crosshair");
   if (!crosshair) return;
   const reticles = {
+    pickaxe: ["weapon-pickaxe", "†"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
@@ -1842,7 +1844,7 @@ function updateWeaponReticle() {
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-pickaxe", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
 }
