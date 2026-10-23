@@ -1395,7 +1395,7 @@ function fireShot(shooter) {
       const distance = Math.hypot(dx, dz);
       if (distance > weapon.range || distance < 0.001) continue;
       const dot = (forward.x * dx + forward.z * dz) / distance;
-      if (dot < 0.72) continue;
+      if (dot < 0.408) continue;
       const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
       if (verticalDiff > 1.6) continue;
       const wallDistance = rayHitsObstacle(origin, {x: dx / distance, y: 0, z: dz / distance}, distance, shooter);
