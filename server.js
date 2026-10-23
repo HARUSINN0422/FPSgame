@@ -581,6 +581,7 @@ function getMapInfo(map, mode = MAP_MODE) {
 function getMapForPlayer(player) {
   if (player?.mode === AREA_MODE) return areaMap;
   if (player?.mode === TRAINING_MODE) return player.trainingMap || activeMap;
+  if (player?.mode === "Wander") return player.wanderMap || activeMap;
   return activeMap;
 }
 
@@ -2003,6 +2004,12 @@ io.on("connection", (socket) => {
     });
   }
 
+  socket.on("getWanderMaps", () => {
+    const maps = [...availableMaps, ...areaMaps].map((map) => ({ id: map.id, name: map.name, mode: map === areaMap ? AREA_MODE : MAP_MODE }));
+    maps.push({ id: "shooting-range", name: "射撃場", mode: TRAINING_MODE });
+    socket.emit("wanderMaps", maps);
+  });
+
   socket.on("joinAreaQueue", (data = {}) => {
     queueAreaPlayer(socket, data);
   });
@@ -2043,10 +2050,14 @@ io.on("connection", (socket) => {
     const weaponSlots = [weapon, secondaryWeapon];
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
-    const requestedMode = data.mode === TRAINING_MODE ? TRAINING_MODE : MAP_MODE;
+    const requestedMode = data.mode === TRAINING_MODE ? TRAINING_MODE : data.mode === "Wander" ? "Wander" : MAP_MODE;
     const trainingMap = requestedMode === TRAINING_MODE ? createTrainingMap() : null;
-    const spawn = trainingMap ? trainingMap.spawnPoints[0] : pickSpawn();
-    socket.emit("world", trainingMap ? getWorldPayloadForMap(trainingMap, TRAINING_MODE) : getWorldPayload());
+    const wanderMap = requestedMode === "Wander"
+      ? (data.mapId === "shooting-range" ? createTrainingMap() : [...availableMaps, ...areaMaps].find((map) => map.id === data.mapId) || activeMap)
+      : null;
+    const chosenMap = trainingMap || wanderMap;
+    const spawn = chosenMap ? chosenMap.spawnPoints[0] : pickSpawn();
+    socket.emit("world", chosenMap ? getWorldPayloadForMap(chosenMap, requestedMode) : getWorldPayload());
 
     players.set(socket.id, {
       id: socket.id,
@@ -2054,8 +2065,9 @@ io.on("connection", (socket) => {
       skin,
       mode: requestedMode,
       team: null,
-      matchId: requestedMode === TRAINING_MODE ? socket.id : null,
+      matchId: requestedMode === TRAINING_MODE || requestedMode === "Wander" ? socket.id : null,
       trainingMap,
+      wanderMap,
       finished: false,
       isBot: false,
       x: spawn[0],
@@ -2087,7 +2099,7 @@ io.on("connection", (socket) => {
     });
 
     if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
-    else syncBots();
+    else if (requestedMode !== "Wander") syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
     broadcastPlayers();
   });
