@@ -856,6 +856,16 @@ function updateBot(p, now) {
   p.botThinkAt = now + 100 + Math.random() * 80;
 
   const isAreaBot = p.mode === AREA_MODE;
+  const botMap = getMapForPlayer(p);
+  const isInfernoCrossing = botMap.id === "inferno-crossing" || botMap.name === "Inferno Crossing";
+  // Inferno Crossingでは、炎床の高さにいるBOTは接地したタイミングでジャンプを予約する。
+  // 炎床の上を歩き続けず、ジャンプを繰り返して床への接触を減らす。
+  if (isInfernoCrossing && p.y < 0.55 && p.grounded &&
+      (botMap.floorTiles || []).some((tile) => tile.type === "fire" &&
+        Math.abs(p.x - tile.x) <= tile.w / 2 &&
+        Math.abs(p.z - tile.z) <= tile.d / 2)) {
+    p.jumpQueuedUntil = Math.max(p.jumpQueuedUntil || 0, now + 120);
+  }
   const match = isAreaBot ? areaMatches.get(p.matchId) : null;
   const targets = Array.from(players.values()).filter((other) =>
     other.id !== p.id &&
