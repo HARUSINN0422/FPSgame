@@ -367,9 +367,30 @@
     <button id="reloadTouchButton" aria-label="リロード">RELOAD</button>
     <button id="switchWeaponButton" aria-label="武器切替">武器切替
 1/2</button>
+    <button id="inventoryButton" aria-label="インベントリーを開く">インベントリー</button>
     <button id="scopeButton" class="hidden" aria-label="スコープを覗く">スコープ
 覗く</button>
     <button id="fireButton" aria-label="発射">FIRE</button>
+  </div>
+
+  <div id="inventoryPanel" class="overlay hidden" aria-hidden="true">
+    <section class="panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventoryTitle">
+      <div class="eyebrow">PLAYER INVENTORY</div>
+      <h1 id="inventoryTitle">インベントリー</h1>
+      <p>装備する武器スロットを選択できます。武器のアタッチメントとサイトの付け替え欄は今後の拡張用です。</p>
+      <div class="inventory-section">
+        <h2>装備中の武器</h2>
+        <div id="inventoryWeaponSlots" class="inventory-weapon-slots"></div>
+      </div>
+      <div class="inventory-section">
+        <h2>武器改造</h2>
+        <div class="inventory-mod-grid">
+          <div><strong>アタッチメント</strong><span>今後対応予定</span><button type="button" disabled>アタッチメントを選択</button></div>
+          <div><strong>サイト</strong><span>今後対応予定</span><button type="button" disabled>サイトを選択</button></div>
+        </div>
+      </div>
+      <button id="inventoryCloseButton" class="start-game-button" type="button">閉じる</button>
+    </section>
   </div>
 
   <div id="skinEditorPanel" class="skin-editor-overlay hidden" aria-hidden="true">
@@ -430,6 +451,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-3d-touch-rotate-2"></script>
-  <script type="module" src="game.js?v=admin-weapon-config-2"></script>
+  <script type="module" src="game.js?v=inventory-ui-1"></script>
 </body>
 </html>
