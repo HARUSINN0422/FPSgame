@@ -1392,10 +1392,14 @@ function fireShot(shooter) {
       if (target.invulnerableUntil > now) continue;
       const dx = target.x - shooter.x;
       const dz = target.z - shooter.z;
+      // 正面に伸びる長方形。横幅はレティクルの角度（halfAngle = acos(0.9））に合わせる。
+      const forwardDistance = forward.x * dx + forward.z * dz;
+      if (forwardDistance <= 0 || forwardDistance > weapon.range) continue;
+      const lateralDistance = Math.abs(forward.x * dz - forward.z * dx);
+      const halfAngle = Math.acos(0.9);
+      const halfWidth = weapon.range * Math.tan(halfAngle);
+      if (lateralDistance > halfWidth) continue;
       const distance = Math.hypot(dx, dz);
-      if (distance > weapon.range || distance < 0.001) continue;
-      const dot = (forward.x * dx + forward.z * dz) / distance;
-      if (dot < 0.408) continue;
       const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
       if (verticalDiff > 1.6) continue;
       const wallDistance = rayHitsObstacle(origin, {x: dx / distance, y: 0, z: dz / distance}, distance, shooter);
