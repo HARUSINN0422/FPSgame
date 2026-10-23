@@ -2,12 +2,12 @@
   "rotationOrder": 3,
   "id": "inferno-crossing",
   "name": "Inferno Crossing",
-  "description": "64×64の炎床を維持。マップ端の境界壁を内側へ移動し、外周の乗れるプラットフォームの太さを従来の0.8倍に調整したアリーナ。",
+  "description": "64×64の炎床を維持。マップ境界を外周壁の外縁に合わせ、リスポーン位置は炎床上ではなく外周の高台に設定。",
   "world": {
-    "minX": -32,
-    "maxX": 32,
-    "minZ": -32,
-    "maxZ": 32
+    "minX": -29,
+    "maxX": 29,
+    "minZ": -29,
+    "maxZ": 29
   },
   "spawnPoints": [
     [
