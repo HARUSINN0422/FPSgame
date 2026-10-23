@@ -1835,7 +1835,7 @@ function updateWeaponReticle() {
   const crosshair = document.getElementById("crosshair");
   if (!crosshair) return;
   const reticles = {
-    pickaxe: ["weapon-pickaxe", "†"],
+    pickaxe: ["weapon-pickaxe", "+"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
