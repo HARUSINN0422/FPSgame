@@ -635,6 +635,10 @@ function setupSettings() {
     navigateToLobbyScreen("modeScreen");
   });
 
+  document.getElementById("settingsWeaponChangeButton")?.addEventListener("click", () => {
+    navigateToLobbyScreen("weaponScreen");
+  });
+
   settingsButton?.addEventListener("click", () => {
     if (layoutEditing) return;
     open();
