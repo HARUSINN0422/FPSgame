@@ -1847,6 +1847,22 @@ function updateWeaponReticle() {
   crosshair.classList.remove("weapon-pickaxe", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
+  updatePickaxeReticleBounds();
+}
+
+// Server melee hit check uses dot >= 0.72, equivalent to this horizontal half-angle.
+// Project that angle through the current camera so the bracket edges track the real attack cone.
+function updatePickaxeReticleBounds() {
+  const crosshair = document.getElementById("crosshair");
+  if (!crosshair) return;
+  if (selectedWeapon !== "pickaxe") {
+    crosshair.style.width = "";
+    return;
+  }
+  const halfAngle = Math.acos(0.72);
+  const halfHorizontalFov = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+  const projectedWidth = innerWidth * Math.tan(halfAngle) / Math.tan(halfHorizontalFov);
+  crosshair.style.width = Math.min(innerWidth, projectedWidth) + "px";
 }
 
 function updateWeaponSwitchButton() {
@@ -3186,6 +3202,7 @@ window.addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
   renderer.setSize(innerWidth, innerHeight);
+  updatePickaxeReticleBounds();
 });
 
 function animate(now) {
