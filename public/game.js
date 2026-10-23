@@ -2041,7 +2041,8 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
-  if (event.weapon === "marksman") return;
+  // 近接武器はショットイベントを共有していても弾道を描画しない。
+  if (event.weapon === "pickaxe" || event.weapon === "marksman") return;
   const start = new THREE.Vector3(event.x, event.y, event.z);
   const entries = Array.isArray(event.tracers) && event.tracers.length
     ? event.tracers
