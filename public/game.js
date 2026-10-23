@@ -2574,6 +2574,67 @@ document.getElementById("backToLoadoutButton")?.addEventListener("click", () => 
   document.getElementById("weaponScreen")?.classList.remove("hidden");
 });
 
+const wanderMapPicker = document.getElementById("wanderMapPicker");
+let wanderMapsLoaded = false;
+socket.on("wanderMaps", (maps = []) => {
+  if (!wanderMapPicker) return;
+  const previous = wanderMapPicker.value;
+  wanderMapPicker.replaceChildren();
+  for (const map of maps) {
+    const option = document.createElement("option");
+    option.value = map.id;
+    option.textContent = map.name;
+    wanderMapPicker.appendChild(option);
+  }
+  if (maps.some((map) => map.id === previous)) wanderMapPicker.value = previous;
+  wanderMapsLoaded = true;
+});
+document.getElementById("wanderModeButton")?.addEventListener("click", () => {
+  if (joined) return;
+  socket.emit("getWanderMaps");
+  const pickerWrap = document.getElementById("wanderMapPickerWrap");
+  if (pickerWrap) {
+    pickerWrap.style.display = "block";
+    pickerWrap.classList.remove("hidden");
+  }
+  if (!wanderMapsLoaded) {
+    showMessage("ステージ一覧を読み込んでいます…");
+    setTimeout(() => socket.emit("getWanderMaps"), 250);
+    return;
+  }
+  const name = savePlayerName();
+  selectedGameMode = "Wander";
+  areaResultOpen = false;
+  selectedWeapon = selectedPrimaryWeapon;
+  weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  socket.emit("join", {
+    name,
+    weapon: selectedPrimaryWeapon,
+    secondaryWeapon: selectedSecondaryWeapon,
+    mode: "Wander",
+    mapId: wanderMapPicker?.value,
+    skin: window.getPlayerSkinData?.()
+  });
+});
+wanderMapPicker?.addEventListener("change", () => {
+  if (!joined) {
+    const name = savePlayerName();
+    selectedGameMode = "Wander";
+    selectedWeapon = selectedPrimaryWeapon;
+    weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+    document.getElementById("modeScreen")?.classList.add("hidden");
+    socket.emit("join", {
+      name,
+      weapon: selectedPrimaryWeapon,
+      secondaryWeapon: selectedSecondaryWeapon,
+      mode: "Wander",
+      mapId: wanderMapPicker.value,
+      skin: window.getPlayerSkinData?.()
+    });
+  }
+});
+
 document.getElementById("shootingRangeModeButton")?.addEventListener("click", () => {
   if (joined) return;
   const name = savePlayerName();
