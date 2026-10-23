@@ -99,6 +99,7 @@ const clock = new THREE.Clock();
 
 let worldData = null;
 let respawnTimer = null;
+let autoRespawnRequested = false;
 
 let joined = false;
 let myId = null;
@@ -212,6 +213,7 @@ const DEFAULT_SETTINGS = {
   controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
+  autoRespawnEnabled: false,
   keyboard: {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
@@ -271,6 +273,7 @@ function loadGameSettings() {
       controllerButtons: { ...DEFAULT_SETTINGS.controllerButtons, ...(saved.controllerButtons || {}) },
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
+      autoRespawnEnabled: saved.autoRespawnEnabled === true,
       keyboard: savedKeyboard,
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
@@ -412,6 +415,13 @@ function updateSettingsUi() {
   gameSettings.layout.jumpButton.size = Math.round(jumpSize);
   if (jumpSizeSlider) jumpSizeSlider.value = String(jumpSize);
   if (jumpSizeValue) jumpSizeValue.textContent = Math.round(jumpSize) + "px";
+
+  const autoRespawnToggle = document.getElementById("autoRespawnToggle");
+  if (autoRespawnToggle) {
+    autoRespawnToggle.checked = gameSettings.autoRespawnEnabled === true;
+    const label = document.getElementById("autoRespawnToggleValue");
+    if (label) label.textContent = autoRespawnToggle.checked ? "ON" : "OFF";
+  }
 
   const allowLookToggle = document.getElementById("allowLookWhileActionHeldToggle");
   if (allowLookToggle) {
@@ -699,6 +709,13 @@ function setupSettings() {
     const size = THREE.MathUtils.clamp(Number(jumpSizeSlider.value) || 72, 48, 160);
     gameSettings.layout.jumpButton.size = Math.round(size);
     applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+
+  document.getElementById("autoRespawnToggle")?.addEventListener("change", (event) => {
+    gameSettings.autoRespawnEnabled = Boolean(event.target.checked);
+    const label = document.getElementById("autoRespawnToggleValue");
+    if (label) label.textContent = event.target.checked ? "ON" : "OFF";
+    saveGameSettings();
   });
 
   document.getElementById("allowLookWhileActionHeldToggle")?.addEventListener("change", (event) => {
@@ -1963,6 +1980,7 @@ function showRespawnPanel() {
   panel?.classList.remove("hidden");
   touchUi?.classList.add("hidden");
   controllerRespawnRequested = false;
+  autoRespawnRequested = false;
   if (button) button.disabled = true;
   if (respawnTimer) clearInterval(respawnTimer);
 
@@ -1973,6 +1991,10 @@ function showRespawnPanel() {
     const seconds = Math.ceil(remaining / 1000);
     if (text) text.textContent = seconds > 0 ? ("リスポーンまで " + seconds + "秒") : "リスポーンできます";
     if (button) button.disabled = remaining > 0;
+    if (remaining <= 0 && gameSettings.autoRespawnEnabled && !autoRespawnRequested) {
+      autoRespawnRequested = true;
+      socket.emit("respawn");
+    }
     if (remaining <= 0) {
       clearInterval(respawnTimer);
       respawnTimer = null;
@@ -1986,6 +2008,7 @@ function showRespawnPanel() {
 function hideRespawnPanel() {
   document.getElementById("respawnPanel")?.classList.add("hidden");
   if (joined) document.getElementById("touchUi")?.classList.remove("hidden");
+  autoRespawnRequested = false;
   if (respawnTimer) {
     clearInterval(respawnTimer);
     respawnTimer = null;
