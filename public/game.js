@@ -256,7 +256,7 @@ function loadGameSettings() {
       touchSensitivity: THREE.MathUtils.clamp(Number(saved.touchSensitivity) || legacySensitivity, 0.4, 5.0),
       controllerSensitivity: THREE.MathUtils.clamp(Number(saved.controllerSensitivity) || legacySensitivity, 0.4, 5.0),
       mouseSensitivity: THREE.MathUtils.clamp(Number(saved.mouseSensitivity) || legacySensitivity, 0.4, 5.0),
-      sniperSensitivity: THREE.MathUtils.clamp(Number(saved.sniperSensitivity) || 1, 0.2, 2.0),
+      sniperSensitivity: THREE.MathUtils.clamp(Number(saved.sniperSensitivity) || 1, 0.01, 2.0),
       touchAimAssistStrength: saved.touchAimAssistStrength != null && [0, 5, 10].includes(Number(saved.touchAimAssistStrength))
         ? Number(saved.touchAimAssistStrength)
         : (typeof saved.touchAimAssistEnabled === "boolean" ? (saved.touchAimAssistEnabled ? 10 : 0) : 10),
@@ -369,7 +369,7 @@ function updateSettingsUi() {
   for (const [sliderId, valueId, settingName] of sensitivityControls) {
     const slider = document.getElementById(sliderId);
     const value = document.getElementById(valueId);
-    const settingValue = THREE.MathUtils.clamp(Number(gameSettings[settingName]) || 1, settingName === "sniperSensitivity" ? 0.2 : 0.4, settingName === "sniperSensitivity" ? 2.0 : 5.0);
+    const settingValue = THREE.MathUtils.clamp(Number(gameSettings[settingName]) || 1, settingName === "sniperSensitivity" ? 0.01 : 0.4, settingName === "sniperSensitivity" ? 2.0 : 5.0);
     gameSettings[settingName] = settingValue;
     if (slider) slider.value = String(settingValue);
     if (value) value.textContent = settingValue.toFixed(2);
