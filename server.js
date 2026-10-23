@@ -1394,10 +1394,10 @@ function fireShot(shooter) {
       const dz = target.z - shooter.z;
       // 正面に伸びる長方形。横幅はレティクルの角度（halfAngle = acos(0.9））に合わせる。
       const forwardDistance = forward.x * dx + forward.z * dz;
-      if (forwardDistance <= 0 || forwardDistance > weapon.range) continue;
+      if (forwardDistance <= 0 || forwardDistance > weapon.range * 1.8) continue;
       const lateralDistance = Math.abs(forward.x * dz - forward.z * dx);
       const halfAngle = Math.acos(0.9);
-      const halfWidth = weapon.range * Math.tan(halfAngle);
+      const halfWidth = weapon.range * Math.tan(halfAngle) * 0.8;
       if (lateralDistance > halfWidth) continue;
       const distance = Math.hypot(dx, dz);
       const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
