@@ -1588,3 +1588,47 @@ body.controller-mode #settingsButton {
   outline: 2px dashed rgba(110, 190, 255, .9);
   outline-offset: 3px;
 }
+
+
+/* インベントリーボタンと装備画面 */
+#inventoryButton {
+  position: absolute;
+  right: 310px;
+  bottom: calc(230px + env(safe-area-inset-bottom));
+  min-width: 88px;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 12px;
+  background: rgba(28, 48, 67, .88);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#inventoryButton:active { background: rgba(65, 95, 130, .95); }
+.inventory-panel { width: min(620px, 100%); }
+.inventory-section { margin-top: 18px; }
+.inventory-section h2 { margin: 0 0 10px; font-size: 16px; }
+.inventory-weapon-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.inventory-weapon-card, .inventory-mod-grid > div {
+  display: flex; flex-direction: column; gap: 9px; min-width: 0;
+  padding: 14px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+.inventory-weapon-card.active { border-color: #75baff; background: rgba(65, 125, 190, .15); }
+.inventory-weapon-card span, .inventory-mod-grid span { font-size: 12px; opacity: .65; }
+.inventory-weapon-card button, .inventory-mod-grid button {
+  min-height: 38px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px;
+  background: #253648; color: #fff; font: inherit; font-size: 12px; font-weight: 700;
+}
+.inventory-weapon-card button:disabled, .inventory-mod-grid button:disabled { opacity: .45; }
+.inventory-mod-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 900px) { #inventoryButton { right: 310px; bottom: 230px; } }
+@media (max-width: 520px) {
+  .inventory-weapon-slots, .inventory-mod-grid { grid-template-columns: 1fr; }
+  .inventory-panel { padding: 14px; }
+}
