@@ -726,7 +726,7 @@ function sanitizeWeapon(value) {
 
 function sanitizeName(value) {
   const name = String(value || "").trim().replace(/[<>]/g, "");
-  return name.slice(0, 16) || "Player";
+  return name.slice(0, 128) || "Player";
 }
 
 function sanitizeSkin(value) {
