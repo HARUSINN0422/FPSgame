@@ -315,6 +315,7 @@ function applyButtonLayout() {
     ["crouchButton", gameSettings.layout.crouchButton],
     ["fireButton", gameSettings.layout.fireButton],
     ["switchWeaponButton", gameSettings.layout.switchWeaponButton],
+    ["inventoryButton", gameSettings.layout.inventoryButton],
     ["scopeButton", gameSettings.layout.scopeButton]
   ];
 
