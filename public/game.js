@@ -2574,49 +2574,59 @@ document.getElementById("backToLoadoutButton")?.addEventListener("click", () => 
   document.getElementById("weaponScreen")?.classList.remove("hidden");
 });
 
-const wanderMapPicker = document.getElementById("wanderMapPicker");
 let wanderMapsLoaded = false;
+let wanderMaps = [];
+const wanderMapChoices = document.getElementById("wanderMapChoices");
 socket.on("wanderMaps", (maps = []) => {
-  if (!wanderMapPicker) return;
-  const previous = wanderMapPicker.value;
-  wanderMapPicker.replaceChildren();
-  for (const map of maps) {
-    const option = document.createElement("option");
-    option.value = map.id;
-    option.textContent = map.name;
-    wanderMapPicker.appendChild(option);
-  }
-  if (maps.some((map) => map.id === previous)) wanderMapPicker.value = previous;
+  wanderMaps = maps;
   wanderMapsLoaded = true;
+  if (!wanderMapChoices) return;
+  wanderMapChoices.replaceChildren();
+  for (const map of maps) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "mode-card";
+    const title = document.createElement("strong");
+    title.textContent = map.name;
+    const description = document.createElement("span");
+    description.textContent = "このステージを1人で探索する";
+    button.append(title, description);
+    button.addEventListener("click", () => startWanderOnMap(map));
+    wanderMapChoices.appendChild(button);
+  }
 });
-document.getElementById("wanderModeButton")?.addEventListener("click", () => {
-  if (joined) return;
-  socket.emit("getWanderMaps");
-  const pickerWrap = document.getElementById("wanderMapPickerWrap");
-  if (pickerWrap) {
-    pickerWrap.style.display = "block";
-    pickerWrap.classList.remove("hidden");
-  }
-  if (!wanderMapsLoaded) {
-    showMessage("ステージ一覧を読み込んでいます…");
-    setTimeout(() => socket.emit("getWanderMaps"), 250);
-    return;
-  }
+function startWanderOnMap(map) {
+  if (joined || !map) return;
   const name = savePlayerName();
   selectedGameMode = "Wander";
   areaResultOpen = false;
   selectedWeapon = selectedPrimaryWeapon;
   weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  document.getElementById("wanderMapScreen")?.classList.add("hidden");
   document.getElementById("modeScreen")?.classList.add("hidden");
   socket.emit("join", {
     name,
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     mode: "Wander",
-    mapId: wanderMapPicker?.value,
+    mapId: map.id,
     skin: window.getPlayerSkinData?.()
   });
+}
+document.getElementById("wanderModeButton")?.addEventListener("click", () => {
+  if (joined) return;
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("wanderMapScreen")?.classList.remove("hidden");
+  if (!wanderMapsLoaded) {
+    if (wanderMapChoices) wanderMapChoices.innerHTML = "<p>ステージ一覧を読み込んでいます…</p>";
+    socket.emit("getWanderMaps");
+  }
 });
+document.getElementById("backFromWanderMapsButton")?.addEventListener("click", () => {
+  document.getElementById("wanderMapScreen")?.classList.add("hidden");
+  document.getElementById("modeScreen")?.classList.remove("hidden");
+});
+
 document.getElementById("shootingRangeModeButton")?.addEventListener("click", () => {
   if (joined) return;
   const name = savePlayerName();
