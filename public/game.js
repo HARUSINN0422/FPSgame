@@ -67,10 +67,13 @@ scene.fog = new THREE.Fog(0x7fa4c4, 45, 160);
 const camera = new THREE.PerspectiveCamera(76, innerWidth / innerHeight, 0.05, 150);
 camera.rotation.order = "YXZ";
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+const isLowPowerDisplay = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+const renderer = new THREE.WebGLRenderer({ antialias: !isLowPowerDisplay, powerPreference: "high-performance" });
+const maxPixelRatio = isLowPowerDisplay ? 1.25 : 1.5;
+renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+// Shadow maps are expensive on mobile GPUs; keep lighting but skip real-time shadow rendering.
+renderer.shadowMap.enabled = false;
 document.getElementById("game").appendChild(renderer.domElement);
 
 const hemi = new THREE.HemisphereLight(0xdff1ff, 0x506050, 2.5);
@@ -78,7 +81,7 @@ scene.add(hemi);
 
 const sun = new THREE.DirectionalLight(0xffffff, 3.0);
 sun.position.set(12, 30, 8);
-sun.castShadow = true;
+sun.castShadow = false;
 scene.add(sun);
 
 const worldGroup = new THREE.Group();
@@ -119,6 +122,7 @@ const WEAPON_SWITCH_COOLDOWN_MS = 800;
 let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
+let lastMinimapUpdate = 0;
 
 const movement = {
   forward: false,
@@ -3223,7 +3227,7 @@ document.getElementById("gamepadConnectButton")?.addEventListener("click", () =>
 window.addEventListener("resize", () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.7));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, maxPixelRatio));
   renderer.setSize(innerWidth, innerHeight);
   updatePickaxeReticleBounds();
 });
@@ -3239,7 +3243,11 @@ function animate(now) {
   updateAimAssist();
   sendInput(now);
   updateCamera();
-  updateMinimap();
+  // Minimap redraws do not need to run at the full render frame rate.
+  if (now - lastMinimapUpdate >= 100) {
+    updateMinimap();
+    lastMinimapUpdate = now;
+  }
 
   // サーバーから受け取った他プレイヤーの位置を補間して滑らかに表示する。
   const interpolation = 1 - Math.exp(-18 * dt);
