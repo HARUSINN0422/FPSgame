@@ -2343,15 +2343,16 @@ setInterval(() => {
       finishReload(p, now);
       movePlayer(p, dt);
       // 燃える床は、接地中に500msごとに15ダメージ。
-      if (isOnFloorTile(p, "fire") && p.y <= getGroundHeight(p.x, p.z, p.y, p) + 0.08 &&
-          now >= (p.fireFloorDamageAt || 0)) {
+      const onFireFloorGround = isOnFloorTile(p, "fire") &&
+        getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
+      if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
         p.health = Math.max(0, p.health - 15);
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
         }
-      } else if (!isOnFloorTile(p, "fire")) {
+      } else if (!onFireFloorGround) {
         p.fireFloorDamageAt = 0;
       }
     }
