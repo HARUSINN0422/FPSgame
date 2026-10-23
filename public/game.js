@@ -1859,7 +1859,7 @@ function updatePickaxeReticleBounds() {
     crosshair.style.width = "";
     return;
   }
-  const halfAngle = Math.acos(0.72);
+  const halfAngle = Math.acos(0.9);
   const halfHorizontalFov = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
   const projectedWidth = innerWidth * Math.tan(halfAngle) / Math.tan(halfHorizontalFov);
   crosshair.style.width = Math.min(innerWidth, projectedWidth) + "px";
