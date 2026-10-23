@@ -2383,7 +2383,7 @@ setInterval(() => {
         getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
-        p.health = Math.max(0, p.health - 15);
+        p.health = Math.max(0, p.health - 3);
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
