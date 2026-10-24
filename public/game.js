@@ -1845,7 +1845,7 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
-  socket.emit("fire");
+  socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
 function reload() {
