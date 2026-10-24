@@ -1358,7 +1358,7 @@ function startReload(p) {
   return true;
 }
 
-function fireShot(shooter) {
+function fireShot(shooter, sniperScoped = false) {
   const weapon = WEAPONS[shooter.weapon];
   const now = Date.now();
 
@@ -1435,7 +1435,8 @@ function fireShot(shooter) {
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
       const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) * movingShotMultiplier;
-      const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
+      const sniperUnscopedMultiplier = shooter.weapon === "sniper" && !sniperScoped ? 3.2 : 1;
+      const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier * sniperUnscopedMultiplier;
       yaw += (Math.random() - 0.5) * spread;
       pitch += (Math.random() - 0.5) * spread;
     }
@@ -2191,10 +2192,10 @@ io.on("connection", (socket) => {
     p.jumpQueuedUntil = Date.now() + 120;
   });
 
-  socket.on("fire", () => {
+  socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished) return;
-    fireShot(p);
+    fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
 
   socket.on("respawn", () => {
