@@ -47,6 +47,21 @@
             <div><strong>プレイヤースキン</strong><p>キャラクターの見た目をペイントして変更できます。</p></div>
             <button id="settingsSkinEditorButton" class="settings-skin-change-button" type="button">スキン変更</button>
           </div>
+          <div class="settings-group-title">武器アタッチメント</div>
+          <div class="setting-section">
+            <strong>設定する武器</strong>
+            <select id="attachmentWeaponSelect">
+              <option value="smg">サブマシンガン</option>
+              <option value="rifle">アサルトライフル</option>
+              <option value="marksman">マークスマン</option>
+            </select>
+            <strong>サイト</strong>
+            <select id="weaponSightSelect">
+              <option value="none">なし</option>
+              <option value="laser">レーザーサイト</option>
+            </select>
+            <p>サイトは武器ごとに保存されます。レーザーサイトを装備すると、照準方向に赤い半透明の線が表示されます。</p>
+          </div>
         </div>
         <div class="settings-group">
           <div class="settings-group-title">UI編集</div>
