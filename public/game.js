@@ -1298,20 +1298,35 @@ function updateLaserSight() {
   laserSightLine.visible = true;
 }
 
-function initWeaponAttachmentControls() {
-  const weaponSelect = document.getElementById("attachmentWeaponSelect");
+function refreshWeaponSightControl() {
   const sightSelect = document.getElementById("weaponSightSelect");
-  if (!weaponSelect || !sightSelect) return;
-  const refresh = () => { sightSelect.value = attachmentSettings[weaponSelect.value] || "none"; };
-  weaponSelect.addEventListener("change", refresh);
+  if (!sightSelect) return;
+  const supported = ATTACHMENT_WEAPONS.includes(selectedWeapon);
+  sightSelect.disabled = !supported;
+  sightSelect.value = supported ? (attachmentSettings[selectedWeapon] || "none") : "none";
+  const status = document.getElementById("weaponSightStatus");
+  if (status) {
+    status.textContent = supported
+      ? "現在装備中：" + weaponDisplayName(selectedWeapon) + "。この武器のサイトを設定します。"
+      : weaponDisplayName(selectedWeapon) + "はサイト設定に対応していません。サブマシンガン、アサルトライフル、マークスマンで設定できます。";
+  }
+}
+
+function initWeaponAttachmentControls() {
+  const sightSelect = document.getElementById("weaponSightSelect");
+  if (!sightSelect) return;
   sightSelect.addEventListener("change", () => {
-    const weapon = weaponSelect.value;
-    attachmentSettings[weapon] = sightSelect.value === "laser" ? "laser" : "none";
+    if (!ATTACHMENT_WEAPONS.includes(selectedWeapon)) {
+      refreshWeaponSightControl();
+      return;
+    }
+    attachmentSettings[selectedWeapon] = sightSelect.value === "laser" ? "laser" : "none";
     try { localStorage.setItem("fps_weapon_attachments", JSON.stringify(attachmentSettings)); } catch {}
     updateLaserSight();
-    showMessage(weaponDisplayName(weapon) + "のサイトを" + (attachmentSettings[weapon] === "laser" ? "レーザーサイト" : "なし") + "に設定しました");
+    refreshWeaponSightControl();
+    showMessage(weaponDisplayName(selectedWeapon) + "のサイトを" + (attachmentSettings[selectedWeapon] === "laser" ? "レーザーサイト" : "なし") + "に設定しました");
   });
-  refresh();
+  refreshWeaponSightControl();
 }
 initWeaponAttachmentControls();
 
@@ -1943,6 +1958,7 @@ function updatePickaxeReticleBounds() {
 
 const inventoryPanel = document.getElementById("inventoryPanel");
 function renderInventory() {
+  refreshWeaponSightControl();
   const container = document.getElementById("inventoryWeaponSlots");
   if (!container) return;
   container.replaceChildren();
@@ -1987,6 +2003,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 function updateWeaponSwitchButton() {
+  refreshWeaponSightControl();
   const button = document.getElementById("switchWeaponButton");
   if (button) {
     button.textContent = "武器切替\n" + (activeWeaponSlot + 1) + "/2";
