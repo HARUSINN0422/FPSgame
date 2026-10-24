@@ -117,6 +117,16 @@ let selectedPrimaryWeapon = "pistol";
 let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
 let scopeEnabled = false;
+const ATTACHMENT_WEAPONS = ["smg", "rifle", "marksman"];
+const attachmentSettings = (() => {
+  const defaults = { smg: "none", rifle: "none", marksman: "none" };
+  try {
+    const saved = JSON.parse(localStorage.getItem("fps_weapon_attachments") || "{}");
+    for (const weapon of ATTACHMENT_WEAPONS) defaults[weapon] = saved[weapon] === "laser" ? "laser" : "none";
+  } catch {}
+  return defaults;
+})();
+let laserSightLine = null;
 let lastWeaponSwitchAt = -Infinity;
 const WEAPON_SWITCH_COOLDOWN_MS = 800;
 let playerName = "";
@@ -1266,6 +1276,44 @@ function updateMinimap() {
     }
   }
 }
+
+function updateLaserSight() {
+  const enabled = joined && ATTACHMENT_WEAPONS.includes(selectedWeapon) && attachmentSettings[selectedWeapon] === "laser";
+  if (!enabled) {
+    if (laserSightLine) laserSightLine.visible = false;
+    return;
+  }
+  if (!laserSightLine) {
+    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -60)]);
+    const material = new THREE.LineBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.42, depthWrite: false });
+    laserSightLine = new THREE.Line(geometry, material);
+    laserSightLine.frustumCulled = false;
+    laserSightLine.renderOrder = 12;
+    scene.add(laserSightLine);
+  }
+  const start = new THREE.Vector3(0, 0, -0.35).applyMatrix4(camera.matrixWorld);
+  const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+  const end = start.clone().addScaledVector(direction, 60);
+  laserSightLine.geometry.setFromPoints([start, end]);
+  laserSightLine.visible = true;
+}
+
+function initWeaponAttachmentControls() {
+  const weaponSelect = document.getElementById("attachmentWeaponSelect");
+  const sightSelect = document.getElementById("weaponSightSelect");
+  if (!weaponSelect || !sightSelect) return;
+  const refresh = () => { sightSelect.value = attachmentSettings[weaponSelect.value] || "none"; };
+  weaponSelect.addEventListener("change", refresh);
+  sightSelect.addEventListener("change", () => {
+    const weapon = weaponSelect.value;
+    attachmentSettings[weapon] = sightSelect.value === "laser" ? "laser" : "none";
+    try { localStorage.setItem("fps_weapon_attachments", JSON.stringify(attachmentSettings)); } catch {}
+    updateLaserSight();
+    showMessage(weaponDisplayName(weapon) + "のサイトを" + (attachmentSettings[weapon] === "laser" ? "レーザーサイト" : "なし") + "に設定しました");
+  });
+  refresh();
+}
+initWeaponAttachmentControls();
 
 function createWeaponMesh(weapon) {
   const group = new THREE.Group();
@@ -3301,6 +3349,7 @@ function animate(now) {
   updateAimAssist();
   sendInput(now);
   updateCamera();
+  updateLaserSight();
   // Minimap redraws do not need to run at the full render frame rate.
   if (now - lastMinimapUpdate >= 100) {
     updateMinimap();
