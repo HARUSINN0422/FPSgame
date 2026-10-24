@@ -1285,12 +1285,25 @@ function updateLaserSight() {
   }
   if (!laserSightLine) {
     const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -60)]);
-    const material = new THREE.LineBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.42, depthWrite: false });
+    const material = new THREE.LineBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: false,
+      depthWrite: false,
+      linewidth: 3
+    });
     laserSightLine = new THREE.Line(geometry, material);
     laserSightLine.frustumCulled = false;
-    laserSightLine.renderOrder = 12;
+    laserSightLine.renderOrder = 1000;
     scene.add(laserSightLine);
   }
+  const material = laserSightLine.material;
+  material.color.setHex(0xff0000);
+  material.opacity = 1.0;
+  material.depthTest = false;
+  material.depthWrite = false;
+  material.needsUpdate = true;
   const start = new THREE.Vector3(0, 0, -0.35).applyMatrix4(camera.matrixWorld);
   const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
   const end = start.clone().addScaledVector(direction, 60);
