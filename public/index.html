@@ -377,7 +377,7 @@
     <section class="panel inventory-panel" role="dialog" aria-modal="true" aria-labelledby="inventoryTitle">
       <div class="eyebrow">PLAYER INVENTORY</div>
       <h1 id="inventoryTitle">インベントリー</h1>
-      <p>武器スロットの切り替えと、武器ごとのサイト設定をここで編集できます。</p>
+      <p>装備中の武器を確認・切り替えできます。サイトは現在装備中の武器に対して設定されます。</p>
       <div class="inventory-section">
         <h2>装備中の武器</h2>
         <div id="inventoryWeaponSlots" class="inventory-weapon-slots"></div>
@@ -386,19 +386,17 @@
         <h2>武器改造</h2>
         <div class="inventory-mod-grid">
           <div>
-            <strong>設定する武器</strong>
-            <select id="attachmentWeaponSelect" aria-label="サイトを設定する武器">
-              <option value="smg">サブマシンガン</option>
-              <option value="rifle">アサルトライフル</option>
-              <option value="marksman">マークスマン</option>
-            </select>
+            <strong>アタッチメント</strong>
+            <span>今後対応予定</span>
+            <button type="button" disabled>アタッチメントを選択</button>
           </div>
           <div>
             <strong>サイト</strong>
-            <select id="weaponSightSelect" aria-label="サイト">
+            <select id="weaponSightSelect" aria-label="装備中の武器のサイト">
               <option value="none">なし</option>
               <option value="laser">レーザーサイト</option>
             </select>
+            <span id="weaponSightStatus">現在装備中の武器のサイトを設定します。</span>
             <span>レーザーサイト装備中は、照準方向に赤い半透明の線が表示されます。</span>
           </div>
         </div>
