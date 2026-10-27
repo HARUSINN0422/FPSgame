@@ -1245,6 +1245,17 @@ function updateMinimap() {
     if (selectedGameMode === "Area" && enemy.team === myState.team) continue;
 
     const ex = Number(enemy.x), ez = Number(enemy.z);
+    // 煙幕内で姿が完全に隠れる敵は、ミニマップにも表示しない。
+    const hiddenBySmoke = [...smokeCloudMeshes.values()].some((group) => {
+      const smoke = group.userData.smoke;
+      const radius = Number(smoke?.radius) || 5.2;
+      const dx = ex - group.position.x;
+      const dy = Number(enemy.y || 0) - group.position.y;
+      const dz = ez - group.position.z;
+      return Math.hypot(dx, dy, dz) < radius * 0.9;
+    });
+    if (hiddenBySmoke) continue;
+
     // 乱戦では、プレイヤーからマップの長辺の半分以上離れた敵もミニマップに表示する。
     const enemyDistance = Math.hypot(ex - myState.x, ez - myState.z);
     const showDistantMeleeEnemy = selectedGameMode === "Melee"
