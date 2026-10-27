@@ -1655,11 +1655,13 @@ function updateSmokeVisuals(now, dt) {
     }
 
     obj.visible = Number(player.health) > 0;
-    // Keep the whole player visible. Fade only individual body parts whose centers
-    // are inside a smoke volume, instead of hiding the entire character through smoke.
+    // Fade body parts inside smoke individually. Hide the name when more than half
+    // of the player's body meshes are obscured by smoke.
     obj.updateMatrixWorld(true);
+    let bodyMeshCount = 0;
+    let obscuredBodyMeshCount = 0;
     obj.traverse((part) => {
-      if (!part.isMesh || !part.material) return;
+      if (!part.isMesh || !part.material || part === weaponMesh) return;
       const materials = Array.isArray(part.material) ? part.material : [part.material];
       if (!part.userData.smokeOriginalMaterials) {
         part.userData.smokeOriginalMaterials = materials.map((material) => ({
@@ -1675,6 +1677,8 @@ function updateSmokeVisuals(now, dt) {
         const radius = Number(group.userData.smoke?.radius) || 5.2;
         return worldPosition.distanceTo(group.position) < radius * 0.9;
       });
+      bodyMeshCount++;
+      if (insideSmoke) obscuredBodyMeshCount++;
       for (const original of part.userData.smokeOriginalMaterials) {
         const material = original.material;
         if (!material) continue;
@@ -1684,6 +1688,10 @@ function updateSmokeVisuals(now, dt) {
         material.needsUpdate = true;
       }
     });
+    if (obj.userData.nameSprite) {
+      obj.userData.nameSprite.visible = bodyMeshCount > 0
+        && obscuredBodyMeshCount / bodyMeshCount <= 0.5;
+    }
   }
 }
 
