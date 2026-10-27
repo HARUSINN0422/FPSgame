@@ -889,6 +889,31 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
       const wallDistance = rayHitsObstacle(from, direction, distance, projectile.owner);
       if (wallDistance !== null) nearestHit = { distance: wallDistance };
 
+      // 外周の壁はクライアント側で生成されるため、マップ境界もここで衝突判定する。
+      const bounds = getMapForPlayer(projectile.owner).world || WORLD;
+      const boundaryPlanes = [
+        { axis: "x", plane: bounds.minX - 1.5, outward: -1 },
+        { axis: "x", plane: bounds.maxX + 1.5, outward: 1 },
+        { axis: "z", plane: bounds.minZ - 1.5, outward: -1 },
+        { axis: "z", plane: bounds.maxZ + 1.5, outward: 1 }
+      ];
+      for (const boundary of boundaryPlanes) {
+        const before = from[boundary.axis];
+        const after = boundary.axis === "x" ? nextX : nextZ;
+        const crosses = boundary.outward < 0
+          ? before >= boundary.plane && after <= boundary.plane
+          : before <= boundary.plane && after >= boundary.plane;
+        if (!crosses || Math.abs(after - before) < 1e-8) continue;
+        const fraction = (boundary.plane - before) / (after - before);
+        if (fraction < 0 || fraction > 1) continue;
+        const yAtBoundary = from.y + delta.y * fraction;
+        if (yAtBoundary < 0 || yAtBoundary > 3) continue;
+        const boundaryDistance = fraction * distance;
+        if (!nearestHit || boundaryDistance < nearestHit.distance) {
+          nearestHit = { distance: boundaryDistance };
+        }
+      }
+
       for (const target of players.values()) {
         if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
             !isSameGame(projectile.owner, target)) continue;
