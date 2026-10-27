@@ -63,6 +63,7 @@ let pinchStartCameraDistance = 0;
 let drawingPointer = null;
 let lastCell = null;
 let undoStack = [];
+let skinLoadGeneration = 0;
 const UNDO_LIMIT = 30;
 
 function makeDefaultSkin() {
@@ -533,9 +534,15 @@ function floodFill(startX, startY) {
 }
 
 function loadSkinDataUrl(dataUrl) {
+  const generation = ++skinLoadGeneration;
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => {
+      // Ignore an older asynchronous image load if a newer load/save has started.
+      if (generation !== skinLoadGeneration) {
+        resolve(false);
+        return;
+      }
       skinCtx.clearRect(0, 0, SKIN_SIZE, SKIN_SIZE);
       skinCtx.imageSmoothingEnabled = false;
       skinCtx.drawImage(image, 0, 0, SKIN_SIZE, SKIN_SIZE);
@@ -680,25 +687,33 @@ document.getElementById("skinResetButton")?.addEventListener("click", () => {
 
 document.getElementById("skinSaveButton")?.addEventListener("click", async () => {
   const saveButton = document.getElementById("skinSaveButton");
+  if (saveButton?.disabled) return;
+  if (saveButton) saveButton.disabled = true;
   try {
+    // Invalidate any image load started before this save so it cannot overwrite the new drawing.
+    skinLoadGeneration++;
     paintTransparentBasePixelsYellow();
     const dataUrl = skinCanvas.toDataURL("image/png");
-    localStorage.setItem(SKIN_STORAGE_KEY, dataUrl);
-    if (saveButton) saveButton.disabled = true;
+    if (!dataUrl.startsWith("data:image/png;base64,")) throw new Error("PNGデータを作成できませんでした");
 
-    // If the player is already in a match, wait for the server to confirm application.
+    localStorage.setItem(SKIN_STORAGE_KEY, dataUrl);
+    if (localStorage.getItem(SKIN_STORAGE_KEY) !== dataUrl) {
+      throw new Error("端末への保存内容を確認できませんでした");
+    }
+
+    // Local persistence is confirmed separately from applying it to an active server session.
+    document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl } }));
     const result = await window.applyPlayerSkinToServer?.(dataUrl);
 
     if (result?.ok) {
       if (statusEl) statusEl.textContent = "保存してゲームに適用しました";
-      document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl } }));
       closeSkinEditor();
     } else if (result?.notInGame || !result) {
-      // Keep the editor open so the player can see that the local save succeeded.
-      if (statusEl) statusEl.textContent = "この端末に保存しました。ゲーム開始時に適用されます。";
-      document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl } }));
+      if (statusEl) statusEl.textContent = "この端末に保存しました。次回ゲーム開始時に適用されます。";
+    } else if (result.reason === "timeout") {
+      if (statusEl) statusEl.textContent = "端末には保存済みですが、サーバーの応答がありません。接続後にもう一度「保存して適用」を押してください。";
     } else {
-      if (statusEl) statusEl.textContent = "端末には保存しましたが、ゲームへの適用に失敗しました。接続を確認して再度保存してください。";
+      if (statusEl) statusEl.textContent = "端末には保存済みですが、ゲームへの適用に失敗しました（" + (result.reason || "不明な理由") + "）。接続を確認して再度保存してください。";
     }
   } catch (error) {
     if (statusEl) statusEl.textContent = "保存できませんでした: " + (error?.message || "不明なエラー");
@@ -721,7 +736,5 @@ const brushPreview = document.getElementById("skinBrushSize");
 updateBrushLabel();
 if (brushPreview) brushPreview.value = "1";
 
-const savedSkinAtStartup = localStorage.getItem(SKIN_STORAGE_KEY);
-if (savedSkinAtStartup) {
-  loadSkinDataUrl(savedSkinAtStartup);
-}
+// The saved skin is loaded when the editor opens. Avoid a second background load here:
+ // overlapping image.onload callbacks could otherwise overwrite a newer edit.
