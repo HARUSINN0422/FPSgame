@@ -1645,11 +1645,19 @@ function updateSmokeVisuals(now, dt) {
 
     let obscured = false;
     const targetPoint = new THREE.Vector3(obj.position.x, obj.position.y + 0.9, obj.position.z);
+    const viewSegment = targetPoint.clone().sub(camera.position);
+    const viewLengthSq = viewSegment.lengthSq();
     for (const group of activeClouds) {
       const radius = Number(group.userData.smoke?.radius) || 5.2;
       const cameraInside = camera.position.distanceTo(group.position) < radius * 0.88;
       const targetInside = targetPoint.distanceTo(group.position) < radius * 0.9;
-      if (cameraInside !== targetInside) {
+      const cloudOffset = group.position.clone().sub(camera.position);
+      const alongView = viewLengthSq > 1e-6
+        ? THREE.MathUtils.clamp(cloudOffset.dot(viewSegment) / viewLengthSq, 0, 1)
+        : 0;
+      const closestViewPoint = camera.position.clone().addScaledVector(viewSegment, alongView);
+      const viewPassesThroughCloud = closestViewPoint.distanceTo(group.position) < radius * 0.92;
+      if (cameraInside !== targetInside || (!cameraInside && !targetInside && viewPassesThroughCloud)) {
         obscured = true;
         break;
       }
