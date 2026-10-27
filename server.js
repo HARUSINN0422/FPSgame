@@ -172,7 +172,7 @@ const WEAPONS = {
     spread: 0.018,
     falloffStart: 11,
     minDamageMultiplier: 0.32,
-    magazineSize: 4,
+    magazineSize: 6,
     reloadTime: 1000,
     automatic: false
   },
@@ -228,7 +228,7 @@ const WEAPON_LABELS = {
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
   smoke: "投擲 / リロード不要 / 1300ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
-  pistol: "単発 / 胴体50ダメージ / 装弾数4発・距離減衰はやや大きめ",
+  pistol: "単発 / 胴体50ダメージ / 装弾数6発・距離減衰はやや大きめ",
   smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
   shotgun: "単発 / 8発の散弾（胴体全弾命中で80ダメージ） / 近距離向け",
