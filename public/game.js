@@ -169,7 +169,7 @@ let pointerLocked = false;
 
 const weaponConfig = {
   pickaxe: { fireInterval: 650, automatic: false, melee: true },
-  smoke: { fireInterval: 325, automatic: false },
+  smoke: { fireInterval: 1300, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
@@ -1643,26 +1643,36 @@ function updateSmokeVisuals(now, dt) {
       if (rightArm) rightArm.rotation.set(0, 0.08, 0);
     }
 
-    let obscured = false;
-    const targetPoint = new THREE.Vector3(obj.position.x, obj.position.y + 0.9, obj.position.z);
-    const viewSegment = targetPoint.clone().sub(camera.position);
-    const viewLengthSq = viewSegment.lengthSq();
-    for (const group of activeClouds) {
-      const radius = Number(group.userData.smoke?.radius) || 5.2;
-      const cameraInside = camera.position.distanceTo(group.position) < radius * 0.88;
-      const targetInside = targetPoint.distanceTo(group.position) < radius * 0.9;
-      const cloudOffset = group.position.clone().sub(camera.position);
-      const alongView = viewLengthSq > 1e-6
-        ? THREE.MathUtils.clamp(cloudOffset.dot(viewSegment) / viewLengthSq, 0, 1)
-        : 0;
-      const closestViewPoint = camera.position.clone().addScaledVector(viewSegment, alongView);
-      const viewPassesThroughCloud = closestViewPoint.distanceTo(group.position) < radius * 0.92;
-      if (cameraInside !== targetInside || (!cameraInside && !targetInside && viewPassesThroughCloud)) {
-        obscured = true;
-        break;
+    obj.visible = Number(player.health) > 0;
+    // Keep the whole player visible. Fade only individual body parts whose centers
+    // are inside a smoke volume, instead of hiding the entire character through smoke.
+    obj.updateMatrixWorld(true);
+    obj.traverse((part) => {
+      if (!part.isMesh || !part.material) return;
+      const materials = Array.isArray(part.material) ? part.material : [part.material];
+      if (!part.userData.smokeOriginalMaterials) {
+        part.userData.smokeOriginalMaterials = materials.map((material) => ({
+          material,
+          transparent: material.transparent,
+          opacity: material.opacity,
+          depthWrite: material.depthWrite
+        }));
       }
-    }
-    obj.visible = Number(player.health) > 0 && !obscured;
+      const worldPosition = new THREE.Vector3();
+      part.getWorldPosition(worldPosition);
+      const insideSmoke = activeClouds.some((group) => {
+        const radius = Number(group.userData.smoke?.radius) || 5.2;
+        return worldPosition.distanceTo(group.position) < radius * 0.9;
+      });
+      for (const original of part.userData.smokeOriginalMaterials) {
+        const material = original.material;
+        if (!material) continue;
+        material.transparent = insideSmoke ? true : original.transparent;
+        material.opacity = insideSmoke ? Math.min(original.opacity, 0.34) : original.opacity;
+        material.depthWrite = insideSmoke ? false : original.depthWrite;
+        material.needsUpdate = true;
+      }
+    });
   }
 }
 
