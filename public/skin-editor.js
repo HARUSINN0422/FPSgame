@@ -595,6 +595,73 @@ document.getElementById("skinEditorOpenButton")?.addEventListener("click", openS
 document.getElementById("settingsSkinEditorButton")?.addEventListener("click", openSkinEditor);
 document.getElementById("skinEditorCloseButton")?.addEventListener("click", closeSkinEditor);
 
+document.getElementById("skinExportButton")?.addEventListener("click", () => {
+  try {
+    const dataUrl = skinCanvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = "fps-skin-64x64.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    if (statusEl) statusEl.textContent = "スキンをPNG画像として書き出しました（64×64ピクセル）";
+  } catch (error) {
+    if (statusEl) statusEl.textContent = "画像を書き出せませんでした: " + (error?.message || "不明なエラー");
+  }
+});
+
+document.getElementById("skinImportButton")?.addEventListener("click", () => {
+  document.getElementById("skinImportInput")?.click();
+});
+
+document.getElementById("skinImportInput")?.addEventListener("change", async (event) => {
+  const input = event.currentTarget;
+  const file = input?.files?.[0];
+  if (!file) return;
+  try {
+    if (file.type !== "image/png" && !/\.png$/i.test(file.name)) {
+      throw new Error("PNG画像を選択してください");
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("画像ファイルを読み込めませんでした"));
+      reader.readAsDataURL(file);
+    });
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("PNG画像を開けませんでした"));
+      img.src = dataUrl;
+    });
+    if (image.naturalWidth !== SKIN_SIZE || image.naturalHeight !== SKIN_SIZE) {
+      throw new Error("スキン画像は64×64ピクセルにしてください（選択画像: " + image.naturalWidth + "×" + image.naturalHeight + "）");
+    }
+    const loaded = await loadSkinDataUrl(dataUrl);
+    if (!loaded) throw new Error("スキン画像をキャンバスに読み込めませんでした");
+    const normalizedDataUrl = skinCanvas.toDataURL("image/png");
+    localStorage.setItem(SKIN_STORAGE_KEY, normalizedDataUrl);
+    if (localStorage.getItem(SKIN_STORAGE_KEY) !== normalizedDataUrl) {
+      throw new Error("読み込んだスキンを端末に保存できませんでした");
+    }
+    if (skinTexture) skinTexture.needsUpdate = true;
+    drawGuides();
+    drawPreview();
+    render3DSkin();
+    document.dispatchEvent(new CustomEvent("fps-skin-saved", { detail: { dataUrl: normalizedDataUrl } }));
+    const result = await window.applyPlayerSkinToServer?.(normalizedDataUrl);
+    if (statusEl) {
+      statusEl.textContent = result?.ok
+        ? "PNGスキンを読み込み、保存してゲームに適用しました"
+        : "PNGスキンを読み込み、この端末に保存しました。ゲーム中でない場合は次回開始時に適用されます。";
+    }
+  } catch (error) {
+    if (statusEl) statusEl.textContent = "画像を読み込めませんでした: " + (error?.message || "不明なエラー");
+  } finally {
+    if (input) input.value = "";
+  }
+});
+
 document.querySelectorAll("[data-skin-tool]").forEach((button) => {
   button.addEventListener("click", () => {
     activeTool = button.dataset.skinTool;
