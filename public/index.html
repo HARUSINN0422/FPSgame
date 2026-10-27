@@ -452,6 +452,11 @@
             <button id="skinClearButton" type="button">全消去</button>
             <button id="skinResetButton" type="button">初期スキン</button>
           </div>
+          <div class="skin-tool-buttons skin-image-buttons">
+            <button id="skinExportButton" type="button">PNG画像を書き出す</button>
+            <button id="skinImportButton" type="button">PNG画像を読み込む</button>
+            <input id="skinImportInput" type="file" accept="image/png,.png" hidden>
+          </div>
           <button id="skinSaveButton" class="skin-save-button" type="button">保存して適用</button>
         </aside>
       </div>
@@ -466,7 +471,7 @@
     }
   }
   </script>
-  <script type="module" src="skin-editor.js?v=skin-save-race-fix-1"></script>
-  <script type="module" src="game.js?v=smoke-grenade-pickaxe-swing-1"></script>
+  <script type="module" src="skin-editor.js?v=skin-png-import-export-1"></script>
+  <script type="module" src="game.js?v=smoke-partial-fade-interval-4x-1"></script>
 </body>
 </html>
