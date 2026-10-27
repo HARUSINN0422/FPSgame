@@ -210,6 +210,10 @@ const WEAPONS = {
     falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 20,
     reloadTime: 1300, automatic: true
   },
+  smoke: {
+    name: "Smoke Grenade", damage: 0, fireInterval: 325, range: 0, spread: 0,
+    falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
+  },
   sniper: {
     name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
@@ -219,10 +223,11 @@ const WEAPONS = {
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル"
+  shotgun: "ショットガン", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
+  smoke: "投擲 / リロード不要 / 325ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
   pistol: "単発 / 胴体50ダメージ / 装弾数4発・距離減衰はやや大きめ",
   smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
@@ -429,7 +434,7 @@ app.post("/api/admin/weapons", adminAuth, (req, res) => {
     for (const key of numericKeys) {
       if (source[key] === undefined || source[key] === "") { if (key === "pellets") delete item[key]; continue; }
       const value = Number(source[key]);
-      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < 1) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
+      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (id === "smoke" ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
         return res.status(400).json({ error: id + " の " + key + " が不正です" });
       }
       item[key] = value;
@@ -790,6 +795,152 @@ function broadcastGameEvent(referencePlayer, eventName, payload) {
   for (const client of io.sockets.sockets.values()) {
     const player = players.get(client.id);
     if (player && isSameGame(referencePlayer, player)) client.emit(eventName, payload);
+  }
+}
+
+const SMOKE_RADIUS = 5.2;
+const SMOKE_DURATION_MS = 8500;
+const SMOKE_PROJECTILE_GRAVITY = 18;
+const smokeProjectiles = new Map();
+const smokeClouds = new Map();
+let smokeSequence = 0;
+
+function smokeProjectilePayload(projectile) {
+  return {
+    id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z,
+    ownerId: projectile.ownerId, expiresAt: projectile.expiresAt
+  };
+}
+
+function smokeCloudPayload(cloud, now = Date.now()) {
+  return {
+    id: cloud.id, x: cloud.x, y: cloud.y, z: cloud.z,
+    radius: cloud.radius, expiresAt: cloud.expiresAt,
+    remainingMs: Math.max(0, cloud.expiresAt - now)
+  };
+}
+
+function emitSmokeState(socket, player) {
+  const now = Date.now();
+  socket.emit("smokeState", {
+    projectiles: [...smokeProjectiles.values()]
+      .filter((item) => isSameGame(player, item.owner))
+      .map((item) => ({ ...smokeProjectilePayload(item), remainingMs: Math.max(0, item.expiresAt - now) })),
+    clouds: [...smokeClouds.values()]
+      .filter((item) => isSameGame(player, item.owner))
+      .map((item) => smokeCloudPayload(item, now))
+  });
+}
+
+function spawnSmokeCloud(owner, position, now = Date.now()) {
+  const id = "smoke-cloud-" + (++smokeSequence);
+  const groundY = getGroundHeight(position.x, position.z, position.y, owner);
+  const cloud = {
+    id, owner, x: position.x, y: Math.max(position.y, groundY) + SMOKE_RADIUS * 0.28,
+    z: position.z, radius: SMOKE_RADIUS, expiresAt: now + SMOKE_DURATION_MS
+  };
+  smokeClouds.set(id, cloud);
+  broadcastGameEvent(owner, "smokeCloudSpawn", smokeCloudPayload(cloud, now));
+}
+
+function spawnSmokeProjectile(shooter, now = Date.now()) {
+  const direction = directionFromAngles(shooter.yaw, shooter.pitch);
+  const speed = 14;
+  const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const origin = {
+    x: shooter.x + direction.x * 0.62,
+    y: shooter.y + height - 0.18,
+    z: shooter.z + direction.z * 0.62
+  };
+  const id = "smoke-projectile-" + (++smokeSequence);
+  const projectile = {
+    id, owner: shooter, ownerId: shooter.id,
+    x: origin.x, y: origin.y, z: origin.z,
+    vx: direction.x * speed, vy: direction.y * speed + 4.5, vz: direction.z * speed,
+    expiresAt: now + 4500
+  };
+  smokeProjectiles.set(id, projectile);
+  broadcastGameEvent(shooter, "smokeProjectileSpawn", smokeProjectilePayload(projectile));
+  broadcastGameEvent(shooter, "shot", {
+    id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
+    yaw: shooter.yaw, pitch: shooter.pitch, weapon: "smoke", hit: null, tracers: []
+  });
+}
+
+function updateSmokeProjectiles(dt, now = Date.now()) {
+  for (const projectile of [...smokeProjectiles.values()]) {
+    if (now >= projectile.expiresAt) {
+      smokeProjectiles.delete(projectile.id);
+      broadcastGameEvent(projectile.owner, "smokeProjectileRemove", { id: projectile.id });
+      continue;
+    }
+
+    const from = { x: projectile.x, y: projectile.y, z: projectile.z };
+    const nextX = projectile.x + projectile.vx * dt;
+    const nextY = projectile.y + projectile.vy * dt - 0.5 * SMOKE_PROJECTILE_GRAVITY * dt * dt;
+    const nextZ = projectile.z + projectile.vz * dt;
+    const delta = { x: nextX - from.x, y: nextY - from.y, z: nextZ - from.z };
+    const distance = Math.hypot(delta.x, delta.y, delta.z);
+    let impact = null;
+
+    if (distance > 1e-5) {
+      const direction = { x: delta.x / distance, y: delta.y / distance, z: delta.z / distance };
+      let nearestHit = null;
+      const wallDistance = rayHitsObstacle(from, direction, distance, projectile.owner);
+      if (wallDistance !== null) nearestHit = { distance: wallDistance };
+
+      for (const target of players.values()) {
+        if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+            !isSameGame(projectile.owner, target)) continue;
+        const hit = rayHitsPlayer(from, direction, target);
+        if (hit && hit.t >= 0 && hit.t <= distance && (!nearestHit || hit.t < nearestHit.distance)) {
+          nearestHit = { distance: hit.t };
+        }
+      }
+
+      const groundY = getGroundHeight(nextX, nextZ, projectile.y, projectile.owner);
+      let groundHitDistance = Infinity;
+      if (projectile.vy <= 0 && nextY <= groundY + 0.12 && projectile.y >= groundY - 0.05) {
+        const ySpan = projectile.y - nextY;
+        const fraction = ySpan > 1e-5
+          ? clamp((projectile.y - (groundY + 0.12)) / ySpan, 0, 1)
+          : 0;
+        groundHitDistance = fraction * distance;
+      }
+
+      if (nearestHit && nearestHit.distance <= groundHitDistance) {
+        const t = clamp(nearestHit.distance, 0, distance);
+        impact = {
+          x: from.x + direction.x * t,
+          y: from.y + direction.y * t,
+          z: from.z + direction.z * t
+        };
+      } else if (groundHitDistance < Infinity) {
+        const t = clamp(groundHitDistance, 0, distance);
+        impact = { x: from.x + direction.x * t, y: groundY, z: from.z + direction.z * t };
+      }
+    }
+
+    if (impact) {
+      spawnSmokeCloud(projectile.owner, impact, now);
+      smokeProjectiles.delete(projectile.id);
+      broadcastGameEvent(projectile.owner, "smokeProjectileRemove", { id: projectile.id });
+      continue;
+    }
+
+    projectile.x = nextX;
+    projectile.y = nextY;
+    projectile.z = nextZ;
+    projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
+    broadcastGameEvent(projectile.owner, "smokeProjectileUpdate", {
+      id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z
+    });
+  }
+
+  for (const cloud of [...smokeClouds.values()]) {
+    if (now < cloud.expiresAt) continue;
+    smokeClouds.delete(cloud.id);
+    broadcastGameEvent(cloud.owner, "smokeCloudRemove", { id: cloud.id });
   }
 }
 
@@ -1351,7 +1502,7 @@ function startReload(p) {
   const weapon = WEAPONS[p.weapon];
   const now = Date.now();
 
-  if (p.health <= 0 || p.reloadingUntil > now) return false;
+  if (weapon.magazineSize <= 0 || p.health <= 0 || p.reloadingUntil > now) return false;
   if (p.ammo >= weapon.magazineSize) return false;
 
   p.reloadingUntil = now + weapon.reloadTime;
@@ -1368,6 +1519,12 @@ function fireShot(shooter, sniperScoped = false) {
   finishReload(shooter, now);
   if (shooter.reloadingUntil > now) return;
   if (now - shooter.lastFire < weapon.fireInterval) return;
+
+  if (shooter.weapon === "smoke") {
+    shooter.lastFire = now;
+    spawnSmokeProjectile(shooter, now);
+    return;
+  }
 
   if (!weapon.melee && shooter.ammo <= 0) {
     startReload(shooter);
@@ -2198,6 +2355,11 @@ io.on("connection", (socket) => {
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
 
+  socket.on("requestSmokeState", () => {
+    const p = players.get(socket.id);
+    if (p) emitSmokeState(socket, p);
+  });
+
   socket.on("respawn", () => {
     const p = players.get(socket.id);
     if (!p || p.finished || p.health > 0) return;
@@ -2409,6 +2571,7 @@ setInterval(() => {
     }
   }
 
+  updateSmokeProjectiles(dt, now);
   updateAreaMatches(dt, now);
   broadcastState();
 }, 1000 / TICK_RATE);
