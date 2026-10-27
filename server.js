@@ -211,7 +211,7 @@ const WEAPONS = {
     reloadTime: 1300, automatic: true
   },
   smoke: {
-    name: "Smoke Grenade", damage: 0, fireInterval: 325, range: 0, spread: 0,
+    name: "Smoke Grenade", damage: 0, fireInterval: 1300, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
   },
   sniper: {
@@ -227,7 +227,7 @@ const WEAPON_LABELS = {
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
-  smoke: "投擲 / リロード不要 / 325ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
+  smoke: "投擲 / リロード不要 / 1300ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
   pistol: "単発 / 胴体50ダメージ / 装弾数4発・距離減衰はやや大きめ",
   smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
