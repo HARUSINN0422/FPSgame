@@ -66,6 +66,7 @@ scene.fog = new THREE.Fog(0x7fa4c4, 45, 160);
 
 const camera = new THREE.PerspectiveCamera(76, innerWidth / innerHeight, 0.05, 150);
 camera.rotation.order = "YXZ";
+scene.add(camera);
 
 const isLowPowerDisplay = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
 const renderer = new THREE.WebGLRenderer({ antialias: !isLowPowerDisplay, powerPreference: "high-performance" });
@@ -75,6 +76,11 @@ renderer.setSize(innerWidth, innerHeight);
 // Shadow maps are expensive on mobile GPUs; keep lighting but skip real-time shadow rendering.
 renderer.shadowMap.enabled = false;
 document.getElementById("game").appendChild(renderer.domElement);
+
+const smokeScreenOverlay = document.createElement("div");
+smokeScreenOverlay.style.cssText = "position:absolute;inset:0;display:none;pointer-events:none;background:rgba(143,148,153,0.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:4";
+document.getElementById("game").appendChild(smokeScreenOverlay);
+const smokePuffGeometry = new THREE.SphereGeometry(1, 12, 8);
 
 const hemi = new THREE.HemisphereLight(0xdff1ff, 0x506050, 2.5);
 scene.add(hemi);
@@ -89,6 +95,12 @@ scene.add(worldGroup);
 
 const remotePlayers = new Map();
 const tracers = [];
+const smokeProjectileMeshes = new Map();
+const smokeCloudMeshes = new Map();
+let localWeaponViewModel = null;
+let localWeaponViewModelType = "";
+let localWeaponActionStartedAt = -Infinity;
+let localWeaponActionType = "";
 let activeGamepad = null;
 let controllerMode = false;
 let gamepadJumpHeld = false;
@@ -157,6 +169,7 @@ let pointerLocked = false;
 
 const weaponConfig = {
   pickaxe: { fireInterval: 650, automatic: false, melee: true },
+  smoke: { fireInterval: 325, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
@@ -1345,6 +1358,43 @@ initWeaponAttachmentControls();
 
 function createWeaponMesh(weapon) {
   const group = new THREE.Group();
+
+  if (weapon === "pickaxe") {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x76502d, roughness: 0.85 });
+    const steel = new THREE.MeshStandardMaterial({ color: 0xb8c1c8, metalness: 0.72, roughness: 0.32 });
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.048, 0.9, 8), wood);
+    handle.position.set(0, -0.02, -0.02);
+    handle.rotation.z = -0.2;
+    handle.rotation.x = 0.16;
+    group.add(handle);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.13, 0.16), steel);
+    head.position.set(0.02, 0.36, -0.08);
+    head.rotation.z = -0.13;
+    group.add(head);
+    const point = new THREE.Mesh(new THREE.ConeGeometry(0.105, 0.28, 6), steel);
+    point.position.set(-0.34, 0.36, -0.08);
+    point.rotation.z = Math.PI / 2;
+    group.add(point);
+    group.position.set(0.34, 1.02, -0.22);
+    group.rotation.x = -0.08;
+    return group;
+  }
+
+  if (weapon === "smoke") {
+    const grenadeMaterial = new THREE.MeshStandardMaterial({ color: 0x67716e, roughness: 0.62, metalness: 0.18 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
+    group.add(body);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.025, 6, 16), new THREE.MeshStandardMaterial({ color: 0x292f2d, roughness: 0.7 }));
+    band.rotation.x = Math.PI / 2;
+    group.add(band);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.08, 8), new THREE.MeshStandardMaterial({ color: 0xaab0a8, metalness: 0.45, roughness: 0.4 }));
+    cap.position.y = 0.2;
+    group.add(cap);
+    group.position.set(0.34, 1.02, -0.22);
+    group.rotation.x = -0.08;
+    return group;
+  }
+
   const material = new THREE.MeshStandardMaterial({
     color: weapon === "shotgun" ? 0x9a9a9a : weapon === "rifle" ? 0x4d6b4f
       : weapon === "smg" ? 0x6b6650 : weapon === "marksman" ? 0x647b89
@@ -1385,6 +1435,227 @@ function createWeaponMesh(weapon) {
   group.position.set(.34, 1.02, -.22);
   group.rotation.x = -.08;
   return group;
+}
+
+function refreshLocalWeaponViewModel() {
+  const shouldShow = joined && ["pickaxe", "smoke"].includes(selectedWeapon);
+  if (!shouldShow) {
+    if (localWeaponViewModel) camera.remove(localWeaponViewModel);
+    localWeaponViewModel = null;
+    localWeaponViewModelType = "";
+    return;
+  }
+  if (localWeaponViewModel && localWeaponViewModelType === selectedWeapon) return;
+  if (localWeaponViewModel) camera.remove(localWeaponViewModel);
+  localWeaponViewModel = createWeaponMesh(selectedWeapon);
+  localWeaponViewModel.position.set(0.38, -0.34, -0.62);
+  localWeaponViewModel.rotation.set(0.16, -0.18, -0.28);
+  localWeaponViewModel.scale.setScalar(selectedWeapon === "pickaxe" ? 0.72 : 0.88);
+  camera.add(localWeaponViewModel);
+  localWeaponViewModelType = selectedWeapon;
+}
+
+function startLocalWeaponAction(weapon) {
+  if (!["pickaxe", "smoke"].includes(weapon)) return;
+  localWeaponActionType = weapon;
+  localWeaponActionStartedAt = performance.now();
+}
+
+function pickaxeSwingAngle(elapsedSeconds) {
+  if (elapsedSeconds < 0 || elapsedSeconds >= 0.38) return 0;
+  if (elapsedSeconds < 0.08) return -1.15 * (elapsedSeconds / 0.08);
+  if (elapsedSeconds < 0.23) return -1.15 + 2.25 * ((elapsedSeconds - 0.08) / 0.15);
+  return 1.1 * (1 - (elapsedSeconds - 0.23) / 0.15);
+}
+
+function animateLocalWeaponViewModel(now) {
+  if (!localWeaponViewModel) return;
+  const elapsed = (now - localWeaponActionStartedAt) / 1000;
+  if (localWeaponActionType === "pickaxe" && elapsed >= 0 && elapsed < 0.38) {
+    const angle = pickaxeSwingAngle(elapsed);
+    localWeaponViewModel.rotation.x = 0.16 + angle * 0.64;
+    localWeaponViewModel.rotation.z = -0.28 - angle * 0.46;
+    localWeaponViewModel.position.y = -0.34 - Math.max(0, angle) * 0.035;
+  } else if (localWeaponActionType === "smoke" && elapsed >= 0 && elapsed < 0.26) {
+    const progress = elapsed / 0.26;
+    localWeaponViewModel.position.set(0.38 + 0.12 * progress, -0.34 + 0.07 * Math.sin(progress * Math.PI), -0.62 - 0.1 * progress);
+    localWeaponViewModel.rotation.z = -0.28 - progress * 0.48;
+  } else {
+    localWeaponViewModel.rotation.set(0.16, -0.18, -0.28);
+    localWeaponViewModel.position.set(0.38, -0.34, -0.62);
+  }
+}
+
+function createSmokeProjectileVisual(data) {
+  if (!data?.id) return;
+  let mesh = smokeProjectileMeshes.get(data.id);
+  const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
+  if (!mesh) {
+    const material = new THREE.MeshStandardMaterial({ color: 0x76817d, roughness: 0.58, metalness: 0.18 });
+    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 10), material);
+    mesh.userData.targetPosition = position.clone();
+    mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 4500);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.022, 5, 14), new THREE.MeshStandardMaterial({ color: 0x292f2d, roughness: 0.72 }));
+    band.rotation.x = Math.PI / 2;
+    mesh.add(band);
+    mesh.position.copy(position);
+    scene.add(mesh);
+    smokeProjectileMeshes.set(data.id, mesh);
+  } else {
+    mesh.userData.targetPosition.copy(position);
+  }
+}
+
+function removeSmokeProjectileVisual(id) {
+  const mesh = smokeProjectileMeshes.get(id);
+  if (!mesh) return;
+  scene.remove(mesh);
+  mesh.traverse((part) => {
+    if (part !== mesh) {
+      const material = Array.isArray(part.material) ? part.material : [part.material];
+      material.forEach((m) => m?.dispose?.());
+    }
+    if (part.geometry && part !== mesh) part.geometry.dispose();
+  });
+  mesh.geometry?.dispose();
+  mesh.material?.dispose();
+  smokeProjectileMeshes.delete(id);
+}
+
+function createSmokeCloudVisual(data) {
+  if (!data?.id) return;
+  removeSmokeCloudVisual(data.id);
+  const radius = Math.max(1, Number(data.radius) || 5.2);
+  const group = new THREE.Group();
+  group.position.set(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
+  group.userData.smoke = {
+    radius,
+    expiresAt: Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 8500)
+  };
+  const puffCount = 18;
+  for (let i = 0; i < puffCount; i++) {
+    let dx = Math.random() * 2 - 1;
+    let dy = Math.random() * 2 - 1;
+    let dz = Math.random() * 2 - 1;
+    let length = Math.hypot(dx, dy, dz) || 1;
+    dx /= length; dy /= length; dz /= length;
+    const spread = radius * (0.12 + Math.random() * 0.48);
+    const size = radius * (0.28 + Math.random() * 0.18);
+    const material = new THREE.MeshBasicMaterial({
+      color: i % 3 === 0 ? 0x858c90 : 0xa3a8ab,
+      transparent: true,
+      opacity: 0.16 + Math.random() * 0.07,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    const puff = new THREE.Mesh(smokePuffGeometry, material);
+    puff.position.set(dx * spread, dy * spread, dz * spread);
+    puff.scale.set(size, size * (0.72 + Math.random() * 0.28), size);
+    puff.renderOrder = 4;
+    puff.userData.baseOpacity = material.opacity;
+    group.add(puff);
+  }
+  scene.add(group);
+  smokeCloudMeshes.set(data.id, group);
+}
+
+function removeSmokeCloudVisual(id) {
+  const group = smokeCloudMeshes.get(id);
+  if (!group) return;
+  scene.remove(group);
+  group.traverse((part) => {
+    if (part.material) {
+      const materials = Array.isArray(part.material) ? part.material : [part.material];
+      for (const material of materials) material?.dispose?.();
+    }
+  });
+  smokeCloudMeshes.delete(id);
+}
+
+function resetSmokeVisuals() {
+  for (const id of [...smokeProjectileMeshes.keys()]) removeSmokeProjectileVisual(id);
+  for (const id of [...smokeCloudMeshes.keys()]) removeSmokeCloudVisual(id);
+  smokeScreenOverlay.style.display = "none";
+}
+
+function startRemoteWeaponAction(event) {
+  const obj = remotePlayers.get(event?.id);
+  if (!obj) return;
+  obj.userData.weaponActionStartedAt = performance.now();
+  obj.userData.weaponActionType = event.weapon;
+}
+
+function updateSmokeVisuals(now, dt) {
+  animateLocalWeaponViewModel(now);
+  for (const [id, mesh] of [...smokeProjectileMeshes]) {
+    if (Date.now() >= Number(mesh.userData.expiresAt || Infinity)) {
+      removeSmokeProjectileVisual(id);
+      continue;
+    }
+    if (mesh.userData.targetPosition) mesh.position.lerp(mesh.userData.targetPosition, 1 - Math.exp(-24 * dt));
+  }
+
+  const activeClouds = [];
+  let overlayStrength = 0;
+  const nowMs = Date.now();
+  for (const [id, group] of [...smokeCloudMeshes]) {
+    const smoke = group.userData.smoke;
+    const remaining = Number(smoke?.expiresAt || 0) - nowMs;
+    if (remaining <= 0) {
+      removeSmokeCloudVisual(id);
+      continue;
+    }
+    const fade = Math.min(1, remaining / 1500);
+    for (const puff of group.children) {
+      if (puff.material && Number.isFinite(puff.userData.baseOpacity)) puff.material.opacity = puff.userData.baseOpacity * fade;
+    }
+    const radius = Number(smoke.radius) || 5.2;
+    const cameraDistance = camera.position.distanceTo(group.position);
+    if (cameraDistance < radius * 0.88) {
+      overlayStrength = Math.max(overlayStrength, (1 - cameraDistance / (radius * 0.88)) * 0.38 + 0.45);
+    }
+    activeClouds.push(group);
+  }
+  smokeScreenOverlay.style.display = overlayStrength > 0 ? "block" : "none";
+  smokeScreenOverlay.style.opacity = String(Math.min(0.9, overlayStrength));
+
+  for (const obj of remotePlayers.values()) {
+    const player = obj.userData.playerState;
+    if (!player) continue;
+    const actionElapsed = (now - Number(obj.userData.weaponActionStartedAt || -Infinity)) / 1000;
+    const weaponMesh = obj.userData.weaponMesh;
+    const rightArm = obj.userData.rightArm;
+    if (obj.userData.weaponActionType === "pickaxe" && obj.userData.weaponType === "pickaxe" && actionElapsed >= 0 && actionElapsed < 0.38) {
+      const angle = pickaxeSwingAngle(actionElapsed);
+      if (weaponMesh) weaponMesh.rotation.set(-0.08 + angle * 0.55, 0, angle * 0.62);
+      if (rightArm) rightArm.rotation.set(angle * 0.48, 0, 0.08 - angle * 0.24);
+    } else if (obj.userData.weaponActionType === "smoke" && obj.userData.weaponType === "smoke" && actionElapsed >= 0 && actionElapsed < 0.26) {
+      const progress = actionElapsed / 0.26;
+      if (weaponMesh) {
+        weaponMesh.position.set(0.34 + 0.1 * progress, 1.02 + 0.05 * Math.sin(progress * Math.PI), -0.22 - 0.1 * progress);
+        weaponMesh.rotation.set(-0.08, 0, -0.4 * progress);
+      }
+    } else {
+      if (weaponMesh) {
+        weaponMesh.position.set(0.34, 1.02, -0.22);
+        weaponMesh.rotation.set(-0.08, 0, 0);
+      }
+      if (rightArm) rightArm.rotation.set(0, 0.08, 0);
+    }
+
+    let obscured = false;
+    const targetPoint = new THREE.Vector3(obj.position.x, obj.position.y + 0.9, obj.position.z);
+    for (const group of activeClouds) {
+      const radius = Number(group.userData.smoke?.radius) || 5.2;
+      const cameraInside = camera.position.distanceTo(group.position) < radius * 0.88;
+      const targetInside = targetPoint.distanceTo(group.position) < radius * 0.9;
+      if (cameraInside !== targetInside) {
+        obscured = true;
+        break;
+      }
+    }
+    obj.visible = Number(player.health) > 0 && !obscured;
+  }
 }
 
 const SKIN_FACE_ORDER = ["right", "left", "top", "bottom", "front", "back"];
@@ -1581,6 +1852,9 @@ function createRemotePlayer() {
   };
   root.userData.weaponMesh = weapon;
   root.userData.weaponType = "pistol";
+  root.userData.rightArm = armR;
+  root.userData.weaponActionStartedAt = -Infinity;
+  root.userData.weaponActionType = "";
 
   const invulnerabilityShield = new THREE.Mesh(
     new THREE.SphereGeometry(1.15, 20, 14),
@@ -1911,7 +2185,7 @@ function fire() {
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (selectedWeapon !== "pickaxe" && myState && myState.ammo <= 0) {
+  if (!["pickaxe", "smoke"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
     reload();
     return;
   }
@@ -1921,17 +2195,18 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
+  if (selectedWeapon === "pickaxe" || selectedWeapon === "smoke") startLocalWeaponAction(selectedWeapon);
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
 function reload() {
-  if (!joined || myState?.reloading) return;
+  if (!joined || myState?.reloading || ["pickaxe", "smoke"].includes(selectedWeapon)) return;
   stopFiring();
   socket.emit("reload");
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -1939,6 +2214,7 @@ function updateWeaponReticle() {
   if (!crosshair) return;
   const reticles = {
     pickaxe: ["weapon-pickaxe", "+"],
+    smoke: ["weapon-smoke", "○"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
@@ -1947,7 +2223,7 @@ function updateWeaponReticle() {
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-pickaxe", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-pickaxe", "weapon-smoke", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
   updatePickaxeReticleBounds();
@@ -2025,6 +2301,7 @@ function updateWeaponSwitchButton() {
   }
   updateScopeButton();
   updateWeaponReticle();
+  refreshLocalWeaponViewModel();
 }
 function updateScopeButton() {
   const button = document.getElementById("scopeButton");
@@ -2214,8 +2491,12 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
-  // 近接武器はショットイベントを共有していても弾道を描画しない。
-  if (event.weapon === "pickaxe" || event.weapon === "marksman") return;
+  if (event.weapon === "pickaxe" || event.weapon === "smoke") {
+    if (event.id !== myId) startRemoteWeaponAction(event);
+    return;
+  }
+  // マークスマンは専用の弾道表示を使わない。
+  if (event.weapon === "marksman") return;
   const start = new THREE.Vector3(event.x, event.y, event.z);
   const entries = Array.isArray(event.tracers) && event.tracers.length
     ? event.tracers
@@ -2295,7 +2576,15 @@ function updateAmmoHud() {
   if (!ammoEl || !myState) return;
 
   const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
-  ammoEl.textContent = myState.reloading ? "RELOADING..." : `${ammo} / ∞`;
+  const hasAmmoMagazine = !["pickaxe", "smoke"].includes(selectedWeapon);
+  ammoEl.textContent = myState.reloading ? "RELOADING..." : hasAmmoMagazine ? `${ammo} / ∞` : "弾薬不要";
+  for (const id of ["reloadButton", "reloadTouchButton"]) {
+    const reloadControl = document.getElementById(id);
+    if (reloadControl) {
+      reloadControl.classList.toggle("hidden", !hasAmmoMagazine);
+      reloadControl.disabled = !hasAmmoMagazine;
+    }
+  }
   const nameEl = document.getElementById("weaponName");
   if (nameEl) nameEl.textContent = weaponDisplayName(myState.weapon) + " · " + (Number(myState.activeWeaponSlot || 0) + 1) + "/2";
   updateWeaponSwitchButton();
@@ -2541,6 +2830,7 @@ window.applyPlayerSkinToServer = (skinDataUrl) => {
 
 socket.on("joined", ({ player }) => {
   joined = true;
+  socket.emit("requestSmokeState");
   wasJoinedBeforeDisconnect = true;
   reconnecting = false;
   selectedGameMode = player.mode || "Melee";
@@ -2633,6 +2923,16 @@ socket.on("respawned", ({ player }) => {
 });
 
 socket.on("shot", createTracer);
+socket.on("smokeProjectileSpawn", createSmokeProjectileVisual);
+socket.on("smokeProjectileUpdate", (data) => createSmokeProjectileVisual(data));
+socket.on("smokeProjectileRemove", ({ id }) => removeSmokeProjectileVisual(id));
+socket.on("smokeCloudSpawn", createSmokeCloudVisual);
+socket.on("smokeCloudRemove", ({ id }) => removeSmokeCloudVisual(id));
+socket.on("smokeState", ({ projectiles = [], clouds = [] } = {}) => {
+  resetSmokeVisuals();
+  for (const projectile of projectiles) createSmokeProjectileVisual(projectile);
+  for (const cloud of clouds) createSmokeCloudVisual(cloud);
+});
 
 socket.on("damageDealt", (event) => {
   addDamageNumber(event.damage, event.zone);
@@ -3397,6 +3697,8 @@ function animate(now) {
     const deltaYaw = Math.atan2(Math.sin(targetYaw - currentYaw), Math.cos(targetYaw - currentYaw));
     obj.rotation.y = currentYaw + deltaYaw * interpolation;
   }
+
+  updateSmokeVisuals(now, dt);
 
   for (let i = tracers.length - 1; i >= 0; i--) {
     const tracer = tracers[i];
