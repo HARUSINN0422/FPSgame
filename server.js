@@ -261,6 +261,10 @@ try {
   // 初回起動時はserver.js内の標準設定を使用します。
 }
 
+// 弓の発射間隔と最大胴体ダメージは、古いローカル武器設定に上書きされないよう固定する。
+WEAPONS.bow.fireInterval = 100;
+WEAPONS.bow.damage = 110;
+
 const app = express();
 
 let updateInProgress = false;
