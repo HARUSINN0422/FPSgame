@@ -2120,6 +2120,26 @@ function updateRemotePlayers(players) {
   document.getElementById("playerCount").textContent = String(players.length);
 }
 
+function isAimAssistBlockedBySmoke(origin, targetPoint) {
+  const segment = targetPoint.clone().sub(origin);
+  const lengthSq = segment.lengthSq();
+  if (lengthSq < 1e-8) return false;
+
+  const now = Date.now();
+  for (const group of smokeCloudMeshes.values()) {
+    const smoke = group.userData.smoke;
+    if (!smoke || Number(smoke.expiresAt) <= now) continue;
+
+    // 見た目の煙幕の広がりを考慮し、線分と煙幕球の最短距離を調べる。
+    const radius = Math.max(1, Number(smoke.radius) || 5.2) * 0.92;
+    const toCenter = group.position.clone().sub(origin);
+    const t = THREE.MathUtils.clamp(toCenter.dot(segment) / lengthSq, 0, 1);
+    const closestPoint = origin.clone().addScaledVector(segment, t);
+    if (closestPoint.distanceToSquared(group.position) <= radius * radius) return true;
+  }
+  return false;
+}
+
 function updateAimAssist() {
   if (!joined || !myState) return;
   const touchDevice = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
@@ -2146,6 +2166,8 @@ function updateAimAssist() {
     const offset = point.clone().sub(origin);
     const distance = offset.length();
     if (distance > 38 || distance < 0.1) continue;
+    // 煙幕が照準と敵の間にある、または照準元・敵が煙幕内なら補助照準を無効化。
+    if (isAimAssistBlockedBySmoke(origin, point)) continue;
     const targetYaw = Math.atan2(-offset.x, -offset.z);
     const targetPitch = Math.atan2(offset.y, Math.hypot(offset.x, offset.z));
     const yawDelta = Math.atan2(Math.sin(targetYaw - yaw), Math.cos(targetYaw - yaw));
