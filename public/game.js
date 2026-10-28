@@ -1525,7 +1525,7 @@ function createGrenadeProjectileVisual(data) {
   let mesh = grenadeProjectileMeshes.get(data.id);
   const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
   if (!mesh) {
-    const material = new THREE.MeshStandardMaterial({ color: 0x8b7a43, roughness: 0.5, metalness: 0.25);
+    const material = new THREE.MeshStandardMaterial({ color: 0x8b7a43, roughness: 0.5, metalness: 0.25 });
     mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), material);
     mesh.userData.targetPosition = position.clone();
     mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 4500);
