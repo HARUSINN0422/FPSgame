@@ -481,6 +481,8 @@ app.get("/health", (_req, res) => {
 });
 
 const players = new Map();
+const duelRooms = new Map();
+let duelRoomSequence = 0;
 
 const MAP_ROOT = path.join(__dirname, "map");
 const MAP_OVERRIDE_ROOT = path.join(__dirname, "data", "maps");
@@ -601,6 +603,7 @@ function getMapInfo(map, mode = MAP_MODE) {
 
 function getMapForPlayer(player) {
   if (player?.mode === AREA_MODE) return areaMap;
+  if (player?.mode === "Duel") return player.duelMap || activeMap;
   if (player?.mode === TRAINING_MODE) return player.trainingMap || activeMap;
   if (player?.mode === "Wander") return player.wanderMap || activeMap;
   return activeMap;
@@ -785,7 +788,7 @@ function isSameGame(a, b) {
   const modeA = a.mode || MAP_MODE;
   const modeB = b.mode || MAP_MODE;
   if (modeA !== modeB) return false;
-  if (modeA === AREA_MODE || modeA === TRAINING_MODE) return Boolean(a.matchId && a.matchId === b.matchId);
+  if (modeA === AREA_MODE || modeA === TRAINING_MODE || modeA === "Duel") return Boolean(a.matchId && a.matchId === b.matchId);
   return true;
 }
 
@@ -807,6 +810,28 @@ function broadcastGameEvent(referencePlayer, eventName, payload) {
     const player = players.get(client.id);
     if (player && isSameGame(referencePlayer, player)) client.emit(eventName, payload);
   }
+}
+
+function resolveDuelRound(winner, loser) {
+  if (!loser || loser.mode !== "Duel" || !loser.duelRoomId) return;
+  const room = duelRooms.get(loser.duelRoomId);
+  if (!room || room.status === "ended" || room.roundResolved) return;
+  const opponent = room.playerIds.map(id=>players.get(id)).find(p=>p&&p.id!==loser.id);
+  const actualWinner = winner && winner.id !== loser.id ? winner : opponent;
+  if (!actualWinner || !opponent) return;
+  room.roundResolved = true;
+  room.scores[actualWinner.id]=(room.scores[actualWinner.id]||0)+1;
+  const ended=room.scores[actualWinner.id]>=room.firstTo;
+  const map=[...availableMaps,...areaMaps].find(item=>item.id===room.mapId)||activeMap;
+  const now=Date.now();
+  for(const id of room.playerIds){const p=players.get(id);if(!p)continue;const index=room.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];
+    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
+    p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;
+  }
+  if(ended)room.status="ended";
+  for(const id of room.playerIds){const p=players.get(id);if(!p)continue;const other=players.get(room.playerIds.find(pid=>pid!==id));io.to(id).emit(ended?"duel:matchEnd":"duel:score",{roomId:room.id,firstTo:room.firstTo,myScore:room.scores[id]||0,opponentScore:room.scores[other?.id]||0,opponentName:other?.name||"対戦相手",winnerId:actualWinner.id,matchEnded:ended});}
+  if(!ended)setTimeout(()=>{room.roundResolved=false;},1800);
+  broadcastPlayers();
 }
 
 const SMOKE_RADIUS = 5.2;
@@ -946,6 +971,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
       target.respawnAt = now + 5000;
       target.kills = target.kills || 0;
       target.deaths += 1;
+      if(target.mode==="Duel"){const winner=selfElimination?gamePlayersFor(target).find(p=>p.id!==target.id):projectile.owner;resolveDuelRound(winner,target);}
       broadcastGameEvent(projectile.owner, "elimination", {
         killerId: selfElimination ? null : projectile.owner.id,
         killerName: selfElimination ? "自爆" : projectile.owner.name,
@@ -1912,6 +1938,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       result.target.kills = result.target.kills || 0;
       shooter.kills += 1;
       result.target.deaths += 1;
+      if(result.target.mode==="Duel")resolveDuelRound(shooter,result.target);
 
       broadcastGameEvent(shooter, "elimination", {
         killerId: shooter.id,
@@ -2458,6 +2485,36 @@ io.on("connection", (socket) => {
     removeAreaPlayer(socket.id);
   });
 
+
+  function emitDuelRooms(){
+    const rooms=[...duelRooms.values()].filter(r=>r.status==="waiting"&&r.playerIds.length===1).map(r=>({id:r.id,hostName:r.hostName,mapId:r.mapId,mapName:r.mapName,firstTo:r.firstTo}));
+    for(const client of io.sockets.sockets.values())client.emit("duel:rooms",rooms);
+  }
+  socket.on("duel:getMaps",()=>socket.emit("duel:maps",[...availableMaps,...areaMaps].filter(m=>m.id!=="shooting-range").map(m=>({id:m.id,name:m.name}))));
+  socket.on("duel:listRooms",()=>emitDuelRooms());
+  socket.on("duel:createRoom",(data={})=>{
+    if(players.has(socket.id))return;
+    const map=[...availableMaps,...areaMaps].find(m=>m.id===data.mapId&&m.id!=="shooting-range");
+    if(!map){socket.emit("duel:error",{message:"選択したマップは利用できません。"});return;}
+    for(const [id,r] of duelRooms)if(r.playerIds.includes(socket.id))duelRooms.delete(id);
+    const firstTo=Math.max(1,Math.min(10,Math.floor(Number(data.firstTo)||3)));
+    const id="duel-"+Date.now().toString(36)+"-"+(++duelRoomSequence).toString(36);
+    const room={id,hostId:socket.id,hostName:sanitizeName(data.name),mapId:map.id,mapName:map.name,firstTo,playerIds:[socket.id],status:"waiting",scores:{},readyIds:[],roundResolved:false};
+    duelRooms.set(id,room);socket.emit("duel:roomCreated",{room:{id,mapId:map.id,mapName:map.name,firstTo}});emitDuelRooms();
+  });
+  socket.on("duel:joinRoom",({roomId}={})=>{
+    if(players.has(socket.id))return;const room=duelRooms.get(String(roomId||""));
+    if(!room||room.status!=="waiting"||room.playerIds.length!==1||room.playerIds.includes(socket.id)){socket.emit("duel:error",{message:"この部屋には参加できません。部屋一覧を更新してください。"});emitDuelRooms();return;}
+    room.playerIds.push(socket.id);room.status="starting";
+    for(const id of room.playerIds)io.to(id).emit("duel:matchReady",{roomId:room.id,mapId:room.mapId,firstTo:room.firstTo});
+    emitDuelRooms();
+  });
+  function removeDuelPlayer(playerId,roomId){const room=duelRooms.get(String(roomId||""));if(!room)return;room.playerIds=room.playerIds.filter(id=>id!==playerId);
+    if(!room.playerIds.length||room.status!=="waiting"){for(const id of room.playerIds)io.to(id).emit("duel:error",{message:"対戦相手が退出しました。"});duelRooms.delete(room.id);}emitDuelRooms();}
+  socket.on("duel:cancelRoom",()=>{for(const [id,r] of duelRooms){if(r.playerIds.includes(socket.id)){for(const other of r.playerIds)if(other!==socket.id)io.to(other).emit("duel:error",{message:"部屋の作成者が退出しました。"});duelRooms.delete(id);}}emitDuelRooms();socket.emit("returnedToLobby");});
+  socket.on("duel:requestRuleChange",({roomId}={})=>{const r=duelRooms.get(String(roomId||""));if(!r||r.status!=="ended")return;for(const id of r.playerIds)io.to(id).emit("duel:ruleChangeAllowed",{host:socket.id===r.hostId});});
+  socket.on("duel:updateRules",({roomId,mapId,firstTo}={})=>{const r=duelRooms.get(String(roomId||""));const map=[...availableMaps,...areaMaps].find(m=>m.id===mapId&&m.id!=="shooting-range");if(!r||r.hostId!==socket.id||r.status!=="ended"||!map){socket.emit("duel:error",{message:"ルールを変更できません。"});return;}r.mapId=map.id;r.mapName=map.name;r.firstTo=Math.max(1,Math.min(10,Math.floor(Number(firstTo)||3)));r.readyIds=[];for(const id of r.playerIds)io.to(id).emit("duel:rulesChanged",{mapName:r.mapName,firstTo:r.firstTo});});
+  socket.on("duel:rematchReady",({roomId}={})=>{const r=duelRooms.get(String(roomId||""));if(!r||r.status!=="ended")return;if(!r.readyIds.includes(socket.id))r.readyIds.push(socket.id);for(const id of r.playerIds)io.to(id).emit("duel:rematchWaiting",{readyCount:r.readyIds.length});if(r.playerIds.every(id=>r.readyIds.includes(id))){const map=[...availableMaps,...areaMaps].find(m=>m.id===r.mapId)||activeMap;r.status="starting";r.scores={};r.readyIds=[];r.roundResolved=false;const now=Date.now();for(const id of r.playerIds){const p=players.get(id);if(!p)continue;const index=r.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];p.duelMap=map;p.duelFirstTo=r.firstTo;p.finished=false;p.health=100;p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.respawnAt=0;p.invulnerableUntil=now+3000;p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;}r.status="playing";for(const id of r.playerIds)io.to(id).emit("duel:rematchStarted",{firstTo:r.firstTo});for(const id of r.playerIds){const p=players.get(id);if(p)io.to(id).emit("world",getWorldPayloadForMap(map,"Duel"));}broadcastPlayers();}});
   socket.on("leaveMatch", () => {
     const player = players.get(socket.id);
     if (player?.mode === AREA_MODE) {
@@ -2466,6 +2523,7 @@ io.on("connection", (socket) => {
     }
 
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
+    if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     if (player) players.delete(socket.id);
     syncBots();
     broadcastPlayers();
@@ -2486,13 +2544,17 @@ io.on("connection", (socket) => {
     const weaponSlots = [weapon, secondaryWeapon];
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
-    const requestedMode = data.mode === TRAINING_MODE ? TRAINING_MODE : data.mode === "Wander" ? "Wander" : MAP_MODE;
+    const duelRoom=data.mode==="Duel"?duelRooms.get(String(data.duelRoomId||"")):null;
+    if(data.mode==="Duel"&&(!duelRoom||!duelRoom.playerIds.includes(socket.id))){socket.emit("duel:error",{message:"タイマン部屋が見つかりません。"});return;}
+    const requestedMode = data.mode === "Duel" ? "Duel" : data.mode === TRAINING_MODE ? TRAINING_MODE : data.mode === "Wander" ? "Wander" : MAP_MODE;
+    const duelMap=requestedMode==="Duel"?[...availableMaps,...areaMaps].find(m=>m.id===duelRoom.mapId)||activeMap:null;
     const trainingMap = requestedMode === TRAINING_MODE ? createTrainingMap() : null;
     const wanderMap = requestedMode === "Wander"
       ? (data.mapId === "shooting-range" ? createTrainingMap() : [...availableMaps, ...areaMaps].find((map) => map.id === data.mapId) || activeMap)
       : null;
-    const chosenMap = trainingMap || wanderMap;
-    const spawn = chosenMap ? chosenMap.spawnPoints[0] : pickSpawn();
+    const chosenMap = duelMap || trainingMap || wanderMap;
+    const spawnIndex=requestedMode==="Duel"?Math.max(0,duelRoom.playerIds.indexOf(socket.id)):0;
+    const spawn = chosenMap ? (chosenMap.spawnPoints[spawnIndex%chosenMap.spawnPoints.length]||chosenMap.spawnPoints[0]) : pickSpawn();
     socket.emit("world", chosenMap ? getWorldPayloadForMap(chosenMap, requestedMode) : getWorldPayload());
 
     players.set(socket.id, {
@@ -2501,7 +2563,9 @@ io.on("connection", (socket) => {
       skin,
       mode: requestedMode,
       team: null,
-      matchId: requestedMode === TRAINING_MODE || requestedMode === "Wander" ? socket.id : null,
+      matchId: requestedMode === "Duel" ? duelRoom.id : requestedMode === TRAINING_MODE || requestedMode === "Wander" ? socket.id : null,
+      duelRoomId: requestedMode === "Duel" ? duelRoom.id : null,
+      duelMap, duelFirstTo: requestedMode === "Duel" ? duelRoom.firstTo : null,
       trainingMap,
       wanderMap,
       finished: false,
@@ -2690,6 +2754,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
+    if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     players.delete(socket.id);
     syncBots();
     broadcastPlayers();
