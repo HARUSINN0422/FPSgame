@@ -205,6 +205,10 @@ const WEAPONS = {
     spread: 0.24, falloffStart: 10, minDamageMultiplier: 0.30,
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
+  grenadeLauncher: {
+    name: "Grenade Launcher", damage: 60, fireInterval: 900, range: 0, spread: 0,
+    falloffStart: 0, minDamageMultiplier: 0, magazineSize: 6, reloadTime: 1700, automatic: false
+  },
   marksman: {
     name: "Marksman", damage: 35, fireInterval: 450, range: 100, spread: 0.006,
     falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 20,
@@ -223,7 +227,7 @@ const WEAPONS = {
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル"
+  shotgun: "ショットガン", grenadeLauncher: "グレネードランチャー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -232,6 +236,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
   shotgun: "単発 / 8発の散弾（胴体全弾命中で80ダメージ） / 近距離向け",
+  grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い"
 };
@@ -802,6 +807,7 @@ const SMOKE_RADIUS = 5.2;
 const SMOKE_DURATION_MS = 8500;
 const SMOKE_PROJECTILE_GRAVITY = 18;
 const smokeProjectiles = new Map();
+const grenadeProjectiles = new Map();
 const smokeClouds = new Map();
 let smokeSequence = 0;
 
@@ -865,6 +871,77 @@ function spawnSmokeProjectile(shooter, now = Date.now()) {
     id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
     yaw: shooter.yaw, pitch: shooter.pitch, weapon: "smoke", hit: null, tracers: []
   });
+}
+
+function spawnGrenadeProjectile(shooter, now = Date.now()) {
+  const direction = directionFromAngles(shooter.yaw, shooter.pitch);
+  const speed = 14;
+  const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const origin = {
+    x: shooter.x + direction.x * 0.62,
+    y: shooter.y + height - 0.18,
+    z: shooter.z + direction.z * 0.62
+  };
+  const id = "grenade-projectile-" + (++smokeSequence);
+  const projectile = {
+    id, owner: shooter, ownerId: shooter.id,
+    x: origin.x, y: origin.y, z: origin.z,
+    vx: direction.x * speed, vy: direction.y * speed + 4.5, vz: direction.z * speed,
+    expiresAt: now + 4500
+  };
+  grenadeProjectiles.set(id, projectile);
+  broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
+  broadcastGameEvent(shooter, "shot", {
+    id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
+    yaw: shooter.yaw, pitch: shooter.pitch, weapon: "grenadeLauncher", hit: null, tracers: []
+  });
+}
+
+function explodeGrenade(projectile, position, now = Date.now()) {
+  const radius = 5.2;
+  const id = "grenade-explosion-" + (++smokeSequence);
+  broadcastGameEvent(projectile.owner, "grenadeExplosion", {
+    id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 420
+  });
+  for (const target of players.values()) {
+    if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+        !isSameGame(projectile.owner, target)) continue;
+    if (projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
+    if (projectile.owner.mode === AREA_MODE && target.team === projectile.owner.team) continue;
+    if (target.invulnerableUntil > now) continue;
+    const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+    const dx = target.x - position.x;
+    const dy = target.y + targetHeight * 0.5 - position.y;
+    const dz = target.z - position.z;
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance >= radius) continue;
+    const damage = Math.round(60 * (1 - distance / radius));
+    if (damage <= 0) continue;
+    target.health = Math.max(0, target.health - damage);
+    target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
+    target.damageSlowUntil = now + DAMAGE_SLOW_MS;
+    io.to(projectile.ownerId).emit("damageDealt", {
+      targetId: target.id, damage, zone: "body",
+      x: target.x, y: target.y + targetHeight * 0.5, z: target.z
+    });
+    io.to(target.id).emit("damageTaken", {
+      damage, zone: "body", hitstopMs: DAMAGE_HITSTOP_MS,
+      slowMs: DAMAGE_SLOW_MS, slowMultiplier: DAMAGE_SLOW_MULTIPLIER
+    });
+    if (target.health <= 0) {
+      projectile.owner.health = 100;
+      projectile.owner.kills = (projectile.owner.kills || 0) + 1;
+      target.health = 0;
+      target.respawnAt = now + 5000;
+      target.kills = target.kills || 0;
+      target.deaths += 1;
+      broadcastGameEvent(projectile.owner, "elimination", {
+        killerId: projectile.owner.id, killerName: projectile.owner.name,
+        victimId: target.id, victimName: target.name,
+        killerKills: projectile.owner.kills, zone: "body"
+      });
+    }
+  }
 }
 
 function updateSmokeProjectiles(dt, now = Date.now()) {
@@ -958,6 +1035,108 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
     projectile.z = nextZ;
     projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
     broadcastGameEvent(projectile.owner, "smokeProjectileUpdate", {
+      id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z
+    });
+  }
+
+  for (const cloud of [...smokeClouds.values()]) {
+    if (now < cloud.expiresAt) continue;
+    smokeClouds.delete(cloud.id);
+    broadcastGameEvent(cloud.owner, "smokeCloudRemove", { id: cloud.id });
+  }
+}
+
+function updateGrenadeProjectiles(dt, now = Date.now()) {
+  for (const projectile of [...grenadeProjectiles.values()]) {
+    if (now >= projectile.expiresAt) {
+      grenadeProjectiles.delete(projectile.id);
+      broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      continue;
+    }
+
+    const from = { x: projectile.x, y: projectile.y, z: projectile.z };
+    const nextX = projectile.x + projectile.vx * dt;
+    const nextY = projectile.y + projectile.vy * dt - 0.5 * SMOKE_PROJECTILE_GRAVITY * dt * dt;
+    const nextZ = projectile.z + projectile.vz * dt;
+    const delta = { x: nextX - from.x, y: nextY - from.y, z: nextZ - from.z };
+    const distance = Math.hypot(delta.x, delta.y, delta.z);
+    let impact = null;
+
+    if (distance > 1e-5) {
+      const direction = { x: delta.x / distance, y: delta.y / distance, z: delta.z / distance };
+      let nearestHit = null;
+      const wallDistance = rayHitsObstacle(from, direction, distance, projectile.owner);
+      if (wallDistance !== null) nearestHit = { distance: wallDistance };
+
+      // 外周の壁はクライアント側で生成されるため、マップ境界もここで衝突判定する。
+      const bounds = getMapForPlayer(projectile.owner).world || WORLD;
+      const boundaryPlanes = [
+        { axis: "x", plane: bounds.minX - 1.5, outward: -1 },
+        { axis: "x", plane: bounds.maxX + 1.5, outward: 1 },
+        { axis: "z", plane: bounds.minZ - 1.5, outward: -1 },
+        { axis: "z", plane: bounds.maxZ + 1.5, outward: 1 }
+      ];
+      for (const boundary of boundaryPlanes) {
+        const before = from[boundary.axis];
+        const after = boundary.axis === "x" ? nextX : nextZ;
+        const crosses = boundary.outward < 0
+          ? before >= boundary.plane && after <= boundary.plane
+          : before <= boundary.plane && after >= boundary.plane;
+        if (!crosses || Math.abs(after - before) < 1e-8) continue;
+        const fraction = (boundary.plane - before) / (after - before);
+        if (fraction < 0 || fraction > 1) continue;
+        const yAtBoundary = from.y + delta.y * fraction;
+        if (yAtBoundary < 0 || yAtBoundary > 3) continue;
+        const boundaryDistance = fraction * distance;
+        if (!nearestHit || boundaryDistance < nearestHit.distance) {
+          nearestHit = { distance: boundaryDistance };
+        }
+      }
+
+      for (const target of players.values()) {
+        if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+            !isSameGame(projectile.owner, target)) continue;
+        const hit = rayHitsPlayer(from, direction, target);
+        if (hit && hit.t >= 0 && hit.t <= distance && (!nearestHit || hit.t < nearestHit.distance)) {
+          nearestHit = { distance: hit.t };
+        }
+      }
+
+      const groundY = getGroundHeight(nextX, nextZ, projectile.y, projectile.owner);
+      let groundHitDistance = Infinity;
+      if (projectile.vy <= 0 && nextY <= groundY + 0.12 && projectile.y >= groundY - 0.05) {
+        const ySpan = projectile.y - nextY;
+        const fraction = ySpan > 1e-5
+          ? clamp((projectile.y - (groundY + 0.12)) / ySpan, 0, 1)
+          : 0;
+        groundHitDistance = fraction * distance;
+      }
+
+      if (nearestHit && nearestHit.distance <= groundHitDistance) {
+        const t = clamp(nearestHit.distance, 0, distance);
+        impact = {
+          x: from.x + direction.x * t,
+          y: from.y + direction.y * t,
+          z: from.z + direction.z * t
+        };
+      } else if (groundHitDistance < Infinity) {
+        const t = clamp(groundHitDistance, 0, distance);
+        impact = { x: from.x + direction.x * t, y: groundY, z: from.z + direction.z * t };
+      }
+    }
+
+    if (impact) {
+      explodeGrenade(projectile, impact, now);
+      grenadeProjectiles.delete(projectile.id);
+      broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      continue;
+    }
+
+    projectile.x = nextX;
+    projectile.y = nextY;
+    projectile.z = nextZ;
+    projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
+    broadcastGameEvent(projectile.owner, "grenadeProjectileUpdate", {
       id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z
     });
   }
@@ -1560,6 +1739,10 @@ function fireShot(shooter, sniperScoped = false) {
   if (!weapon.melee) {
     shooter.ammo -= 1;
     if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
+  }
+  if (shooter.weapon === "grenadeLauncher") {
+    spawnGrenadeProjectile(shooter, now);
+    return;
   }
 
   const pelletCount = weapon.pellets || 1;
@@ -2385,6 +2568,15 @@ io.on("connection", (socket) => {
     if (p) emitSmokeState(socket, p);
   });
 
+  socket.on("requestGrenadeState", () => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    const now = Date.now();
+    socket.emit("grenadeState", [...grenadeProjectiles.values()]
+      .filter(item => isSameGame(p, item.owner))
+      .map(item => ({ ...smokeProjectilePayload(item), remainingMs: Math.max(0, item.expiresAt - now) })));
+  });
+
   socket.on("respawn", () => {
     const p = players.get(socket.id);
     if (!p || p.finished || p.health > 0) return;
@@ -2597,6 +2789,7 @@ setInterval(() => {
   }
 
   updateSmokeProjectiles(dt, now);
+  updateGrenadeProjectiles(dt, now);
   updateAreaMatches(dt, now);
   broadcastState();
 }, 1000 / TICK_RATE);
