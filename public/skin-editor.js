@@ -654,6 +654,69 @@ document.getElementById("skinImportButton")?.addEventListener("click", () => {
   document.getElementById("skinImportInput")?.click();
 });
 
+
+// Minecraft Java/Bedrock skin images: accept modern 64x64 atlases, legacy 64x32
+// atlases, and nearest-neighbour high-resolution exports such as 128x128/128x64.
+// The game uses a 64x64 modern atlas, so legacy left limbs are reconstructed.
+function normalizeMinecraftSkinImage(source) {
+  const width = source.naturalWidth || source.width;
+  const height = source.naturalHeight || source.height;
+  if (!width || !height || width % 64 !== 0 || ![height === width, height * 2 === width].some(Boolean)) {
+    throw new Error("Minecraftスキンは正方形（64×64、128×128など）または旧形式の横長2:1（64×32、128×64など）にしてください。選択画像: " + width + "×" + height);
+  }
+  const scale = width / 64;
+  if (!Number.isInteger(scale) || scale < 1 || height !== 64 * scale && height !== 32 * scale) {
+    throw new Error("Minecraftスキンのサイズ比率を認識できません: " + width + "×" + height);
+  }
+
+  const normalized = document.createElement("canvas");
+  normalized.width = 64;
+  normalized.height = 64;
+  const ctx = normalized.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  if (height === width) {
+    // Keep all pixels crisp when reducing high-resolution skin atlases.
+    ctx.drawImage(source, 0, 0, width, height, 0, 0, 64, 64);
+  } else {
+    // Legacy 64x32 skin. The top half contains the head and the lower half
+    // contains the classic torso/right arm/right leg UV layout.
+    ctx.drawImage(source, 0, 0, width, height, 0, 0, 64, 32);
+    const pixels = ctx.getImageData(0, 0, 64, 64);
+    const data = pixels.data;
+    const mirrorRect = (sx, sy, w, h, dx, dy) => {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const from = ((sy + y) * 64 + (sx + w - 1 - x)) * 4;
+          const to = ((dy + y) * 64 + dx + x) * 4;
+          data[to] = data[from];
+          data[to + 1] = data[from + 1];
+          data[to + 2] = data[from + 2];
+          data[to + 3] = data[from + 3];
+        }
+      }
+    };
+    // Copy/mirror each face from the classic right limb into the modern
+    // left-limb UV positions used by this game's 3D model.
+    const copyFaces = (sourceRects, targetRects) => {
+      for (let i = 0; i < sourceRects.length; i++) {
+        const [sx, sy, w, h] = sourceRects[i];
+        const [dx, dy] = targetRects[i];
+        mirrorRect(sx, sy, w, h, dx, dy);
+      }
+    };
+    copyFaces(
+      [[40,20,4,12],[48,20,4,12],[44,16,4,4],[48,16,4,4],[44,20,4,12],[52,20,4,12]],
+      [[32,52,4,12],[40,52,4,12],[36,48,4,4],[40,48,4,4],[36,52,4,12],[44,52,4,12]]
+    );
+    copyFaces(
+      [[0,20,4,12],[8,20,4,12],[4,16,4,4],[8,16,4,4],[4,20,4,12],[12,20,4,12]],
+      [[16,52,4,12],[24,52,4,12],[20,48,4,4],[24,48,4,4],[20,52,4,12],[28,52,4,12]]
+    );
+    ctx.putImageData(pixels, 0, 0);
+  }
+  return normalized;
+}
+
 document.getElementById("skinImportInput")?.addEventListener("change", async (event) => {
   const input = event.currentTarget;
   const file = input?.files?.[0];
@@ -674,10 +737,9 @@ document.getElementById("skinImportInput")?.addEventListener("change", async (ev
       img.onerror = () => reject(new Error("PNG画像を開けませんでした"));
       img.src = dataUrl;
     });
-    if (image.naturalWidth !== SKIN_SIZE || image.naturalHeight !== SKIN_SIZE) {
-      throw new Error("スキン画像は64×64ピクセルにしてください（選択画像: " + image.naturalWidth + "×" + image.naturalHeight + "）");
-    }
-    const loaded = await loadSkinDataUrl(dataUrl);
+    const normalizedCanvas = normalizeMinecraftSkinImage(image);
+    const normalizedDataUrlInput = normalizedCanvas.toDataURL("image/png");
+    const loaded = await loadSkinDataUrl(normalizedDataUrlInput);
     if (!loaded) throw new Error("スキン画像をキャンバスに読み込めませんでした");
     const normalizedDataUrl = skinCanvas.toDataURL("image/png");
     localStorage.setItem(SKIN_STORAGE_KEY, normalizedDataUrl);
