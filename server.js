@@ -931,14 +931,18 @@ function explodeGrenade(projectile, position, now = Date.now()) {
       slowMs: DAMAGE_SLOW_MS, slowMultiplier: DAMAGE_SLOW_MULTIPLIER
     });
     if (target.health <= 0) {
-      projectile.owner.health = 100;
-      projectile.owner.kills = (projectile.owner.kills || 0) + 1;
+      const selfElimination = target.id === projectile.ownerId;
+      if (!selfElimination) {
+        projectile.owner.health = 100;
+        projectile.owner.kills = (projectile.owner.kills || 0) + 1;
+      }
       target.health = 0;
       target.respawnAt = now + 5000;
       target.kills = target.kills || 0;
       target.deaths += 1;
       broadcastGameEvent(projectile.owner, "elimination", {
-        killerId: projectile.owner.id, killerName: projectile.owner.name,
+        killerId: selfElimination ? null : projectile.owner.id,
+        killerName: selfElimination ? "自爆" : projectile.owner.name,
         victimId: target.id, victimName: target.name,
         killerKills: projectile.owner.kills, zone: "body"
       });
