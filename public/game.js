@@ -178,7 +178,8 @@ const weaponConfig = {
   rifle: { fireInterval: 160, automatic: true },
   shotgun: { fireInterval: 750, automatic: false },
   marksman: { fireInterval: 450, automatic: true },
-  sniper: { fireInterval: 1200, automatic: false }
+  sniper: { fireInterval: 1200, automatic: false },
+  bow: { fireInterval: 1, automatic: false }
 };
 
 async function refreshPublicWeaponSettings() {
@@ -2296,6 +2297,7 @@ function setCrouch(held) {
 }
 
 function fire() {
+  if (selectedWeapon === "bow") return;
   if (!joined || myState?.reloading) return;
   // 武器切替中はレティクルが隠れている時間と同じ長さだけ発射を禁止する。
   if (performance.now() - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
@@ -2323,13 +2325,14 @@ function reload() {
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
   const crosshair = document.getElementById("crosshair");
   if (!crosshair) return;
   const reticles = {
+    bow: ["weapon-bow", "⌒"],
     pickaxe: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
@@ -2341,7 +2344,7 @@ function updateWeaponReticle() {
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-bow", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
   updatePickaxeReticleBounds();
@@ -2463,7 +2466,37 @@ function switchWeapon() {
   selectWeaponSlot(activeWeaponSlot === 0 ? 1 : 0);
 }
 
+let bowChargeInterval = null;
+let bowChargeStartedAt = 0;
+function startBowCharge() {
+  if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt) return;
+  bowChargeStartedAt = performance.now();
+  socket.emit("bowChargeStart");
+  const gauge = document.getElementById("bowChargeHud");
+  const fill = document.getElementById("bowChargeFill");
+  gauge?.classList.remove("hidden");
+  if (bowChargeInterval) clearInterval(bowChargeInterval);
+  const update = () => {
+    const progress = Math.min(1, (performance.now() - bowChargeStartedAt) / 1500);
+    if (fill) fill.style.width = (progress * 100) + "%";
+    if (gauge) gauge.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+  };
+  update();
+  bowChargeInterval = setInterval(update, 30);
+}
+function releaseBowCharge() {
+  if (!bowChargeStartedAt) return;
+  bowChargeStartedAt = 0;
+  if (bowChargeInterval) clearInterval(bowChargeInterval);
+  bowChargeInterval = null;
+  document.getElementById("bowChargeHud")?.classList.add("hidden");
+  const fill = document.getElementById("bowChargeFill");
+  if (fill) fill.style.width = "0%";
+  socket.emit("bowRelease");
+}
+
 function startFiring(forceRepeat = false) {
+  if (selectedWeapon === "bow") { startBowCharge(); return; }
   fire();
   const cfg = weaponConfig[selectedWeapon];
   if ((!cfg.automatic && !forceRepeat) || autoFireTimer) return;
@@ -2471,6 +2504,7 @@ function startFiring(forceRepeat = false) {
 }
 
 function stopFiring() {
+  if (selectedWeapon === "bow") { releaseBowCharge(); return; }
   if (autoFireTimer) {
     clearInterval(autoFireTimer);
     autoFireTimer = null;
@@ -2706,7 +2740,7 @@ function updateAmmoHud() {
   if (!ammoEl || !myState) return;
 
   const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
-  const hasAmmoMagazine = !["pickaxe", "smoke"].includes(selectedWeapon);
+  const hasAmmoMagazine = !["pickaxe", "smoke", "bow"].includes(selectedWeapon);
   ammoEl.textContent = myState.reloading ? "RELOADING..." : hasAmmoMagazine ? `${ammo} / ∞` : "弾薬不要";
   for (const id of ["reloadButton", "reloadTouchButton"]) {
     const reloadControl = document.getElementById(id);
