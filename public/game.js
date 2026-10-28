@@ -1701,7 +1701,7 @@ function updateSmokeVisuals(now, dt) {
       const angle = pickaxeSwingAngle(actionElapsed);
       if (weaponMesh) weaponMesh.rotation.set(-0.08 + angle * 0.55, 0, angle * 0.62);
       if (rightArm) rightArm.rotation.set(angle * 0.48, 0, 0.08 - angle * 0.24);
-    } else if (obj.userData.weaponActionType === "smoke" && obj.userData.weaponType === "smoke" && actionElapsed >= 0 && actionElapsed < 0.26) {
+    } else if (["smoke", "grenadeLauncher"].includes(obj.userData.weaponActionType) && obj.userData.weaponType === obj.userData.weaponActionType && actionElapsed >= 0 && actionElapsed < 0.26) {
       const progress = actionElapsed / 0.26;
       if (weaponMesh) {
         weaponMesh.position.set(0.34 + 0.1 * progress, 1.02 + 0.05 * Math.sin(progress * Math.PI), -0.22 - 0.1 * progress);
