@@ -595,18 +595,58 @@ document.getElementById("skinEditorOpenButton")?.addEventListener("click", openS
 document.getElementById("settingsSkinEditorButton")?.addEventListener("click", openSkinEditor);
 document.getElementById("skinEditorCloseButton")?.addEventListener("click", closeSkinEditor);
 
-document.getElementById("skinExportButton")?.addEventListener("click", () => {
+document.getElementById("skinExportButton")?.addEventListener("click", async () => {
+  // iOS Safariでは download 属性が無視されることがあるため、先にユーザー操作内で表示先を開く。
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const previewWindow = isIOS ? window.open("about:blank", "_blank") : null;
+
   try {
-    const dataUrl = skinCanvas.toDataURL("image/png");
+    const blob = await new Promise((resolve, reject) => {
+      if (typeof skinCanvas.toBlob !== "function") {
+        reject(new Error("このブラウザではPNGの直接書き出しに対応していません"));
+        return;
+      }
+      skinCanvas.toBlob((result) => {
+        if (result) resolve(result);
+        else reject(new Error("PNG画像を作成できませんでした"));
+      }, "image/png");
+    });
+
+    const objectUrl = URL.createObjectURL(blob);
+    if (isIOS && previewWindow) {
+      previewWindow.location.href = objectUrl;
+      if (statusEl) statusEl.textContent = "PNG画像を新しいタブで開きました。画像を長押しして「写真に追加」または「画像を保存」を選んでください。";
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      return;
+    }
+
     const link = document.createElement("a");
-    link.href = dataUrl;
+    link.href = objectUrl;
     link.download = "fps-skin-64x64.png";
+    link.style.display = "none";
     document.body.appendChild(link);
     link.click();
     link.remove();
-    if (statusEl) statusEl.textContent = "スキンをPNG画像として書き出しました（64×64ピクセル）";
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    if (statusEl) statusEl.textContent = "スキンをPNG画像として書き出しました（64×64ピクセル）。ダウンロード一覧を確認してください。";
   } catch (error) {
-    if (statusEl) statusEl.textContent = "画像を書き出せませんでした: " + (error?.message || "不明なエラー");
+    if (previewWindow && !previewWindow.closed) previewWindow.close();
+    try {
+      // toBlob非対応ブラウザ用の最終フォールバック。
+      const dataUrl = skinCanvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = "fps-skin-64x64.png";
+      link.target = "_blank";
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      if (statusEl) statusEl.textContent = "PNGを書き出しました。自動ダウンロードされない場合は、新しいタブで画像を保存してください。";
+    } catch (fallbackError) {
+      if (statusEl) statusEl.textContent = "画像を書き出せませんでした: " + (fallbackError?.message || error?.message || "不明なエラー");
+    }
   }
 });
 
