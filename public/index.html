@@ -284,11 +284,39 @@
           <strong>エリア（3対3）</strong>
           <span>中央エリアを5秒間確保するとカウントが進行。100%に到達したチームが勝利します。</span>
         </button>
+        <button id="duelModeButton" class="mode-card duel-mode-card" type="button">
+          <strong>タイマンモード（1対1）</strong>
+          <span>部屋を作成してルールを設定するか、募集中の部屋に参加して1対1で対戦します。</span>
+        </button>
       </div>
       <button id="backToLoadoutButton" class="mode-back-button" type="button">武器構成に戻る</button>
     </div>
   </div>
 
+  <div id="duelRoomScreen" class="overlay hidden" aria-live="polite">
+    <section class="panel duel-panel">
+      <div class="eyebrow">1 VS 1 DUEL</div><h1>タイマンモード</h1>
+      <p>部屋を作成するか、参加する部屋を選択してください。</p>
+      <div class="duel-actions"><button id="duelCreateRoomButton" class="start-game-button" type="button">部屋を作る</button><button id="duelRefreshRoomsButton" class="mode-back-button" type="button">部屋一覧を更新</button></div>
+      <div id="duelRoomList" class="duel-room-list"><p>部屋を読み込み中です。</p></div>
+      <button id="duelBackToModesButton" class="mode-back-button" type="button">モード選択に戻る</button>
+    </section>
+  </div>
+  <div id="duelRulesScreen" class="overlay hidden">
+    <section class="panel duel-panel"><div class="eyebrow">DUEL ROOM SETTINGS</div><h1 id="duelRulesTitle">部屋のルール設定</h1>
+      <p>射撃場を除くマップと、先取するラウンド数を選択してください。</p>
+      <label class="duel-field">マップ<select id="duelMapSelect"></select></label>
+      <label class="duel-field">先取数<select id="duelFirstToSelect"><option value="1">1本先取</option><option value="2">2本先取</option><option value="3" selected>3本先取</option><option value="4">4本先取</option><option value="5">5本先取</option><option value="6">6本先取</option><option value="7">7本先取</option><option value="8">8本先取</option><option value="9">9本先取</option><option value="10">10本先取</option></select></label>
+      <p id="duelRulesStatus" class="duel-status" aria-live="polite"></p>
+      <div class="duel-actions"><button id="duelConfirmRulesButton" class="start-game-button" type="button">ルールを確定して部屋を作る</button><button id="duelCancelRulesButton" class="mode-back-button" type="button">戻る</button></div>
+    </section>
+  </div>
+  <div id="duelWaitScreen" class="overlay hidden" aria-live="polite"><section class="panel duel-panel"><div class="eyebrow">WAITING FOR OPPONENT</div><h1>対戦相手を待っています</h1><p id="duelWaitSummary">参加者が入室するまで待機しています。</p><button id="duelCancelWaitButton" class="mode-back-button" type="button">部屋を閉じて戻る</button></section></div>
+  <div id="duelResultScreen" class="overlay hidden" aria-live="polite"><section class="panel duel-panel"><div class="eyebrow">DUEL MATCH RESULT</div><h1 id="duelResultTitle">試合終了</h1><p id="duelResultSummary">対戦が終了しました。</p>
+    <div class="duel-result-score"><strong id="duelResultMyScore">0</strong><span> - </span><strong id="duelResultOpponentScore">0</strong></div>
+    <div class="duel-actions"><button id="duelRematchSameButton" class="start-game-button" type="button">同じルールでもう一度</button><button id="duelRematchChangeButton" class="mode-back-button" type="button">ルールを変えてもう一度</button><button id="duelQuitButton" class="mode-back-button" type="button">やめる</button></div>
+    <p id="duelRematchStatus" class="duel-status" aria-live="polite"></p><button id="duelRematchReadyButton" class="start-game-button hidden" type="button">OK・再戦に参加</button>
+  </section></div>
   <div id="wanderMapScreen" class="overlay hidden">
     <div class="panel mode-panel">
       <div class="eyebrow">WANDER MODE</div>
@@ -338,6 +366,7 @@
       <div>PLAYERS <span id="playerCount">0</span></div>
       <div id="kdHud">K <span id="kills">0</span> / D <span id="deaths">0</span></div>
     </div>
+    <div id="duelScoreHud" class="duel-score-hud hidden" aria-label="タイマンのラウンドスコア"><div><span id="duelOpponentName">対戦相手</span><strong><span id="duelMyScore">0</span> - <span id="duelOpponentScore">0</span></strong></div><small id="duelRoundLabel">先取 3 本</small></div>
     <div id="areaHud" class="area-hud hidden" aria-label="エリアの進行状況">
       <div class="area-hud-header"><strong>エリア制圧</strong><span id="areaTeamLabel">あなた：BLUE</span></div>
       <div class="area-progress-row blue"><span>BLUE</span><div class="area-progress-track"><div id="areaBlueFill" class="area-progress-fill"></div></div><strong id="areaBlueScore">0%</strong></div>
