@@ -1750,8 +1750,27 @@ function updateSmokeVisuals(now, dt) {
       }
     });
     if (obj.userData.nameSprite) {
+      // Hide the name too when smoke lies between the camera and the enemy,
+      // even if the enemy's body is just outside the smoke cloud.
+      const cameraPosition = new THREE.Vector3();
+      camera.getWorldPosition(cameraPosition);
+      const namePosition = new THREE.Vector3();
+      obj.userData.nameSprite.getWorldPosition(namePosition);
+      const sightLine = namePosition.clone().sub(cameraPosition);
+      const sightLineLengthSq = sightLine.lengthSq();
+      const smokeBlocksName = activeClouds.some((group) => {
+        const radius = Number(group.userData.smoke?.radius) || 5.2;
+        const toCloud = group.position.clone().sub(cameraPosition);
+        const t = sightLineLengthSq > 0
+          ? THREE.MathUtils.clamp(toCloud.dot(sightLine) / sightLineLengthSq, 0, 1)
+          : 0;
+        const closestPoint = cameraPosition.clone().addScaledVector(sightLine, t);
+        // Only count smoke between the camera and the name tag, not smoke behind it.
+        return t > 0.02 && t < 0.98 && closestPoint.distanceTo(group.position) < radius * 0.9;
+      });
       obj.userData.nameSprite.visible = bodyMeshCount > 0
-        && obscuredBodyMeshCount / bodyMeshCount <= 0.5;
+        && obscuredBodyMeshCount / bodyMeshCount <= 0.5
+        && !smokeBlocksName;
     }
   }
 }
