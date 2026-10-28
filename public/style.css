@@ -1639,3 +1639,25 @@ body.controller-mode #settingsButton {
 #bowChargeHud.hidden { display: none; }
 .bow-charge-track { width: 100%; height: 10px; margin-top: 6px; overflow: hidden; border-radius: 5px; background: rgba(255,255,255,.2); }
 #bowChargeFill { width: 0%; height: 100%; background: linear-gradient(90deg, #d9b56d, #ffe8a5); transition: width 30ms linear; }
+
+/* Duel mode */
+.duel-mode-card { border-color: rgba(236,190,91,.65); }
+.duel-panel { width:min(620px,calc(100vw - 28px)); max-height:min(86vh,760px); overflow-y:auto; }
+.duel-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.duel-actions>button { flex:1 1 180px; }
+.duel-room-list { display:grid; gap:10px; margin:18px 0; text-align:left; }
+.duel-room-card { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px; border:1px solid rgba(255,255,255,.2); border-radius:10px; background:rgba(255,255,255,.055); color:#fff; }
+.duel-room-card strong,.duel-room-card span { display:block; }
+.duel-room-card span { margin-top:4px; color:rgba(255,255,255,.72); font-size:12px; }
+.duel-room-card button { flex:0 0 auto; padding:9px 14px; border:0; border-radius:8px; background:#e9bd61; color:#171717; font-weight:800; }
+.duel-field { display:grid; gap:8px; margin:18px 0; text-align:left; font-weight:700; }
+.duel-field select { width:100%; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,.25); background:#172332; color:#fff; font:inherit; }
+.duel-status { min-height:1.4em; color:#f0cc78; }
+.duel-score-hud { position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:20; min-width:210px; padding:10px 18px; border:1px solid rgba(255,255,255,.35); border-radius:12px; background:rgba(8,13,20,.82); color:#fff; text-align:center; pointer-events:none; }
+.duel-score-hud>div { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.duel-score-hud strong { font-size:23px; font-variant-numeric:tabular-nums; }
+.duel-score-hud small { display:block; margin-top:2px; color:rgba(255,255,255,.75); }
+.duel-score-hud.hidden { display:none; }
+.duel-result-score { display:flex; justify-content:center; align-items:center; gap:18px; margin:20px 0; font-size:34px; font-variant-numeric:tabular-nums; }
+.duel-result-score strong { min-width:52px; padding:8px; border-radius:10px; background:rgba(255,255,255,.08); }
+@media(max-width:520px){.duel-panel{padding:16px}.duel-room-card{align-items:flex-start}.duel-score-hud{top:58px;min-width:170px;padding:7px 12px}}

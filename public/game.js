@@ -3017,6 +3017,10 @@ socket.on("joined", ({ player }) => {
   document.getElementById("modeScreen")?.classList.add("hidden");
   document.getElementById("areaQueuePanel")?.classList.add("hidden");
   document.getElementById("areaResultPanel")?.classList.add("hidden");
+  showDuelScreen(null);
+  document.getElementById("duelResultScreen")?.classList.add("hidden");
+  document.getElementById("duelScoreHud")?.classList.toggle("hidden", selectedGameMode !== "Duel");
+  if(selectedGameMode==="Duel"){const label=document.getElementById("duelRoundLabel");if(label)label.textContent="先取 "+duelCurrentFirstTo+" 本";}
   document.getElementById("hud").classList.remove("hidden");
   document.getElementById("touchUi").classList.remove("hidden");
   document.getElementById("settingsButton")?.classList.remove("hidden");
@@ -3143,7 +3147,8 @@ socket.on("connect", () => {
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       skin: window.getPlayerSkinData?.(),
-      mode: selectedGameMode === "Training" ? "Training" : "free-for-all"
+      mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
+      ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
     if (selectedGameMode === "Area") {
       document.getElementById("modeScreen")?.classList.add("hidden");
@@ -3319,7 +3324,45 @@ document.getElementById("freeForAllModeButton")?.addEventListener("click", () =>
   });
 });
 
-document.getElementById("areaModeButton")?.addEventListener("click", () => {
+let duelRoomCreating = false, duelChangingRules = false, duelSelectedRoomId = null, duelCurrentFirstTo = 3;
+const duelRoomScreen=document.getElementById("duelRoomScreen"), duelRulesScreen=document.getElementById("duelRulesScreen"), duelWaitScreen=document.getElementById("duelWaitScreen");
+const duelRoomList=document.getElementById("duelRoomList"), duelMapSelect=document.getElementById("duelMapSelect"), duelFirstToSelect=document.getElementById("duelFirstToSelect");
+function showDuelScreen(screen){[duelRoomScreen,duelRulesScreen,duelWaitScreen].forEach(n=>n?.classList.add("hidden"));if(screen)screen.classList.remove("hidden");}
+function renderDuelRooms(rooms=[]){
+ if(!duelRoomList)return;duelRoomList.replaceChildren();
+ if(!rooms.length){const p=document.createElement("p");p.textContent="現在、参加できる部屋はありません。";duelRoomList.append(p);return;}
+ rooms.forEach(room=>{const card=document.createElement("div");card.className="duel-room-card";const info=document.createElement("div"),title=document.createElement("strong"),details=document.createElement("span"),button=document.createElement("button");
+ title.textContent=(room.hostName||"プレイヤー")+" の部屋";details.textContent=(room.mapName||room.mapId)+" ・ "+room.firstTo+"本先取";info.append(title,details);button.type="button";button.textContent="参加";
+ button.addEventListener("click",()=>{duelSelectedRoomId=room.id;socket.emit("duel:joinRoom",{roomId:room.id});});card.append(info,button);duelRoomList.append(card);});
+}
+document.getElementById("duelModeButton")?.addEventListener("click",()=>{if(joined)return;document.getElementById("modeScreen")?.classList.add("hidden");showDuelScreen(duelRoomScreen);socket.emit("duel:listRooms");socket.emit("duel:getMaps");});
+document.getElementById("duelCreateRoomButton")?.addEventListener("click",()=>{duelRoomCreating=true;duelChangingRules=false;document.getElementById("duelRulesTitle").textContent="部屋のルール設定";document.getElementById("duelConfirmRulesButton").textContent="ルールを確定して部屋を作る";document.getElementById("duelRulesStatus").textContent="";showDuelScreen(duelRulesScreen);socket.emit("duel:getMaps");});
+document.getElementById("duelRefreshRoomsButton")?.addEventListener("click",()=>socket.emit("duel:listRooms"));
+document.getElementById("duelBackToModesButton")?.addEventListener("click",()=>{showDuelScreen(null);document.getElementById("modeScreen")?.classList.remove("hidden");});
+document.getElementById("duelCancelRulesButton")?.addEventListener("click",()=>showDuelScreen(duelRoomScreen));
+document.getElementById("duelCancelWaitButton")?.addEventListener("click",()=>socket.emit("duel:cancelRoom"));
+document.getElementById("duelConfirmRulesButton")?.addEventListener("click",()=>{
+ const mapId=duelMapSelect?.value, firstTo=Math.max(1,Math.min(10,Number(duelFirstToSelect?.value)||3));
+ if(!mapId){const el=document.getElementById("duelRulesStatus");if(el)el.textContent="マップを選択してください。";return;}
+ if(duelChangingRules){socket.emit("duel:updateRules",{roomId:duelSelectedRoomId,mapId,firstTo});document.getElementById("duelResultScreen")?.classList.remove("hidden");showDuelScreen(null);return;}
+ socket.emit("duel:createRoom",{mapId,firstTo,name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,skin:window.getPlayerSkinData?.()});
+});
+socket.on("duel:maps",(maps=[])=>{if(!duelMapSelect)return;const old=duelMapSelect.value;duelMapSelect.replaceChildren();maps.forEach(map=>{const o=document.createElement("option");o.value=map.id;o.textContent=map.name;duelMapSelect.append(o);});if(maps.some(m=>m.id===old))duelMapSelect.value=old;});
+socket.on("duel:rooms",renderDuelRooms);
+socket.on("duel:roomCreated",({room}={})=>{duelSelectedRoomId=room?.id||null;duelCurrentFirstTo=room?.firstTo||3;showDuelScreen(duelWaitScreen);const el=document.getElementById("duelWaitSummary");if(el&&room)el.textContent=(room.mapName||room.mapId)+" ・ "+room.firstTo+"本先取。参加者が入室するまで待機しています。";});
+socket.on("duel:error",({message}={})=>{const el=document.getElementById("duelRulesStatus");if(el)el.textContent=message||"部屋の処理に失敗しました。";if(duelRulesScreen?.classList.contains("hidden")){showDuelScreen(duelRoomScreen);if(duelRoomList){const p=document.createElement("p");p.textContent=message||"部屋の処理に失敗しました。";duelRoomList.prepend(p);}}});
+socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
+function updateDuelScore(data={}){duelCurrentFirstTo=data.firstTo||duelCurrentFirstTo;const my=document.getElementById("duelMyScore"),op=document.getElementById("duelOpponentScore"),name=document.getElementById("duelOpponentName"),label=document.getElementById("duelRoundLabel");if(my)my.textContent=String(data.myScore??0);if(op)op.textContent=String(data.opponentScore??0);if(name)name.textContent=data.opponentName||"対戦相手";if(label)label.textContent="先取 "+duelCurrentFirstTo+" 本";}
+socket.on("duel:score",data=>{updateDuelScore(data);showMessage("ラウンド取得！");});
+socket.on("duel:matchEnd",data=>{updateDuelScore(data);document.getElementById("duelResultMyScore").textContent=String(data.myScore??0);document.getElementById("duelResultOpponentScore").textContent=String(data.opponentScore??0);document.getElementById("duelResultTitle").textContent=data.winnerId===myId?"勝利":"敗北";document.getElementById("duelResultSummary").textContent=(data.opponentName||"対戦相手")+" とのタイマンが終了しました。";document.getElementById("duelRematchStatus").textContent="";document.getElementById("duelRematchReadyButton").classList.add("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
+document.getElementById("duelRematchSameButton")?.addEventListener("click",()=>{socket.emit("duel:rematchReady",{roomId:duelSelectedRoomId});document.getElementById("duelRematchStatus").textContent="相手のOKを待っています…";});
+document.getElementById("duelRematchChangeButton")?.addEventListener("click",()=>{duelChangingRules=true;socket.emit("duel:requestRuleChange",{roomId:duelSelectedRoomId});});
+socket.on("duel:ruleChangeAllowed",({host}={})=>{if(!host){document.getElementById("duelRematchStatus").textContent="部屋の作成者がルールを変更しています。";return;}document.getElementById("duelRulesTitle").textContent="再戦ルールの変更";document.getElementById("duelConfirmRulesButton").textContent="ルールを更新する";document.getElementById("duelFirstToSelect").value=String(duelCurrentFirstTo);document.getElementById("duelRulesStatus").textContent="";document.getElementById("duelResultScreen").classList.add("hidden");showDuelScreen(duelRulesScreen);socket.emit("duel:getMaps");});
+socket.on("duel:rulesChanged",({mapName,firstTo}={})=>{duelCurrentFirstTo=firstTo||duelCurrentFirstTo;document.getElementById("duelRematchStatus").textContent="ルール変更済み（"+(mapName||"マップ")+"・"+duelCurrentFirstTo+"本先取）。両者がOKを押すと再戦します。";document.getElementById("duelRematchReadyButton").classList.remove("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
+document.getElementById("duelRematchReadyButton")?.addEventListener("click",()=>{socket.emit("duel:rematchReady",{roomId:duelSelectedRoomId});document.getElementById("duelRematchReadyButton").disabled=true;document.getElementById("duelRematchStatus").textContent="相手のOKを待っています…";});
+socket.on("duel:rematchStarted",({firstTo}={})=>{duelCurrentFirstTo=firstTo||duelCurrentFirstTo;document.getElementById("duelResultScreen")?.classList.add("hidden");document.getElementById("duelRematchReadyButton").disabled=false;document.getElementById("duelRematchReadyButton").classList.add("hidden");updateDuelScore({myScore:0,opponentScore:0,firstTo:duelCurrentFirstTo});document.getElementById("duelScoreHud")?.classList.remove("hidden");});
+document.getElementById("duelQuitButton")?.addEventListener("click",()=>{socket.emit("leaveMatch");document.getElementById("duelResultScreen")?.classList.add("hidden");document.getElementById("duelScoreHud")?.classList.add("hidden");duelSelectedRoomId=null;selectedGameMode="Melee";});
+document.getElementById("areaModeButton")?.addEventListener("click",()=>{
   if (joined) return;
   const name = savePlayerName();
   selectedGameMode = "Area";
