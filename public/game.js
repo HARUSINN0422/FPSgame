@@ -2304,7 +2304,7 @@ function reload() {
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネードランチャー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -2542,7 +2542,7 @@ function triggerHitFlash() {
   el.classList.add("active");
 }
 
-function addDamageNumber(damage, zone) {
+function addDamageNumber(damage, zone, x, y, z) {
   const container = document.getElementById("damageNumbers");
   if (!container) return;
 
@@ -2550,9 +2550,21 @@ function addDamageNumber(damage, zone) {
   el.className = "damage-number" + (zone === "head" ? " head critical" : "");
   el.textContent = String(Math.max(1, Math.round(damage)));
 
-  // 敵の正確な位置はUIに残さず、画面中央付近から数字を出す。
-  el.style.left = (50 + (Math.random() - 0.5) * 10) + "%";
-  el.style.top = (44 + (Math.random() - 0.5) * 8) + "%";
+  // 被弾したプレイヤーのワールド座標を画面座標へ変換し、その周辺に表示する。
+  const hasPosition = [x, y, z].every(value => Number.isFinite(Number(value)));
+  if (hasPosition) {
+    const projected = new THREE.Vector3(Number(x), Number(y), Number(z)).project(camera);
+    if (projected.z >= -1 && projected.z <= 1) {
+      el.style.left = ((projected.x * 0.5 + 0.5) * innerWidth + (Math.random() - 0.5) * 18) + "px";
+      el.style.top = ((-projected.y * 0.5 + 0.5) * innerHeight + (Math.random() - 0.5) * 14) + "px";
+    } else {
+      el.style.left = "50%";
+      el.style.top = "44%";
+    }
+  } else {
+    el.style.left = "50%";
+    el.style.top = "44%";
+  }
 
   container.appendChild(el);
   setTimeout(() => el.remove(), 700);
@@ -3043,7 +3055,7 @@ socket.on("smokeState", ({ projectiles = [], clouds = [] } = {}) => {
 });
 
 socket.on("damageDealt", (event) => {
-  addDamageNumber(event.damage, event.zone);
+  addDamageNumber(event.damage, event.zone, event.x, event.y, event.z);
 });
 
 socket.on("damageTaken", () => {
