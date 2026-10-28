@@ -206,7 +206,7 @@ const WEAPONS = {
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
   grenadeLauncher: {
-    name: "Grenade Launcher", damage: 60, fireInterval: 900, range: 0, spread: 0,
+    name: "Grenade", damage: 60, fireInterval: 900, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 0, magazineSize: 6, reloadTime: 1700, automatic: false
   },
   marksman: {
@@ -227,7 +227,7 @@ const WEAPONS = {
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネードランチャー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -2791,6 +2791,14 @@ setInterval(() => {
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
+          broadcastGameEvent(p, "elimination", {
+            killerId: null,
+            killerName: "燃える床",
+            victimId: p.id,
+            victimName: p.name,
+            killerKills: null,
+            zone: "environment"
+          });
         }
       } else if (!onFireFloorGround) {
         p.fireFloorDamageAt = 0;
