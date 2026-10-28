@@ -1526,7 +1526,7 @@ function createGrenadeProjectileVisual(data) {
   const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
   if (!mesh) {
     const material = new THREE.MeshStandardMaterial({ color: 0x8b7a43, roughness: 0.5, metalness: 0.25 });
-    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), material);
+    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), material);
     mesh.userData.targetPosition = position.clone();
     mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 4500);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.024, 5, 14), new THREE.MeshStandardMaterial({ color: 0x2d2b22, roughness: 0.72 }));
@@ -2590,7 +2590,7 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
-  if (event.weapon === "pickaxe" || event.weapon === "smoke") {
+  if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     return;
   }
