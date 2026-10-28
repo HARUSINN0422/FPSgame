@@ -439,7 +439,7 @@ app.post("/api/admin/weapons", adminAuth, (req, res) => {
     for (const key of numericKeys) {
       if (source[key] === undefined || source[key] === "") { if (key === "pellets") delete item[key]; continue; }
       const value = Number(source[key]);
-      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (id === "smoke" ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
+      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (["smoke", "bow"].includes(id) ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
         return res.status(400).json({ error: id + " の " + key + " が不正です" });
       }
       item[key] = value;
