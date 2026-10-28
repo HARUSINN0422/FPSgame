@@ -222,12 +222,13 @@ const WEAPONS = {
     name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
     reloadTime: 1900, automatic: false
-  }
+  },
+  bow: { name: "Bow", damage: 95, fireInterval: 1, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false }
 };
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -238,7 +239,8 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   shotgun: "単発 / 8発の散弾（胴体全弾命中で80ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
-  sniper: "高威力 / 装弾数3発・連射は遅い"
+  sniper: "高威力 / 装弾数3発・連射は遅い",
+  bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜95ダメージ / リロード不要"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -1504,6 +1506,7 @@ function movePlayer(p, dt) {
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
   let moveSpeed = baseMoveSpeed * (isOnFloorTile(p, "slime") ? 0.5 : 1);
+  if (p.weapon === "bow" && p.bowChargeStartedAt) moveSpeed *= 0.5;
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
   } else if (p.damageSlowUntil > now) {
@@ -1723,7 +1726,7 @@ function startReload(p) {
   return true;
 }
 
-function fireShot(shooter, sniperScoped = false) {
+function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   const weapon = WEAPONS[shooter.weapon];
   const now = Date.now();
 
@@ -1740,13 +1743,15 @@ function fireShot(shooter, sniperScoped = false) {
     return;
   }
 
-  if (!weapon.melee && shooter.ammo <= 0) {
+  if (shooter.weapon === "bow") {
+    bowCharge = clamp(Number(bowCharge) || 0, 0, 1);
+  } else if (!weapon.melee && shooter.ammo <= 0) {
     startReload(shooter);
     return;
   }
 
   shooter.lastFire = now;
-  if (!weapon.melee) {
+  if (!weapon.melee && shooter.weapon !== "bow") {
     shooter.ammo -= 1;
     if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
   }
@@ -1841,7 +1846,8 @@ function fireShot(shooter, sniperScoped = false) {
     if (!bestHit) continue;
 
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
-    const damage = weapon.damage * bestHit.multiplier * distanceMultiplier;
+    const baseShotDamage = shooter.weapon === "bow" ? 5 + 90 * bowCharge : weapon.damage;
+    const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
     bestHit.target.health -= damage;
 
     const existing = damageByTarget.get(bestHit.target.id);
@@ -2569,8 +2575,22 @@ io.on("connection", (socket) => {
 
   socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished) return;
+    if (!p || p.health <= 0 || p.finished || p.weapon === "bow") return;
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
+  });
+
+  socket.on("bowChargeStart", () => {
+    const p = players.get(socket.id);
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.invulnerableUntil > Date.now()) return;
+    if (!p.bowChargeStartedAt) p.bowChargeStartedAt = Date.now();
+  });
+
+  socket.on("bowRelease", () => {
+    const p = players.get(socket.id);
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || !p.bowChargeStartedAt) return;
+    const startedAt = p.bowChargeStartedAt;
+    p.bowChargeStartedAt = 0;
+    fireShot(p, false, clamp((Date.now() - startedAt) / 1500, 0, 1));
   });
 
   socket.on("requestSmokeState", () => {
@@ -2630,6 +2650,7 @@ io.on("connection", (socket) => {
     if (!p || p.finished) return;
     const nextWeapon = sanitizeWeapon(weapon);
     if (p.weapon === nextWeapon) return;
+    p.bowChargeStartedAt = 0;
     if (!Array.isArray(p.weaponSlots)) p.weaponSlots = [p.weapon, nextWeapon];
     p.weaponSlots[p.activeWeaponSlot || 0] = nextWeapon;
     p.weapon = nextWeapon;
@@ -2647,6 +2668,7 @@ io.on("connection", (socket) => {
     if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
     if (nextSlot === p.activeWeaponSlot && nextWeapon === p.weapon) return;
+    p.bowChargeStartedAt = 0;
     if (!Array.isArray(p.weaponAmmo)) p.weaponAmmo = [WEAPONS[p.weaponSlots[0]].magazineSize, WEAPONS[p.weaponSlots[1] || p.weaponSlots[0]].magazineSize];
     p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.activeWeaponSlot = nextSlot;
