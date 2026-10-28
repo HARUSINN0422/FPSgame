@@ -3132,30 +3132,24 @@ document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEve
   loadoutSlotToEdit = Number(button.dataset.loadoutSlot) === 1 ? 1 : 0;
   updateLoadoutSelectionUi();
 }));
-function selectLoadoutWeapon(button) {
-  if (joined || !button?.dataset?.weapon) return;
-  const weapon = button.dataset.weapon;
-  if (loadoutSlotToEdit === 0) {
-    if (weapon === selectedSecondaryWeapon) selectedSecondaryWeapon = selectedPrimaryWeapon;
-    selectedPrimaryWeapon = weapon;
-  } else {
-    if (weapon === selectedPrimaryWeapon) {
-      showMessage("1個目と2個目は別の武器を選んでください");
-      return;
+for (const button of document.querySelectorAll(".weapon-card")) {
+  button.addEventListener("click", () => {
+    if (joined) return;
+    const weapon = button.dataset.weapon;
+    if (!weapon) return;
+    if (loadoutSlotToEdit === 0) {
+      if (weapon === selectedSecondaryWeapon) selectedSecondaryWeapon = selectedPrimaryWeapon;
+      selectedPrimaryWeapon = weapon;
+    } else {
+      if (weapon === selectedPrimaryWeapon) {
+        showMessage("1個目と2個目は別の武器を選んでください");
+        return;
+      }
+      selectedSecondaryWeapon = weapon;
     }
-    selectedSecondaryWeapon = weapon;
-  }
-  updateLoadoutSelectionUi();
+    updateLoadoutSelectionUi();
+  });
 }
-
-// Pointer events respond consistently to mouse, touch, and pen. Delegation also
-// keeps selection working if weapon cards are rebuilt or updated later.
-document.getElementById("weaponScreen")?.addEventListener("pointerup", (event) => {
-  const button = event.target.closest?.(".weapon-card[data-weapon]");
-  if (!button || !event.currentTarget.contains(button)) return;
-  event.preventDefault();
-  selectLoadoutWeapon(button);
-});
 document.getElementById("confirmLoadoutButton")?.addEventListener("click", () => {
   if (joined) return;
   if (selectedPrimaryWeapon === selectedSecondaryWeapon) { showMessage("1個目と2個目に別の武器を選んでください"); return; }
