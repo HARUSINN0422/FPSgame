@@ -223,7 +223,7 @@ const WEAPONS = {
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
     reloadTime: 1900, automatic: false
   },
-  bow: { name: "Bow", damage: 95, fireInterval: 1, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false }
+  bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false }
 };
 
 const WEAPON_LABELS = {
@@ -240,7 +240,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
-  bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜95ダメージ / リロード不要"
+  bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -1846,7 +1846,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     if (!bestHit) continue;
 
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
-    const baseShotDamage = shooter.weapon === "bow" ? 5 + 90 * bowCharge : weapon.damage;
+    const baseShotDamage = shooter.weapon === "bow" ? 5 + 105 * bowCharge : weapon.damage;
     const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
     bestHit.target.health -= damage;
 
