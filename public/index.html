@@ -253,6 +253,10 @@
           <strong>スナイパーライフル</strong>
           <span>高威力 / 装弾数3発・連射は遅い</span>
         </button>
+        <button class="weapon-card" data-weapon="bow">
+          <strong>弓</strong>
+          <span>長押しで引く / 1.5秒で最大チャージ / 胴体5〜95ダメージ / リロード不要</span>
+        </button>
       </div>
       <button id="confirmLoadoutButton" class="start-game-button" type="button">この武器構成に決定</button>
     </div>
@@ -348,6 +352,7 @@
       <span>MAP</span>
     </div>
     <div id="crosshair">+</div>
+    <div id="bowChargeHud" class="hidden" role="progressbar" aria-label="弓のチャージ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span>弓のチャージ</span><div class="bow-charge-track"><div id="bowChargeFill"></div></div></div>
     <div id="scopeOverlay" class="hidden" aria-hidden="true"></div>
     <div id="ammoHud">
       <span id="weaponName">ハンドガン · 1/2</span>
@@ -476,6 +481,6 @@
   }
   </script>
   <script type="module" src="skin-editor.js?v=skin-png-import-export-1"></script>
-  <script type="module" src="game.js?v=smoke-name-visibility-1"></script>
+  <script type="module" src="game.js?v=bow-charge-1"></script>
 </body>
 </html>
