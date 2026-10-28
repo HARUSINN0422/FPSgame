@@ -815,7 +815,7 @@ function broadcastGameEvent(referencePlayer, eventName, payload) {
 function resolveDuelRound(winner, loser) {
   if (!loser || loser.mode !== "Duel" || !loser.duelRoomId) return;
   const room = duelRooms.get(loser.duelRoomId);
-  if (!room || room.status === "ended" || room.roundResolved) return;
+  if (!room || room.status !== "playing" || room.roundResolved) return;
   const opponent = room.playerIds.map(id=>players.get(id)).find(p=>p&&p.id!==loser.id);
   const actualWinner = winner && winner.id !== loser.id ? winner : opponent;
   if (!actualWinner || !opponent) return;
@@ -828,7 +828,7 @@ function resolveDuelRound(winner, loser) {
     p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
     p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;
   }
-  if(ended)room.status="ended";
+  room.status = ended ? "ended" : "playing";
   for(const id of room.playerIds){const p=players.get(id);if(!p)continue;const other=players.get(room.playerIds.find(pid=>pid!==id));io.to(id).emit(ended?"duel:matchEnd":"duel:score",{roomId:room.id,firstTo:room.firstTo,myScore:room.scores[id]||0,opponentScore:room.scores[other?.id]||0,opponentName:other?.name||"対戦相手",winnerId:actualWinner.id,matchEnded:ended});}
   if(!ended)setTimeout(()=>{room.roundResolved=false;},1800);
   broadcastPlayers();
@@ -2598,6 +2598,10 @@ io.on("connection", (socket) => {
       fireFloorDamageAt: 0
     });
 
+    if (requestedMode === "Duel" && duelRoom.playerIds.every((id) => players.has(id))) {
+      duelRoom.status = "playing";
+      duelRoom.roundResolved = false;
+    }
     if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
     else if (requestedMode !== "Wander") syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
