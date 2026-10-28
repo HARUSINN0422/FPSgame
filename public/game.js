@@ -2962,9 +2962,18 @@ socket.on("returnedToLobby", () => {
   myState = null;
   stopAllControls();
   setScopeEnabled(false);
-  for (const id of ["weaponScreen", "modeScreen", "areaQueuePanel", "areaResultPanel", "hud", "touchUi", "settingsPanel"]) {
+  for (const id of [
+    "weaponScreen", "modeScreen", "areaQueuePanel", "areaResultPanel", "hud", "touchUi",
+    "settingsPanel", "duelResultScreen", "duelScoreHud"
+  ]) {
     document.getElementById(id)?.classList.add("hidden");
   }
+  showDuelScreen(null);
+  duelSelectedRoomId = null;
+  duelChangingRules = false;
+  duelRoomCreating = false;
+  document.getElementById("duelRematchReadyButton")?.classList.add("hidden");
+  document.getElementById("duelRematchReadyButton")?.removeAttribute("disabled");
   document.getElementById("areaHud")?.classList.add("hidden");
   document.getElementById("settingsButton")?.classList.add("hidden");
   document.getElementById("weaponScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "weaponScreen");
@@ -3361,7 +3370,19 @@ socket.on("duel:ruleChangeAllowed",({host}={})=>{if(!host){document.getElementBy
 socket.on("duel:rulesChanged",({mapName,firstTo}={})=>{duelCurrentFirstTo=firstTo||duelCurrentFirstTo;document.getElementById("duelRematchStatus").textContent="ルール変更済み（"+(mapName||"マップ")+"・"+duelCurrentFirstTo+"本先取）。両者がOKを押すと再戦します。";document.getElementById("duelRematchReadyButton").classList.remove("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
 document.getElementById("duelRematchReadyButton")?.addEventListener("click",()=>{socket.emit("duel:rematchReady",{roomId:duelSelectedRoomId});document.getElementById("duelRematchReadyButton").disabled=true;document.getElementById("duelRematchStatus").textContent="相手のOKを待っています…";});
 socket.on("duel:rematchStarted",({firstTo}={})=>{duelCurrentFirstTo=firstTo||duelCurrentFirstTo;document.getElementById("duelResultScreen")?.classList.add("hidden");document.getElementById("duelRematchReadyButton").disabled=false;document.getElementById("duelRematchReadyButton").classList.add("hidden");updateDuelScore({myScore:0,opponentScore:0,firstTo:duelCurrentFirstTo});document.getElementById("duelScoreHud")?.classList.remove("hidden");});
-document.getElementById("duelQuitButton")?.addEventListener("click",()=>{socket.emit("leaveMatch");document.getElementById("duelResultScreen")?.classList.add("hidden");document.getElementById("duelScoreHud")?.classList.add("hidden");duelSelectedRoomId=null;selectedGameMode="Melee";});
+document.getElementById("duelQuitButton")?.addEventListener("click",()=>{
+  const button=document.getElementById("duelQuitButton");
+  if(button) button.disabled=true;
+  lobbyScreenAfterLeave="modeScreen";
+  stopAllControls();
+  document.getElementById("duelResultScreen")?.classList.add("hidden");
+  document.getElementById("duelScoreHud")?.classList.add("hidden");
+  showDuelScreen(null);
+  socket.emit("leaveMatch");
+  // サーバー応答が届かない場合も画面操作を塞いだままにしない。
+  setTimeout(()=>{if(!joined)return;if(button)button.disabled=false;},3000);
+  selectedGameMode="Melee";
+});
 document.getElementById("areaModeButton")?.addEventListener("click",()=>{
   if (joined) return;
   const name = savePlayerName();
