@@ -96,6 +96,8 @@ scene.add(worldGroup);
 const remotePlayers = new Map();
 const tracers = [];
 const smokeProjectileMeshes = new Map();
+const grenadeProjectileMeshes = new Map();
+const grenadeExplosionMeshes = new Map();
 const smokeCloudMeshes = new Map();
 let localWeaponViewModel = null;
 let localWeaponViewModelType = "";
@@ -170,6 +172,7 @@ let pointerLocked = false;
 const weaponConfig = {
   pickaxe: { fireInterval: 650, automatic: false, melee: true },
   smoke: { fireInterval: 1300, automatic: false },
+  grenadeLauncher: { fireInterval: 900, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
@@ -1391,8 +1394,8 @@ function createWeaponMesh(weapon) {
     return group;
   }
 
-  if (weapon === "smoke") {
-    const grenadeMaterial = new THREE.MeshStandardMaterial({ color: 0x67716e, roughness: 0.62, metalness: 0.18 });
+  if (weapon === "smoke" || weapon === "grenadeLauncher") {
+    const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
     group.add(body);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.025, 6, 16), new THREE.MeshStandardMaterial({ color: 0x292f2d, roughness: 0.7 }));
@@ -1449,7 +1452,7 @@ function createWeaponMesh(weapon) {
 }
 
 function refreshLocalWeaponViewModel() {
-  const shouldShow = joined && ["pickaxe", "smoke"].includes(selectedWeapon);
+  const shouldShow = joined && ["pickaxe", "smoke", "grenadeLauncher"].includes(selectedWeapon);
   if (!shouldShow) {
     if (localWeaponViewModel) camera.remove(localWeaponViewModel);
     localWeaponViewModel = null;
@@ -1467,7 +1470,7 @@ function refreshLocalWeaponViewModel() {
 }
 
 function startLocalWeaponAction(weapon) {
-  if (!["pickaxe", "smoke"].includes(weapon)) return;
+  if (!["pickaxe", "smoke", "grenadeLauncher"].includes(weapon)) return;
   localWeaponActionType = weapon;
   localWeaponActionStartedAt = performance.now();
 }
@@ -1487,7 +1490,7 @@ function animateLocalWeaponViewModel(now) {
     localWeaponViewModel.rotation.x = 0.16 + angle * 0.64;
     localWeaponViewModel.rotation.z = -0.28 - angle * 0.46;
     localWeaponViewModel.position.y = -0.34 - Math.max(0, angle) * 0.035;
-  } else if (localWeaponActionType === "smoke" && elapsed >= 0 && elapsed < 0.26) {
+  } else if (["smoke", "grenadeLauncher"].includes(localWeaponActionType) && elapsed >= 0 && elapsed < 0.26) {
     const progress = elapsed / 0.26;
     localWeaponViewModel.position.set(0.38 + 0.12 * progress, -0.34 + 0.07 * Math.sin(progress * Math.PI), -0.62 - 0.1 * progress);
     localWeaponViewModel.rotation.z = -0.28 - progress * 0.48;
@@ -1514,6 +1517,53 @@ function createSmokeProjectileVisual(data) {
     smokeProjectileMeshes.set(data.id, mesh);
   } else {
     mesh.userData.targetPosition.copy(position);
+  }
+}
+
+function createGrenadeProjectileVisual(data) {
+  if (!data?.id) return;
+  let mesh = grenadeProjectileMeshes.get(data.id);
+  const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
+  if (!mesh) {
+    const material = new THREE.MeshStandardMaterial({ color: 0x8b7a43, roughness: 0.5, metalness: 0.25);
+    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), material);
+    mesh.userData.targetPosition = position.clone();
+    mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 4500);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.024, 5, 14), new THREE.MeshStandardMaterial({ color: 0x2d2b22, roughness: 0.72 }));
+    band.rotation.x = Math.PI / 2;
+    mesh.add(band);
+    mesh.position.copy(position);
+    scene.add(mesh);
+    grenadeProjectileMeshes.set(data.id, mesh);
+  } else mesh.userData.targetPosition.copy(position);
+}
+function removeGrenadeProjectileVisual(id) {
+  const mesh = grenadeProjectileMeshes.get(id);
+  if (!mesh) return;
+  scene.remove(mesh);
+  mesh.traverse(part => {
+    if (part.material) (Array.isArray(part.material) ? part.material : [part.material]).forEach(m => m?.dispose?.());
+    if (part.geometry && part !== mesh) part.geometry.dispose();
+  });
+  mesh.geometry?.dispose();
+  mesh.material?.dispose();
+  grenadeProjectileMeshes.delete(id);
+}
+function createGrenadeExplosionVisual(data) {
+  if (!data?.id) return;
+  const geometry = new THREE.SphereGeometry(Math.max(0.1, Number(data.radius) || 5.2), 18, 12);
+  const material = new THREE.MeshBasicMaterial({ color: 0xffa23a, transparent: true, opacity: 0.38, wireframe: true, depthWrite: false });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
+  mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + 420;
+  mesh.userData.maxScale = 1;
+  scene.add(mesh);
+  grenadeExplosionMeshes.set(data.id, mesh);
+}
+function resetGrenadeVisuals() {
+  for (const id of [...grenadeProjectileMeshes.keys()]) removeGrenadeProjectileVisual(id);
+  for (const [id, mesh] of [...grenadeExplosionMeshes]) {
+    scene.remove(mesh); mesh.geometry?.dispose(); mesh.material?.dispose(); grenadeExplosionMeshes.delete(id);
   }
 }
 
@@ -1598,6 +1648,17 @@ function startRemoteWeaponAction(event) {
 
 function updateSmokeVisuals(now, dt) {
   animateLocalWeaponViewModel(now);
+  for (const [id, mesh] of [...grenadeProjectileMeshes]) {
+    if (Date.now() >= Number(mesh.userData.expiresAt || Infinity)) { removeGrenadeProjectileVisual(id); continue; }
+    if (mesh.userData.targetPosition) mesh.position.lerp(mesh.userData.targetPosition, 1 - Math.exp(-24 * dt));
+  }
+  for (const [id, mesh] of [...grenadeExplosionMeshes]) {
+    const remaining = Number(mesh.userData.expiresAt || 0) - Date.now();
+    if (remaining <= 0) { scene.remove(mesh); mesh.geometry?.dispose(); mesh.material?.dispose(); grenadeExplosionMeshes.delete(id); continue; }
+    mesh.material.opacity = Math.min(0.38, remaining / 420 * 0.38);
+    const scale = 1 + (1 - remaining / 420) * 0.15;
+    mesh.scale.setScalar(scale);
+  }
   for (const [id, mesh] of [...smokeProjectileMeshes]) {
     if (Date.now() >= Number(mesh.userData.expiresAt || Infinity)) {
       removeSmokeProjectileVisual(id);
@@ -2232,7 +2293,7 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
-  if (selectedWeapon === "pickaxe" || selectedWeapon === "smoke") startLocalWeaponAction(selectedWeapon);
+  if (["pickaxe", "smoke", "grenadeLauncher"].includes(selectedWeapon)) startLocalWeaponAction(selectedWeapon);
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
@@ -2243,7 +2304,7 @@ function reload() {
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネードランチャー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -2252,6 +2313,7 @@ function updateWeaponReticle() {
   const reticles = {
     pickaxe: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
+    grenadeLauncher: ["weapon-grenade", "◎"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
@@ -2260,7 +2322,7 @@ function updateWeaponReticle() {
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-pickaxe", "weapon-smoke", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
   updatePickaxeReticleBounds();
@@ -2868,6 +2930,7 @@ window.applyPlayerSkinToServer = (skinDataUrl) => {
 socket.on("joined", ({ player }) => {
   joined = true;
   socket.emit("requestSmokeState");
+  socket.emit("requestGrenadeState");
   wasJoinedBeforeDisconnect = true;
   reconnecting = false;
   selectedGameMode = player.mode || "Melee";
@@ -2963,6 +3026,14 @@ socket.on("shot", createTracer);
 socket.on("smokeProjectileSpawn", createSmokeProjectileVisual);
 socket.on("smokeProjectileUpdate", (data) => createSmokeProjectileVisual(data));
 socket.on("smokeProjectileRemove", ({ id }) => removeSmokeProjectileVisual(id));
+socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
+socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
+socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
+socket.on("grenadeExplosion", createGrenadeExplosionVisual);
+socket.on("grenadeState", (projectiles = []) => {
+  resetGrenadeVisuals();
+  for (const projectile of projectiles) createGrenadeProjectileVisual(projectile);
+});
 socket.on("smokeCloudSpawn", createSmokeCloudVisual);
 socket.on("smokeCloudRemove", ({ id }) => removeSmokeCloudVisual(id));
 socket.on("smokeState", ({ projectiles = [], clouds = [] } = {}) => {
