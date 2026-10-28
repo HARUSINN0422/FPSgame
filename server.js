@@ -876,6 +876,7 @@ function spawnSmokeProjectile(shooter, now = Date.now()) {
 function spawnGrenadeProjectile(shooter, now = Date.now()) {
   const direction = directionFromAngles(shooter.yaw, shooter.pitch);
   const speed = 14;
+  const horizontalSpeed = speed * 1.5;
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const origin = {
     x: shooter.x + direction.x * 0.62,
@@ -886,7 +887,8 @@ function spawnGrenadeProjectile(shooter, now = Date.now()) {
   const projectile = {
     id, owner: shooter, ownerId: shooter.id,
     x: origin.x, y: origin.y, z: origin.z,
-    vx: direction.x * speed, vy: direction.y * speed + 4.5, vz: direction.z * speed,
+    startX: origin.x, startY: origin.y, startZ: origin.z,
+    vx: direction.x * horizontalSpeed, vy: direction.y * speed + 4.5, vz: direction.z * horizontalSpeed,
     expiresAt: now + 4500
   };
   grenadeProjectiles.set(id, projectile);
@@ -904,9 +906,9 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 420
   });
   for (const target of players.values()) {
-    if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+    if (target.health <= 0 || target.finished ||
         !isSameGame(projectile.owner, target)) continue;
-    if (projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
+    if (target.id !== projectile.ownerId && projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
     if (projectile.owner.mode === AREA_MODE && target.team === projectile.owner.team) continue;
     if (target.invulnerableUntil > now) continue;
     const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
@@ -914,8 +916,8 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     const dy = target.y + targetHeight * 0.5 - position.y;
     const dz = target.z - position.z;
     const distance = Math.hypot(dx, dy, dz);
-    if (distance >= radius) continue;
-    const damage = Math.round(60 * (1 - distance / radius));
+    if (distance > radius) continue;
+    const damage = Math.round(20 + 40 * (1 - distance / radius));
     if (damage <= 0) continue;
     target.health = Math.max(0, target.health - damage);
     target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
@@ -992,8 +994,12 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
       }
 
       for (const target of players.values()) {
-        if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+        if (target.health <= 0 || target.finished ||
             !isSameGame(projectile.owner, target)) continue;
+        // 発射直後に自分の当たり判定へ触れて即爆発しないよう、少し進んでから自分との衝突も有効にする。
+        const isOwner = target.id === projectile.ownerId;
+        const traveled = Math.hypot(from.x - projectile.startX, from.y - projectile.startY, from.z - projectile.startZ);
+        if (isOwner && traveled < 1.4) continue;
         const hit = rayHitsPlayer(from, direction, target);
         if (hit && hit.t >= 0 && hit.t <= distance && (!nearestHit || hit.t < nearestHit.distance)) {
           nearestHit = { distance: hit.t };
