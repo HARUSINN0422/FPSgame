@@ -3965,9 +3965,44 @@ window.addEventListener("blur", () => {
 
 document.getElementById("ultimateButton")?.addEventListener("click", activateUltimate);
 
+function openUltimateMapPicker() {
+  const overlay = document.getElementById("ultimateMapPicker");
+  const canvas = document.getElementById("ultimateMapCanvas");
+  const ctx = canvas?.getContext("2d");
+  const bounds = worldData?.world;
+  if (!overlay || !canvas || !ctx || !bounds) { showMessage("マップ情報を読み込めません"); return; }
+  const w = canvas.width, h = canvas.height, pad = 24;
+  const scale = Math.min((w - pad * 2) / (bounds.maxX - bounds.minX), (h - pad * 2) / (bounds.maxZ - bounds.minZ));
+  const offsetX = (w - (bounds.maxX - bounds.minX) * scale) / 2;
+  const offsetZ = (h - (bounds.maxZ - bounds.minZ) * scale) / 2;
+  const drawX = x => offsetX + (x - bounds.minX) * scale;
+  const drawZ = z => offsetZ + (z - bounds.minZ) * scale;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = "#182432"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#657b70"; ctx.fillRect(offsetX, offsetZ, (bounds.maxX - bounds.minX) * scale, (bounds.maxZ - bounds.minZ) * scale);
+  for (const o of (worldData.obstacles || [])) { ctx.fillStyle = "#344252"; ctx.fillRect(drawX(o.x-o.w/2), drawZ(o.z-o.d/2), o.w*scale, o.d*scale); }
+  canvas.dataset.mapMinX = String(bounds.minX); canvas.dataset.mapMaxX = String(bounds.maxX);
+  canvas.dataset.mapMinZ = String(bounds.minZ); canvas.dataset.mapMaxZ = String(bounds.maxZ);
+  canvas.dataset.mapScale = String(scale); canvas.dataset.mapOffsetX = String(offsetX); canvas.dataset.mapOffsetZ = String(offsetZ);
+  overlay.classList.remove("hidden"); overlay.setAttribute("aria-hidden", "false");
+}
+document.getElementById("ultimateMapCancel")?.addEventListener("click", () => {
+  const overlay = document.getElementById("ultimateMapPicker"); overlay?.classList.add("hidden"); overlay?.setAttribute("aria-hidden", "true");
+});
+document.getElementById("ultimateMapCanvas")?.addEventListener("click", event => {
+  const canvas = event.currentTarget, rect = canvas.getBoundingClientRect();
+  const px = (event.clientX - rect.left) * canvas.width / rect.width;
+  const pz = (event.clientY - rect.top) * canvas.height / rect.height;
+  const scale = Number(canvas.dataset.mapScale); if (!scale) return;
+  const x = Number(canvas.dataset.mapMinX) + (px - Number(canvas.dataset.mapOffsetX)) / scale;
+  const z = Number(canvas.dataset.mapMinZ) + (pz - Number(canvas.dataset.mapOffsetZ)) / scale;
+  const minX=Number(canvas.dataset.mapMinX), maxX=Number(canvas.dataset.mapMaxX), minZ=Number(canvas.dataset.mapMinZ), maxZ=Number(canvas.dataset.mapMaxZ);
+  if (x <= minX || x >= maxX || z <= minZ || z >= maxZ) return;
+  socket.emit("ultimate", { x, z });
+  const overlay = document.getElementById("ultimateMapPicker"); overlay?.classList.add("hidden"); overlay?.setAttribute("aria-hidden", "true");
+});
 function activateUltimate() {
   if (!joined || !myState || Number(myState.ultimateCharge) < 100) return;
-  if (myState.ultimateType === "teleport") { showMessage("テレポート先を選択するマップUIは準備中です"); return; }
+  if (myState.ultimateType === "teleport") { openUltimateMapPicker(); return; }
   socket.emit("ultimate");
 }
 
