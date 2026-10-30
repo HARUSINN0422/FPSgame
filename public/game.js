@@ -111,6 +111,7 @@ let gamepadCrouchHeld = false;
 let gamepadSwitchHeld = false;
 let gamepadScopeHeld = false;
 let gamepadFireHeld = false;
+let gamepadUltimateHeld = false;
 let controllerRespawnRequested = false;
 const clock = new THREE.Clock();
 
@@ -131,6 +132,7 @@ let selectedPrimaryWeapon = "pistol";
 let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
 let selectedCharm = "none";
+let selectedUltimate = "skyfall";
 let scopeEnabled = false;
 const ATTACHMENT_WEAPONS = ["smg", "rifle", "marksman"];
 const attachmentSettings = (() => {
@@ -245,7 +247,7 @@ const DEFAULT_SETTINGS = {
   controllerAimAssistStrength: 10,
   aimAssistEnabled: false,
   aimAssistStrength: 0,
-  controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
+  controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, ultimate: 5, scope: 6, fire: 7 },
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
   autoRespawnEnabled: false,
@@ -253,7 +255,7 @@ const DEFAULT_SETTINGS = {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     lookUp: "ArrowUp", lookDown: "ArrowDown", lookRight: "ArrowRight", lookLeft: "ArrowLeft",
     jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
-    weapon1: "Digit1", weapon2: "Digit2", fire: "MouseLeft", scope: "MouseRight"
+    weapon1: "Digit1", weapon2: "Digit2", ultimate: "KeyF", fire: "MouseLeft", scope: "MouseRight"
   },
   layout: {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
@@ -263,6 +265,7 @@ const DEFAULT_SETTINGS = {
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
     inventoryButton: { x: 310, y: 230, side: "right", size: 88 },
+    ultimateButton: { x: 310, y: 320, side: "right", size: 76 },
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
@@ -320,6 +323,7 @@ function loadGameSettings() {
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
         switchWeaponButton: { ...DEFAULT_SETTINGS.layout.switchWeaponButton, ...(saved.layout?.switchWeaponButton || {}) },
         inventoryButton: { ...DEFAULT_SETTINGS.layout.inventoryButton, ...(saved.layout?.inventoryButton || {}) },
+        ultimateButton: { ...DEFAULT_SETTINGS.layout.ultimateButton, ...(saved.layout?.ultimateButton || {}) },
         scopeButton: { ...DEFAULT_SETTINGS.layout.scopeButton, ...(saved.layout?.scopeButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
@@ -348,6 +352,7 @@ function applyButtonLayout() {
     ["fireButton", gameSettings.layout.fireButton],
     ["switchWeaponButton", gameSettings.layout.switchWeaponButton],
     ["inventoryButton", gameSettings.layout.inventoryButton],
+    ["ultimateButton", gameSettings.layout.ultimateButton],
     ["scopeButton", gameSettings.layout.scopeButton]
   ];
 
@@ -469,6 +474,19 @@ function updateSettingsUi() {
     if (label) label.textContent = allowLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
 
+  const ultimateSizeSlider = document.getElementById("ultimateButtonSizeSlider");
+  ultimateSizeSlider?.addEventListener("input", () => {
+    gameSettings.layout.ultimateButton.size = Math.round(THREE.MathUtils.clamp(Number(ultimateSizeSlider.value) || 76, 48, 160));
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+
+  const ultimateSizeSliderUi = document.getElementById("ultimateButtonSizeSlider");
+  const ultimateSizeValueUi = document.getElementById("ultimateButtonSizeValue");
+  const ultimateSize = THREE.MathUtils.clamp(Number(gameSettings.layout.ultimateButton.size) || 76, 48, 160);
+  gameSettings.layout.ultimateButton.size = Math.round(ultimateSize);
+  if (ultimateSizeSliderUi) ultimateSizeSliderUi.value = String(ultimateSize);
+  if (ultimateSizeValueUi) ultimateSizeValueUi.textContent = Math.round(ultimateSize) + "px";
+
   const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
   const scopeSizeValue = document.getElementById("scopeButtonSizeValue");
   const scopeSize = THREE.MathUtils.clamp(Number(gameSettings.layout.scopeButton.size) || 68, 60, 180);
@@ -499,7 +517,7 @@ const KEY_BINDING_LABELS = {
   lookUp: "上を向く", lookDown: "下を向く", lookRight: "右を向く", lookLeft: "左を向く",
   jump: "ジャンプ", crouch: "しゃがむ", reload: "リロード",
   switchWeapon: "武器切替", weapon1: "武器スロット1", weapon2: "武器スロット2",
-  fire: "発射", scope: "スコープを覗く"
+  fire: "発射", scope: "スコープを覗く", ultimate: "アルティメット"
 };
 let pendingKeyBindingAction = null;
 
@@ -626,7 +644,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "ultimateButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -784,7 +802,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -2259,6 +2277,9 @@ function pollGamepad(now) {
   const switchPressed = Boolean(pad.buttons?.[buttonFor("switchWeapon")]?.pressed);
   const scopePressed = Boolean(pad.buttons?.[buttonFor("scope")]?.pressed);
   const firePressed = Boolean(pad.buttons?.[buttonFor("fire")]?.pressed);
+  const ultimatePressed = Boolean(pad.buttons?.[buttonFor("ultimate")]?.pressed);
+  if (ultimatePressed && !gamepadUltimateHeld) activateUltimate();
+  gamepadUltimateHeld = ultimatePressed;
 
   if (jumpPressed && !gamepadJumpHeld) {
     if (myState?.health <= 0) {
@@ -3137,6 +3158,7 @@ socket.on("joined", ({ player }) => {
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
   selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(player.charm) ? player.charm : "none";
+  selectedUltimate = ["skyfall", "teleport", "aegis"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
   myId = player.id;
@@ -3187,7 +3209,16 @@ socket.on("state", (players) => {
       healthFill.style.width = (hp / maxHp * 100) + "%";
       healthFill.style.background = hp > 60 ? "#55d66f" : hp > 30 ? "#e6c84a" : "#e55a5a";
     }
+    const shieldFill = document.getElementById("shieldBarFill");
+    if (shieldFill) shieldFill.style.width = Math.max(0, Math.min(100, Number(myState.shield) || 0)) + "%";
 
+    const ultimateButton = document.getElementById("ultimateButton");
+    if (ultimateButton) {
+      const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
+      ultimateButton.style.setProperty("--ultimate-progress", charge + "%");
+      ultimateButton.disabled = charge < 100 && !layoutEditing;
+      ultimateButton.textContent = charge >= 100 ? "ULT" : Math.floor(charge) + "%";
+    }
     document.getElementById("kills").textContent = String(myState.kills);
     document.getElementById("deaths").textContent = String(myState.deaths);
     updateAmmoHud();
@@ -3279,8 +3310,10 @@ socket.on("connect", () => {
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       charm: selectedCharm,
+      ultimateType: selectedUltimate,
       skin: window.getPlayerSkinData?.(),
       charm: selectedCharm,
+      ultimateType: selectedUltimate,
       mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
@@ -3328,21 +3361,30 @@ function updateLoadoutSelectionUi() {
     card.classList.toggle("selected-secondary", id === selectedSecondaryWeapon);
     card.classList.toggle("editing-slot", (loadoutSlotToEdit === 0 && id === selectedPrimaryWeapon) || (loadoutSlotToEdit === 1 && id === selectedSecondaryWeapon));
   });
-  document.querySelectorAll(".charm-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
+  document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
-  document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit === 2);
+  document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit >= 2);
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
+  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
   const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り" };
+  const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁" };
+  document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
+  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const charmName = charmNames[selectedCharm] || "未選択";
-  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
+  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + " ／ アルティメット：" + (ultimateNames[selectedUltimate] || "天墜") + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : loadoutSlotToEdit === 3 ? "アルティメット" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
 }
 document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEventListener("click", () => {
   const slot = Number(button.dataset.loadoutSlot);
-  loadoutSlotToEdit = slot === 1 || slot === 2 ? slot : 0;
+  loadoutSlotToEdit = slot >= 0 && slot <= 3 ? slot : 0;
   updateLoadoutSelectionUi();
 }));
-document.querySelectorAll(".charm-card").forEach(card => card.addEventListener("click", () => {
+document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListener("click", () => {
+  if (joined) return;
+  selectedUltimate = ["skyfall", "teleport", "aegis"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
+  updateLoadoutSelectionUi();
+}));
+document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
   selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
@@ -3413,6 +3455,7 @@ function startWanderOnMap(map) {
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     mode: "Wander",
     mapId: map.id,
     skin: window.getPlayerSkinData?.()
@@ -3447,6 +3490,7 @@ document.getElementById("shootingRangeModeButton")?.addEventListener("click", ()
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     mode: "Training",
     skin: window.getPlayerSkinData?.()
   });
@@ -3467,6 +3511,7 @@ document.getElementById("freeForAllModeButton")?.addEventListener("click", () =>
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     mode: "free-for-all",
     skin: window.getPlayerSkinData?.()
   });
@@ -3499,7 +3544,7 @@ socket.on("duel:maps",(maps=[])=>{if(!duelMapSelect)return;const old=duelMapSele
 socket.on("duel:rooms",renderDuelRooms);
 socket.on("duel:roomCreated",({room}={})=>{duelSelectedRoomId=room?.id||null;duelCurrentFirstTo=room?.firstTo||3;showDuelScreen(duelWaitScreen);const el=document.getElementById("duelWaitSummary");if(el&&room)el.textContent=(room.mapName||room.mapId)+" ・ "+room.firstTo+"本先取。参加者が入室するまで待機しています。";});
 socket.on("duel:error",({message}={})=>{const el=document.getElementById("duelRulesStatus");if(el)el.textContent=message||"部屋の処理に失敗しました。";if(duelRulesScreen?.classList.contains("hidden")){showDuelScreen(duelRoomScreen);if(duelRoomList){const p=document.createElement("p");p.textContent=message||"部屋の処理に失敗しました。";duelRoomList.prepend(p);}}});
-socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
+socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,ultimateType:selectedUltimate,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
 function updateDuelScore(data={}){duelCurrentFirstTo=data.firstTo||duelCurrentFirstTo;const my=document.getElementById("duelMyScore"),op=document.getElementById("duelOpponentScore"),name=document.getElementById("duelOpponentName"),label=document.getElementById("duelRoundLabel");if(my)my.textContent=String(data.myScore??0);if(op)op.textContent=String(data.opponentScore??0);if(name)name.textContent=data.opponentName||"対戦相手";if(label)label.textContent="先取 "+duelCurrentFirstTo+" 本";}
 socket.on("duel:score",data=>{updateDuelScore(data);showMessage("ラウンド取得！");});
 socket.on("duel:matchEnd",data=>{updateDuelScore(data);document.getElementById("duelResultMyScore").textContent=String(data.myScore??0);document.getElementById("duelResultOpponentScore").textContent=String(data.opponentScore??0);document.getElementById("duelResultTitle").textContent=data.winnerId===myId?"勝利":"敗北";document.getElementById("duelResultSummary").textContent=(data.opponentName||"対戦相手")+" とのタイマンが終了しました。";document.getElementById("duelRematchStatus").textContent="";document.getElementById("duelRematchReadyButton").classList.add("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
@@ -3541,6 +3586,7 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     skin: window.getPlayerSkinData?.()
   });
 });
@@ -3937,6 +3983,49 @@ window.addEventListener("blur", () => {
   setScopeEnabled(false);
 });
 
+document.getElementById("ultimateButton")?.addEventListener("click", activateUltimate);
+
+function openUltimateMapPicker() {
+  const overlay = document.getElementById("ultimateMapPicker");
+  const canvas = document.getElementById("ultimateMapCanvas");
+  const ctx = canvas?.getContext("2d");
+  const bounds = worldData?.world;
+  if (!overlay || !canvas || !ctx || !bounds) { showMessage("マップ情報を読み込めません"); return; }
+  const w = canvas.width, h = canvas.height, pad = 24;
+  const scale = Math.min((w - pad * 2) / (bounds.maxX - bounds.minX), (h - pad * 2) / (bounds.maxZ - bounds.minZ));
+  const offsetX = (w - (bounds.maxX - bounds.minX) * scale) / 2;
+  const offsetZ = (h - (bounds.maxZ - bounds.minZ) * scale) / 2;
+  const drawX = x => offsetX + (x - bounds.minX) * scale;
+  const drawZ = z => offsetZ + (z - bounds.minZ) * scale;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = "#182432"; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#657b70"; ctx.fillRect(offsetX, offsetZ, (bounds.maxX - bounds.minX) * scale, (bounds.maxZ - bounds.minZ) * scale);
+  for (const o of (worldData.obstacles || [])) { ctx.fillStyle = "#344252"; ctx.fillRect(drawX(o.x-o.w/2), drawZ(o.z-o.d/2), o.w*scale, o.d*scale); }
+  canvas.dataset.mapMinX = String(bounds.minX); canvas.dataset.mapMaxX = String(bounds.maxX);
+  canvas.dataset.mapMinZ = String(bounds.minZ); canvas.dataset.mapMaxZ = String(bounds.maxZ);
+  canvas.dataset.mapScale = String(scale); canvas.dataset.mapOffsetX = String(offsetX); canvas.dataset.mapOffsetZ = String(offsetZ);
+  overlay.classList.remove("hidden"); overlay.setAttribute("aria-hidden", "false");
+}
+document.getElementById("ultimateMapCancel")?.addEventListener("click", () => {
+  const overlay = document.getElementById("ultimateMapPicker"); overlay?.classList.add("hidden"); overlay?.setAttribute("aria-hidden", "true");
+});
+document.getElementById("ultimateMapCanvas")?.addEventListener("click", event => {
+  const canvas = event.currentTarget, rect = canvas.getBoundingClientRect();
+  const px = (event.clientX - rect.left) * canvas.width / rect.width;
+  const pz = (event.clientY - rect.top) * canvas.height / rect.height;
+  const scale = Number(canvas.dataset.mapScale); if (!scale) return;
+  const x = Number(canvas.dataset.mapMinX) + (px - Number(canvas.dataset.mapOffsetX)) / scale;
+  const z = Number(canvas.dataset.mapMinZ) + (pz - Number(canvas.dataset.mapOffsetZ)) / scale;
+  const minX=Number(canvas.dataset.mapMinX), maxX=Number(canvas.dataset.mapMaxX), minZ=Number(canvas.dataset.mapMinZ), maxZ=Number(canvas.dataset.mapMaxZ);
+  if (x <= minX || x >= maxX || z <= minZ || z >= maxZ) return;
+  socket.emit("ultimate", { x, z });
+  const overlay = document.getElementById("ultimateMapPicker"); overlay?.classList.add("hidden"); overlay?.setAttribute("aria-hidden", "true");
+});
+function activateUltimate() {
+  if (!joined || !myState || Number(myState.ultimateCharge) < 100) return;
+  if (myState.ultimateType === "teleport") { openUltimateMapPicker(); return; }
+  socket.emit("ultimate");
+}
+
 function performBoundAction(action, pressed, isRepeat = false) {
   switch (action) {
     case "forward": movement.forward = pressed; break;
@@ -3975,6 +4064,9 @@ function performBoundAction(action, pressed, isRepeat = false) {
       break;
     case "scope":
       setScopeEnabled(pressed && selectedWeapon === "sniper");
+      break;
+    case "ultimate":
+      if (pressed && !isRepeat) activateUltimate();
       break;
   }
 }
