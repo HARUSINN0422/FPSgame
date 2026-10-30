@@ -1610,6 +1610,16 @@ body.controller-mode #settingsButton {
   -webkit-user-select: none;
 }
 #inventoryButton:active { background: rgba(65, 95, 130, .95); }
+.charm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0 18px; }
+.charm-card {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 100px;
+  padding: 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
+  color: #fff; background: rgba(255,255,255,.045); text-align: left; font: inherit;
+}
+.charm-card strong { font-size: 15px; }
+.charm-card span { font-size: 12px; opacity: .7; line-height: 1.45; }
+.charm-card.selected-charm { border-color: #75baff; background: rgba(65,125,190,.2); box-shadow: inset 0 0 0 1px rgba(117,186,255,.25); }
+@media (max-width: 520px) { .charm-grid { grid-template-columns: 1fr; } }
 .inventory-panel { width: min(620px, 100%); }
 .inventory-section { margin-top: 18px; }
 .inventory-section h2 { margin: 0 0 10px; font-size: 16px; }
