@@ -952,7 +952,8 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     if (distance > radius) continue;
     const damage = Math.round(20 + 40 * (1 - distance / radius));
     if (damage <= 0) continue;
-    target.health = Math.max(0, target.health - damage);
+    applyIncomingDamage(target, damage);
+    if (projectile.owner && projectile.owner.id !== target.id) projectile.owner.ultimateCharge = Math.min(100, (projectile.owner.ultimateCharge || 0) + damage / 3);
     target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
     target.damageSlowUntil = now + DAMAGE_SLOW_MS;
     io.to(projectile.ownerId).emit("damageDealt", {
