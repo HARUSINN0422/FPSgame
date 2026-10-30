@@ -179,7 +179,8 @@ const weaponConfig = {
   shotgun: { fireInterval: 750, automatic: false },
   marksman: { fireInterval: 450, automatic: true },
   sniper: { fireInterval: 1200, automatic: false },
-  bow: { fireInterval: 1, automatic: false }
+  bow: { fireInterval: 1, automatic: false },
+  minigun: { fireInterval: 107 / 3, automatic: false }
 };
 
 async function refreshPublicWeaponSettings() {
@@ -2319,7 +2320,7 @@ function setCrouch(held) {
 }
 
 function fire() {
-  if (selectedWeapon === "bow") return;
+  if (selectedWeapon === "bow" || selectedWeapon === "minigun") return;
   if (!joined || myState?.reloading) return;
   // 武器切替中はレティクルが隠れている時間と同じ長さだけ発射を禁止する。
   if (performance.now() - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
@@ -2347,7 +2348,7 @@ function reload() {
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -2355,6 +2356,7 @@ function updateWeaponReticle() {
   if (!crosshair) return;
   const reticles = {
     bow: ["weapon-bow", "⌒"],
+    minigun: ["weapon-minigun", "✣"],
     pickaxe: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
@@ -2366,7 +2368,7 @@ function updateWeaponReticle() {
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-bow", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-bow", "weapon-minigun", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
   updatePickaxeReticleBounds();
@@ -2469,6 +2471,7 @@ function selectWeaponSlot(slot) {
   const slots = Array.isArray(myState?.weaponSlots) ? myState.weaponSlots : weaponSlots;
   if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot > 1 || !slots[nextSlot]) return;
   if (nextSlot === activeWeaponSlot && selectedWeapon === slots[nextSlot]) return;
+  if (selectedWeapon === "minigun") cancelMinigunCharge();
   stopFiring();
   lastWeaponSwitchAt = now;
   const switchReticle = document.getElementById("crosshair");
@@ -2489,6 +2492,11 @@ function switchWeapon() {
 }
 
 let bowChargeInterval = null;
+let minigunChargeInterval = null;
+let minigunChargeValue = 0;
+let minigunCharging = false;
+let minigunDraining = false;
+let minigunLastUpdateAt = 0;
 let bowChargeStartedAt = 0;
 let bowNextChargeAt = 0;
 const BOW_FIRE_COOLDOWN_MS = 750;
@@ -2520,8 +2528,64 @@ function releaseBowCharge() {
   socket.emit("bowRelease");
 }
 
+function startMinigunCharge() {
+  if (!joined || selectedWeapon !== "minigun" || myState?.health <= 0 || minigunCharging || minigunDraining) return;
+  minigunCharging = true;
+  minigunLastUpdateAt = performance.now();
+  socket.emit("minigunChargeStart");
+  const gauge = document.getElementById("bowChargeHud");
+  const fill = document.getElementById("bowChargeFill");
+  const label = gauge?.querySelector("span");
+  if (label) label.textContent = "ミニガン チャージ";
+  gauge?.setAttribute("aria-label", "ミニガンのチャージ");
+  gauge?.classList.remove("hidden");
+  if (minigunChargeInterval) clearInterval(minigunChargeInterval);
+  minigunChargeInterval = setInterval(updateMinigunCharge, 20);
+}
+function updateMinigunCharge() {
+  const now = performance.now();
+  const elapsed = Math.max(0, now - minigunLastUpdateAt);
+  minigunLastUpdateAt = now;
+  if (minigunCharging) minigunChargeValue = Math.min(1, minigunChargeValue + elapsed / 1500);
+  else if (minigunDraining) minigunChargeValue = Math.max(0, minigunChargeValue - elapsed / 1500);
+  const fill = document.getElementById("bowChargeFill");
+  const gauge = document.getElementById("bowChargeHud");
+  if (fill) fill.style.width = (minigunChargeValue * 100) + "%";
+  if (gauge) gauge.setAttribute("aria-valuenow", String(Math.round(minigunChargeValue * 100)));
+  if (minigunDraining && minigunChargeValue <= 0) {
+    minigunDraining = false;
+    if (minigunChargeInterval) clearInterval(minigunChargeInterval);
+    minigunChargeInterval = null;
+    gauge?.classList.add("hidden");
+    if (gauge?.querySelector("span")) gauge.querySelector("span").textContent = "弓のチャージ";
+    gauge?.setAttribute("aria-label", "弓のチャージ");
+  }
+}
+function releaseMinigunCharge() {
+  if (!minigunCharging) return;
+  minigunCharging = false;
+  minigunDraining = minigunChargeValue > 0;
+  minigunLastUpdateAt = performance.now();
+  socket.emit("minigunRelease");
+  if (!minigunDraining && minigunChargeInterval) {
+    clearInterval(minigunChargeInterval);
+    minigunChargeInterval = null;
+    document.getElementById("bowChargeHud")?.classList.add("hidden");
+  }
+}
+function cancelMinigunCharge() {
+  if (minigunCharging || minigunDraining || minigunChargeValue > 0) socket.emit("minigunCancel");
+  minigunCharging = false;
+  minigunDraining = false;
+  minigunChargeValue = 0;
+  if (minigunChargeInterval) clearInterval(minigunChargeInterval);
+  minigunChargeInterval = null;
+  document.getElementById("bowChargeFill")?.style.setProperty("width", "0%");
+  document.getElementById("bowChargeHud")?.classList.add("hidden");
+}
 function startFiring(forceRepeat = false) {
   if (selectedWeapon === "bow") { startBowCharge(); return; }
+  if (selectedWeapon === "minigun") { startMinigunCharge(); return; }
   fire();
   const cfg = weaponConfig[selectedWeapon];
   if ((!cfg.automatic && !forceRepeat) || autoFireTimer) return;
@@ -2530,6 +2594,7 @@ function startFiring(forceRepeat = false) {
 
 function stopFiring() {
   if (selectedWeapon === "bow") { releaseBowCharge(); return; }
+  if (selectedWeapon === "minigun") { releaseMinigunCharge(); return; }
   if (autoFireTimer) {
     clearInterval(autoFireTimer);
     autoFireTimer = null;
@@ -2765,7 +2830,7 @@ function updateAmmoHud() {
   if (!ammoEl || !myState) return;
 
   const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
-  const hasAmmoMagazine = !["pickaxe", "smoke", "bow"].includes(selectedWeapon);
+  const hasAmmoMagazine = !["pickaxe", "smoke", "bow", "minigun"].includes(selectedWeapon);
   ammoEl.textContent = myState.reloading ? "RELOADING..." : hasAmmoMagazine ? `${ammo} / ∞` : "弾薬不要";
   for (const id of ["reloadButton", "reloadTouchButton"]) {
     const reloadControl = document.getElementById(id);
