@@ -130,6 +130,7 @@ let activeWeaponSlot = 0;
 let selectedPrimaryWeapon = "pistol";
 let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
+let selectedCharm = "none";
 let scopeEnabled = false;
 const ATTACHMENT_WEAPONS = ["smg", "rifle", "marksman"];
 const attachmentSettings = (() => {
@@ -3133,6 +3134,7 @@ socket.on("joined", ({ player }) => {
   weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
+  selectedCharm = ["hp", "speed"].includes(player.charm) ? player.charm : "none";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
   myId = player.id;
@@ -3174,12 +3176,13 @@ socket.on("state", (players) => {
   updateCamera();
 
   if (myState) {
-    const hp = Math.max(0, Math.min(100, Number(myState.health) || 0));
+    const maxHp = Math.max(100, Number(myState.maxHealth) || 100);
+    const hp = Math.max(0, Math.min(maxHp, Number(myState.health) || 0));
     const healthValue = document.getElementById("healthValue");
     const healthFill = document.getElementById("healthBarFill");
-    if (healthValue) healthValue.textContent = String(Math.round(hp));
+    if (healthValue) healthValue.textContent = Math.round(hp) + " / " + maxHp;
     if (healthFill) {
-      healthFill.style.width = hp + "%";
+      healthFill.style.width = (hp / maxHp * 100) + "%";
       healthFill.style.background = hp > 60 ? "#55d66f" : hp > 30 ? "#e6c84a" : "#e55a5a";
     }
 
@@ -3273,7 +3276,9 @@ socket.on("connect", () => {
       name: playerName,
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
+      charm: selectedCharm,
       skin: window.getPlayerSkinData?.(),
+      charm: selectedCharm,
       mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
@@ -3321,12 +3326,22 @@ function updateLoadoutSelectionUi() {
     card.classList.toggle("selected-secondary", id === selectedSecondaryWeapon);
     card.classList.toggle("editing-slot", (loadoutSlotToEdit === 0 && id === selectedPrimaryWeapon) || (loadoutSlotToEdit === 1 && id === selectedSecondaryWeapon));
   });
+  document.querySelectorAll(".charm-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
+  document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit === 2);
+  document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   const status = document.getElementById("loadoutSelectionStatus");
-  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + "　（" + (loadoutSlotToEdit + 1) + "個目を選択中）";
+  const charmName = selectedCharm === "hp" ? "HPのお守り" : selectedCharm === "speed" ? "移動速度のお守り" : "なし";
+  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
 }
 document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEventListener("click", () => {
-  loadoutSlotToEdit = Number(button.dataset.loadoutSlot) === 1 ? 1 : 0;
+  const slot = Number(button.dataset.loadoutSlot);
+  loadoutSlotToEdit = slot === 1 || slot === 2 ? slot : 0;
+  updateLoadoutSelectionUi();
+}));
+document.querySelectorAll(".charm-card").forEach(card => card.addEventListener("click", () => {
+  if (joined) return;
+  selectedCharm = ["hp", "speed"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
 }));
 for (const button of document.querySelectorAll(".weapon-card")) {
@@ -3394,6 +3409,7 @@ function startWanderOnMap(map) {
     name,
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
+    charm: selectedCharm,
     mode: "Wander",
     mapId: map.id,
     skin: window.getPlayerSkinData?.()
@@ -3427,6 +3443,7 @@ document.getElementById("shootingRangeModeButton")?.addEventListener("click", ()
     name,
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
+    charm: selectedCharm,
     mode: "Training",
     skin: window.getPlayerSkinData?.()
   });
@@ -3446,6 +3463,7 @@ document.getElementById("freeForAllModeButton")?.addEventListener("click", () =>
     name,
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
+    charm: selectedCharm,
     mode: "free-for-all",
     skin: window.getPlayerSkinData?.()
   });
@@ -3478,7 +3496,7 @@ socket.on("duel:maps",(maps=[])=>{if(!duelMapSelect)return;const old=duelMapSele
 socket.on("duel:rooms",renderDuelRooms);
 socket.on("duel:roomCreated",({room}={})=>{duelSelectedRoomId=room?.id||null;duelCurrentFirstTo=room?.firstTo||3;showDuelScreen(duelWaitScreen);const el=document.getElementById("duelWaitSummary");if(el&&room)el.textContent=(room.mapName||room.mapId)+" ・ "+room.firstTo+"本先取。参加者が入室するまで待機しています。";});
 socket.on("duel:error",({message}={})=>{const el=document.getElementById("duelRulesStatus");if(el)el.textContent=message||"部屋の処理に失敗しました。";if(duelRulesScreen?.classList.contains("hidden")){showDuelScreen(duelRoomScreen);if(duelRoomList){const p=document.createElement("p");p.textContent=message||"部屋の処理に失敗しました。";duelRoomList.prepend(p);}}});
-socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
+socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
 function updateDuelScore(data={}){duelCurrentFirstTo=data.firstTo||duelCurrentFirstTo;const my=document.getElementById("duelMyScore"),op=document.getElementById("duelOpponentScore"),name=document.getElementById("duelOpponentName"),label=document.getElementById("duelRoundLabel");if(my)my.textContent=String(data.myScore??0);if(op)op.textContent=String(data.opponentScore??0);if(name)name.textContent=data.opponentName||"対戦相手";if(label)label.textContent="先取 "+duelCurrentFirstTo+" 本";}
 socket.on("duel:score",data=>{updateDuelScore(data);showMessage("ラウンド取得！");});
 socket.on("duel:matchEnd",data=>{updateDuelScore(data);document.getElementById("duelResultMyScore").textContent=String(data.myScore??0);document.getElementById("duelResultOpponentScore").textContent=String(data.opponentScore??0);document.getElementById("duelResultTitle").textContent=data.winnerId===myId?"勝利":"敗北";document.getElementById("duelResultSummary").textContent=(data.opponentName||"対戦相手")+" とのタイマンが終了しました。";document.getElementById("duelRematchStatus").textContent="";document.getElementById("duelRematchReadyButton").classList.add("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
@@ -3519,6 +3537,7 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
     name,
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
+    charm: selectedCharm,
     skin: window.getPlayerSkinData?.()
   });
 });

@@ -966,7 +966,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     if (target.health <= 0) {
       const selfElimination = target.id === projectile.ownerId;
       if (!selfElimination) {
-        projectile.owner.health = 100;
+        projectile.owner.health = Number(projectile.owner.maxHealth) || 100;
         projectile.owner.kills = (projectile.owner.kills || 0) + 1;
       }
       target.health = 0;
@@ -1420,7 +1420,7 @@ function respawnBot(p, now) {
   p.x = spawn[0]; p.y = 0; p.z = spawn[2];
   p.yaw = 0; p.pitch = 0;
   p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
-  p.health = 100;
+  p.health = Number(p.maxHealth) || 100;
   p.ammo = WEAPONS[p.weapon].magazineSize;
   p.reloadingUntil = 0; p.lastFire = 0;
   p.input = { forward: 0, strafe: 0, crouch: false };
@@ -1542,7 +1542,8 @@ function movePlayer(p, dt) {
   const weaponMoveMultiplier =
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
-  let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier;
+  const charmMoveMultiplier = p.charm === "speed" ? 1.5 : 1;
+  let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
   } else if (p.damageSlowUntil > now) {
@@ -1938,7 +1939,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     });
 
     if (result.target.health <= 0) {
-      shooter.health = 100;
+      shooter.health = Number(shooter.maxHealth) || 100;
       result.target.health = 0;
       result.target.respawnAt = Date.now() + 5000;
       result.target.kills = result.target.kills || 0;
@@ -2017,6 +2018,8 @@ function publicPlayer(p, includeSkin = false) {
     crouched: Boolean(p.crouched),
     name: p.name,
     health: p.health,
+    maxHealth: Number(p.maxHealth) || 100,
+    charm: ["hp", "speed"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
@@ -2034,8 +2037,10 @@ function publicPlayer(p, includeSkin = false) {
   };
 }
 
-function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
+function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
   const now = Date.now();
+  const safeCharm = !isBot && ["hp", "speed"].includes(charm) ? charm : "none";
+  const maxHealth = safeCharm === "hp" ? 120 : 100;
   return {
     id,
     name,
@@ -2053,7 +2058,9 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, team, match
     z: spawn[2],
     yaw: team === "blue" ? -Math.PI / 2 : Math.PI / 2,
     pitch: 0,
-    health: 100,
+    health: maxHealth,
+    maxHealth,
+    charm: safeCharm,
     kills: 0,
     deaths: 0,
     weapon,
@@ -2110,6 +2117,7 @@ function tryJoinExistingAreaMatch(socket, entry) {
       skin: entry.skin,
       weapon: entry.weapon,
       secondaryWeapon: entry.secondaryWeapon,
+      charm: entry.charm,
       team: bot.team,
       matchId: match.id,
       isBot: false,
@@ -2153,6 +2161,7 @@ function queueAreaPlayer(socket, data = {}) {
     skin: sanitizeSkin(data.skin),
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
+    charm: ["hp", "speed"].includes(data.charm) ? data.charm : "none",
     queuedAt: Date.now()
   };
   if (entry.secondaryWeapon === entry.weapon) {
@@ -2264,6 +2273,7 @@ function startAreaMatch(fillWithBots) {
       skin: entry.skin,
       weapon: entry.weapon,
       secondaryWeapon: entry.secondaryWeapon,
+      charm: entry.charm,
       team,
       matchId,
       isBot: entry.isBot,
@@ -2550,6 +2560,8 @@ io.on("connection", (socket) => {
         : weapon === "rifle" ? "shotgun" : "rifle";
     }
     const weaponSlots = [weapon, secondaryWeapon];
+    const charm = ["hp", "speed"].includes(data.charm) ? data.charm : "none";
+    const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
     const duelRoom=data.mode==="Duel"?duelRooms.get(String(data.duelRoomId||"")):null;
@@ -2583,7 +2595,9 @@ io.on("connection", (socket) => {
       z: spawn[2],
       yaw: 0,
       pitch: 0,
-      health: 100,
+      health: maxHealth,
+      maxHealth,
+      charm,
       kills: 0,
       deaths: 0,
       weapon,
@@ -2747,7 +2761,7 @@ io.on("connection", (socket) => {
     p.grounded = true;
     p.lastGroundedAt = Date.now();
     p.jumpQueuedUntil = 0;
-    p.health = 100;
+    p.health = Number(p.maxHealth) || 100;
     p.ammo = WEAPONS[p.weapon].magazineSize;
     if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
@@ -2840,7 +2854,7 @@ function rotateMeleeMap() {
     p.z = spawn[2];
     p.yaw = 0;
     p.pitch = 0;
-    p.health = 100;
+    p.health = Number(p.maxHealth) || 100;
     p.ammo = WEAPONS[p.weapon].magazineSize;
     if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
@@ -2920,7 +2934,7 @@ setInterval(() => {
     if (p.finished) continue;
     if (p.isBot && p.mode === TRAINING_MODE) {
       if (p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
-        p.health = 100;
+        p.health = Number(p.maxHealth) || 100;
         p.respawnAt = 0;
         p.damageHitstopUntil = 0;
         p.damageSlowUntil = 0;
