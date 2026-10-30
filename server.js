@@ -2298,6 +2298,7 @@ function startAreaMatch(fillWithBots) {
       weapon: entry.weapon,
       secondaryWeapon: entry.secondaryWeapon,
       charm: entry.charm,
+      ultimateType: entry.ultimateType,
       team,
       matchId,
       isBot: entry.isBot,
