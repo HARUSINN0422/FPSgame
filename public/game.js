@@ -3193,6 +3193,13 @@ socket.on("state", (players) => {
       healthFill.style.background = hp > 60 ? "#55d66f" : hp > 30 ? "#e6c84a" : "#e55a5a";
     }
 
+    const ultimateButton = document.getElementById("ultimateButton");
+    if (ultimateButton) {
+      const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
+      ultimateButton.style.setProperty("--ultimate-progress", charge + "%");
+      ultimateButton.disabled = charge < 100;
+      ultimateButton.textContent = charge >= 100 ? "ULT" : Math.floor(charge) + "%";
+    }
     document.getElementById("kills").textContent = String(myState.kills);
     document.getElementById("deaths").textContent = String(myState.deaths);
     updateAmmoHud();
@@ -3336,7 +3343,7 @@ function updateLoadoutSelectionUi() {
   });
   document.querySelectorAll(".charm-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
-  document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit === 2);
+  document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit >= 2);
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
@@ -3951,6 +3958,8 @@ window.addEventListener("blur", () => {
   activeMouseBindings.clear();
   setScopeEnabled(false);
 });
+
+document.getElementById("ultimateButton")?.addEventListener("click", activateUltimate);
 
 function activateUltimate() {
   if (!joined || !myState || Number(myState.ultimateCharge) < 100) return;
