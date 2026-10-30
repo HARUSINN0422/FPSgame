@@ -2521,7 +2521,7 @@ io.on("connection", (socket) => {
     const player = players.get(socket.id);
     if (player?.minigunFireTimer) clearTimeout(player.minigunFireTimer);
     if (player) player.minigunBurstId = (player.minigunBurstId || 0) + 1;
-    if (player?.mode === AREA_MODE {
+    if (player?.mode === AREA_MODE) {
       removeAreaPlayer(socket.id);
       return;
     }
