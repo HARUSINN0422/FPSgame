@@ -1522,7 +1522,7 @@ function movePlayer(p, dt) {
 
   // ジャンプ入力は短時間保持する。坂の上でも接地していればジャンプできる。
   if (p.jumpQueuedUntil >= now && (p.grounded || now - p.lastGroundedAt <= 140)) {
-    p.velocityY = JUMP_SPEED * (p.charm === "jump" ? 2 : 1) * (p.charm === "floor" || p.charm === "jump" || !isOnFloorTile(p, "slime") ? 1 : 0.5);
+    p.velocityY = JUMP_SPEED * (p.charm === "jump" ? 1.3 : 1) * (p.charm === "floor" || p.charm === "jump" || !isOnFloorTile(p, "slime") ? 1 : 0.5);
     p.grounded = false;
     p.jumpQueuedUntil = 0;
   }
