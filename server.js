@@ -2653,16 +2653,21 @@ io.on("connection", (socket) => {
 
   socket.on("bowChargeStart", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.invulnerableUntil > Date.now()) return;
-    if (!p.bowChargeStartedAt) p.bowChargeStartedAt = Date.now();
+    const now = Date.now();
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.invulnerableUntil > now) return;
+    if (now < (p.bowNextFireAt || 0)) return;
+    if (!p.bowChargeStartedAt) p.bowChargeStartedAt = now;
   });
 
   socket.on("bowRelease", () => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || !p.bowChargeStartedAt) return;
+    const now = Date.now();
     const startedAt = p.bowChargeStartedAt;
     p.bowChargeStartedAt = 0;
-    fireShot(p, false, clamp((Date.now() - startedAt) / 1500, 0, 1));
+    if (now < (p.bowNextFireAt || 0)) return;
+    p.bowNextFireAt = now + 750;
+    fireShot(p, false, clamp((now - startedAt) / 1500, 0, 1));
   });
 
   socket.on("requestSmokeState", () => {
