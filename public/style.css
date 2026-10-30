@@ -1612,8 +1612,8 @@ body.controller-mode #settingsButton {
 #inventoryButton:active { background: rgba(65, 95, 130, .95); }
 .charm-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 12px 0 18px; max-height: 42vh; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 2px; }
 .charm-card {
-  display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 100px;
-  padding: 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
+  display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; min-height: 74px;
+  padding: 14px 16px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
   color: #fff; background: rgba(255,255,255,.045); text-align: left; font: inherit;
 }
 .charm-card strong { font-size: 15px; }
