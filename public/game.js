@@ -2307,8 +2307,9 @@ function sendInput(now) {
   const lookDelta = lastKeyboardLookAt ? Math.min((now - lastKeyboardLookAt) / 1000, 0.1) : 0;
   lastKeyboardLookAt = now;
   const lookSpeed = 1.8 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
-  yaw += ((keyboardLook.right ? 1 : 0) - (keyboardLook.left ? 1 : 0)) * lookSpeed * lookDelta;
-  pitch += ((keyboardLook.down ? 1 : 0) - (keyboardLook.up ? 1 : 0)) * lookSpeed * lookDelta;
+  // 視点の回転方向を入力方向に合わせる（右/上は正方向ではなく反対符号）。
+  yaw -= ((keyboardLook.right ? 1 : 0) - (keyboardLook.left ? 1 : 0)) * lookSpeed * lookDelta;
+  pitch -= ((keyboardLook.down ? 1 : 0) - (keyboardLook.up ? 1 : 0)) * lookSpeed * lookDelta;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
   const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1) * scopeMoveMultiplier;
 
