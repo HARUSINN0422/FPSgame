@@ -480,6 +480,13 @@ function updateSettingsUi() {
     applyButtonLayout(); updateSettingsUi(); saveGameSettings();
   });
 
+  const ultimateSizeSliderUi = document.getElementById("ultimateButtonSizeSlider");
+  const ultimateSizeValueUi = document.getElementById("ultimateButtonSizeValue");
+  const ultimateSize = THREE.MathUtils.clamp(Number(gameSettings.layout.ultimateButton.size) || 76, 48, 160);
+  gameSettings.layout.ultimateButton.size = Math.round(ultimateSize);
+  if (ultimateSizeSliderUi) ultimateSizeSliderUi.value = String(ultimateSize);
+  if (ultimateSizeValueUi) ultimateSizeValueUi.textContent = Math.round(ultimateSize) + "px";
+
   const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
   const scopeSizeValue = document.getElementById("scopeButtonSizeValue");
   const scopeSize = THREE.MathUtils.clamp(Number(gameSettings.layout.scopeButton.size) || 68, 60, 180);
@@ -637,7 +644,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "ultimateButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -795,7 +802,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
