@@ -1507,6 +1507,8 @@ function isOnFloorTile(p, type) {
 
 function movePlayer(p, dt) {
   const now = Date.now();
+  if (p.ultimateActiveUntil > now) { p.input = { forward: 0, strafe: 0, crouch: false }; p.velocityY = 0; p.grounded = false; return; }
+  if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) { p.ultimateActiveUntil = 0; p.velocityY = -1; p.grounded = false; p.ultimateAnchor = null; }
   updateCrouchState(p);
 
   // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
@@ -1835,7 +1837,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
     if (best) {
       const damage = weapon.damage;
-      best.target.health -= damage;
+      applyIncomingDamage(best.target, damage);
+      shooter.ultimateCharge = Math.min(100, (shooter.ultimateCharge || 0) + damage / 3);
       damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, zone: "body"});
       hitResults.push({target: best.target, damage, zone: "body", x: best.target.x, y: best.target.y + 1, z: best.target.z});
     }
@@ -1885,7 +1888,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 105 * bowCharge : weapon.damage;
     const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
-    bestHit.target.health -= damage;
+    applyIncomingDamage(bestHit.target, damage);
+    shooter.ultimateCharge = Math.min(100, (shooter.ultimateCharge || 0) + damage / 3);
 
     const existing = damageByTarget.get(bestHit.target.id);
     if (existing) {
@@ -2003,6 +2007,14 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   });
 }
 
+function applyIncomingDamage(target, amount) {
+  const damage = Math.max(0, Number(amount) || 0);
+  if (target.shield > 0 && damage >= target.shield) { target.shield = 0; return 0; }
+  if (target.shield > 0) { target.shield -= damage; return 0; }
+  target.health = Math.max(0, target.health - damage);
+  return damage;
+}
+
 function publicPlayer(p, includeSkin = false) {
   return {
     id: p.id,
@@ -2019,6 +2031,10 @@ function publicPlayer(p, includeSkin = false) {
     name: p.name,
     health: p.health,
     maxHealth: Number(p.maxHealth) || 100,
+    ultimateCharge: Math.min(100, Number(p.ultimateCharge) || 0),
+    ultimateType: ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
+    shield: Math.max(0, Number(p.shield) || 0),
+    ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
     charm: ["hp", "speed", "reload", "jump", "floor", "aim"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
@@ -2597,6 +2613,11 @@ io.on("connection", (socket) => {
       pitch: 0,
       health: maxHealth,
       maxHealth,
+      ultimateCharge: 0,
+      ultimateType: ["skyfall", "teleport", "aegis"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
+      shield: 0,
+      ultimateActiveUntil: 0,
+      ultimateAnchor: null,
       charm,
       kills: 0,
       deaths: 0,
@@ -2658,6 +2679,24 @@ io.on("connection", (socket) => {
     p.input.crouch = Boolean(input.crouch);
     if (Number.isFinite(Number(input.yaw))) p.yaw = Number(input.yaw);
     if (Number.isFinite(Number(input.pitch))) p.pitch = clamp(Number(input.pitch), -1.35, 1.35);
+  });
+
+  socket.on("ultimate", (payload = {}) => {
+    const p = players.get(socket.id);
+    if (!p || p.health <= 0 || p.finished || (p.ultimateCharge || 0) < 100) return;
+    const type = ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
+    const now = Date.now();
+    if (type === "skyfall") {
+      p.ultimateAnchor = { x: p.x, y: p.y, z: p.z }; p.y += 12; p.velocityY = 0; p.grounded = false; p.ultimateActiveUntil = now + 5000;
+    } else if (type === "aegis") {
+      p.health = 100; p.maxHealth = 100; p.shield = 100; p.ultimateActiveUntil = 0;
+    } else {
+      const map = getMapForPlayer(p); const x = Number(payload.x), z = Number(payload.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z) || x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS || z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) return;
+      const y = getGroundHeight(x, z, p.y, p); if (collides(x, z, y, PLAYER_HEIGHT, p)) return;
+      p.x = x; p.y = y; p.z = z; p.velocityY = 0; p.grounded = true;
+    }
+    p.ultimateCharge = 0; broadcastPlayers();
   });
 
   socket.on("jump", () => {
@@ -2945,6 +2984,7 @@ setInterval(() => {
       respawnBot(p, now);
     }
     if (p.health > 0) {
+      p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + dt * 0.5);
       if (p.isBot) updateBot(p, now);
       finishReload(p, now);
       movePlayer(p, dt);
@@ -2953,7 +2993,7 @@ setInterval(() => {
         getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
-        p.health = Math.max(0, p.health - 3);
+        applyIncomingDamage(p, 3);
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
