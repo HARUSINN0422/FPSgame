@@ -2651,7 +2651,7 @@ io.on("connection", (socket) => {
 
   socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || p.weapon === "bow") return;
+    if (!p || p.health <= 0 || p.finished || ["bow", "minigun"].includes(p.weapon)) return;
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
 
