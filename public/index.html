@@ -218,8 +218,14 @@
       <div class="loadout-slot-picker">
         <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
+        <button type="button" class="loadout-slot" data-loadout-slot="2">お守り</button>
       </div>
-      <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル</div>
+      <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル ／ お守り：なし</div>
+      <div id="charmGrid" class="charm-grid hidden">
+        <button type="button" class="charm-card" data-charm="none"><strong>なし</strong><span>お守りを装備しない</span></button>
+        <button type="button" class="charm-card" data-charm="hp"><strong>HPのお守り</strong><span>最大HPが20増加（最大120）</span></button>
+        <button type="button" class="charm-card" data-charm="speed"><strong>移動速度のお守り</strong><span>移動速度が1.5倍</span></button>
+      </div>
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pickaxe">
           <strong>ツルハシ</strong>
