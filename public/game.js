@@ -3310,6 +3310,7 @@ socket.on("connect", () => {
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       charm: selectedCharm,
+      ultimateType: selectedUltimate,
       skin: window.getPlayerSkinData?.(),
       charm: selectedCharm,
       ultimateType: selectedUltimate,
@@ -3454,6 +3455,7 @@ function startWanderOnMap(map) {
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     mode: "Wander",
     mapId: map.id,
     skin: window.getPlayerSkinData?.()
@@ -3488,6 +3490,7 @@ document.getElementById("shootingRangeModeButton")?.addEventListener("click", ()
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     mode: "Training",
     skin: window.getPlayerSkinData?.()
   });
@@ -3508,6 +3511,7 @@ document.getElementById("freeForAllModeButton")?.addEventListener("click", () =>
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     mode: "free-for-all",
     skin: window.getPlayerSkinData?.()
   });
@@ -3540,7 +3544,7 @@ socket.on("duel:maps",(maps=[])=>{if(!duelMapSelect)return;const old=duelMapSele
 socket.on("duel:rooms",renderDuelRooms);
 socket.on("duel:roomCreated",({room}={})=>{duelSelectedRoomId=room?.id||null;duelCurrentFirstTo=room?.firstTo||3;showDuelScreen(duelWaitScreen);const el=document.getElementById("duelWaitSummary");if(el&&room)el.textContent=(room.mapName||room.mapId)+" ・ "+room.firstTo+"本先取。参加者が入室するまで待機しています。";});
 socket.on("duel:error",({message}={})=>{const el=document.getElementById("duelRulesStatus");if(el)el.textContent=message||"部屋の処理に失敗しました。";if(duelRulesScreen?.classList.contains("hidden")){showDuelScreen(duelRoomScreen);if(duelRoomList){const p=document.createElement("p");p.textContent=message||"部屋の処理に失敗しました。";duelRoomList.prepend(p);}}});
-socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
+socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,ultimateType:selectedUltimate,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
 function updateDuelScore(data={}){duelCurrentFirstTo=data.firstTo||duelCurrentFirstTo;const my=document.getElementById("duelMyScore"),op=document.getElementById("duelOpponentScore"),name=document.getElementById("duelOpponentName"),label=document.getElementById("duelRoundLabel");if(my)my.textContent=String(data.myScore??0);if(op)op.textContent=String(data.opponentScore??0);if(name)name.textContent=data.opponentName||"対戦相手";if(label)label.textContent="先取 "+duelCurrentFirstTo+" 本";}
 socket.on("duel:score",data=>{updateDuelScore(data);showMessage("ラウンド取得！");});
 socket.on("duel:matchEnd",data=>{updateDuelScore(data);document.getElementById("duelResultMyScore").textContent=String(data.myScore??0);document.getElementById("duelResultOpponentScore").textContent=String(data.opponentScore??0);document.getElementById("duelResultTitle").textContent=data.winnerId===myId?"勝利":"敗北";document.getElementById("duelResultSummary").textContent=(data.opponentName||"対戦相手")+" とのタイマンが終了しました。";document.getElementById("duelRematchStatus").textContent="";document.getElementById("duelRematchReadyButton").classList.add("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
@@ -3582,6 +3586,7 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+      ultimateType: selectedUltimate,
     skin: window.getPlayerSkinData?.()
   });
 });
