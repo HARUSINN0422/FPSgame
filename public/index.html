@@ -219,6 +219,7 @@
         <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="2">お守り</button>
+        <button type="button" class="loadout-slot" data-loadout-slot="3">アルティメット</button>
       </div>
       <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル ／ お守り：未選択</div>
       <div id="charmGrid" class="charm-grid hidden">
@@ -228,6 +229,11 @@
         <button type="button" class="charm-card" data-charm="jump"><strong>ジャンプのお守り</strong><span>通常の1.3倍の高さまでジャンプできる</span></button>
         <button type="button" class="charm-card" data-charm="floor"><strong>床のお守り</strong><span>床によるデバフ・ダメージを無効化</span></button>
         <button type="button" class="charm-card" data-charm="aim"><strong>オートエイムのお守り</strong><span>エイムアシストが5%から8%、10%から12%に強化</span></button>
+      </div>
+      <div id="ultimateGrid" class="charm-grid hidden">
+        <button type="button" class="charm-card ultimate-card" data-ultimate="skyfall"><strong>天墜</strong><span>5秒間、真上に浮上して空中から攻撃する準備をする</span></button>
+        <button type="button" class="charm-card ultimate-card" data-ultimate="teleport"><strong>空間跳躍</strong><span>マップ上の地点へ瞬間移動する</span></button>
+        <button type="button" class="charm-card ultimate-card" data-ultimate="aegis"><strong>蒼天障壁</strong><span>HPを100にし、追加シールド100を展開する</span></button>
       </div>
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pickaxe">
@@ -427,6 +433,7 @@
     <button id="switchWeaponButton" aria-label="武器切替">武器切替
 1/2</button>
     <button id="inventoryButton" aria-label="インベントリーを開く">インベントリー</button>
+    <button id="ultimateButton" aria-label="アルティメット 0%" disabled>ULT</button>
     <button id="scopeButton" class="hidden" aria-label="スコープを覗く">スコープ
 覗く</button>
     <button id="fireButton" aria-label="発射">FIRE</button>
