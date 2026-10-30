@@ -242,7 +242,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
   bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
-  minigun: "長押しで弾をチャージ / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ"
+  minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -2685,7 +2685,7 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     const now = Date.now();
     if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" || !p.minigunChargeStartedAt) return;
-    const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 1500);
+    const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 3000);
     p.minigunChargeStartedAt = 0;
     const shotCount = Math.floor(chargedMs / WEAPONS.minigun.fireInterval);
     if (!shotCount) return;
