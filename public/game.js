@@ -2500,6 +2500,24 @@ let minigunLastUpdateAt = 0;
 let bowChargeStartedAt = 0;
 let bowNextChargeAt = 0;
 const BOW_FIRE_COOLDOWN_MS = 750;
+function updateBowChargeScope(progress) {
+  const amount = THREE.MathUtils.clamp(progress / 0.5, 0, 1);
+  if (selectedWeapon !== "bow" || scopeEnabled) return;
+  camera.fov = 76 - (52 * amount);
+  camera.updateProjectionMatrix();
+  const overlay = document.getElementById("scopeOverlay");
+  if (overlay) {
+    overlay.classList.toggle("hidden", amount <= 0.001);
+    overlay.style.opacity = String(amount);
+  }
+}
+function resetBowChargeScope() {
+  if (selectedWeapon !== "bow" || scopeEnabled) return;
+  camera.fov = 76;
+  camera.updateProjectionMatrix();
+  const overlay = document.getElementById("scopeOverlay");
+  if (overlay) { overlay.classList.add("hidden"); overlay.style.opacity = "0"; }
+}
 function startBowCharge() {
   if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt || performance.now() < bowNextChargeAt) return;
   bowChargeStartedAt = performance.now();
@@ -2510,6 +2528,7 @@ function startBowCharge() {
   if (bowChargeInterval) clearInterval(bowChargeInterval);
   const update = () => {
     const progress = Math.min(1, (performance.now() - bowChargeStartedAt) / 1500);
+    updateBowChargeScope(progress);
     if (fill) fill.style.width = (progress * 100) + "%";
     if (gauge) gauge.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
   };
@@ -2519,6 +2538,7 @@ function startBowCharge() {
 function releaseBowCharge() {
   if (!bowChargeStartedAt) return;
   bowChargeStartedAt = 0;
+  resetBowChargeScope();
   if (bowChargeInterval) clearInterval(bowChargeInterval);
   bowChargeInterval = null;
   document.getElementById("bowChargeHud")?.classList.add("hidden");
@@ -2546,8 +2566,8 @@ function updateMinigunCharge() {
   const now = performance.now();
   const elapsed = Math.max(0, now - minigunLastUpdateAt);
   minigunLastUpdateAt = now;
-  if (minigunCharging) minigunChargeValue = Math.min(1, minigunChargeValue + elapsed / 1500);
-  else if (minigunDraining) minigunChargeValue = Math.max(0, minigunChargeValue - elapsed / 1500);
+  if (minigunCharging) minigunChargeValue = Math.min(1, minigunChargeValue + elapsed / 3000);
+  else if (minigunDraining) minigunChargeValue = Math.max(0, minigunChargeValue - elapsed / 3000);
   const fill = document.getElementById("bowChargeFill");
   const gauge = document.getElementById("bowChargeHud");
   if (fill) fill.style.width = (minigunChargeValue * 100) + "%";
