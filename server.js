@@ -1522,7 +1522,7 @@ function movePlayer(p, dt) {
 
   // ジャンプ入力は短時間保持する。坂の上でも接地していればジャンプできる。
   if (p.jumpQueuedUntil >= now && (p.grounded || now - p.lastGroundedAt <= 140)) {
-    p.velocityY = JUMP_SPEED * (isOnFloorTile(p, "slime") ? 0.5 : 1);
+    p.velocityY = JUMP_SPEED * (p.charm === "jump" ? 2 : 1) * (p.charm === "floor" || !isOnFloorTile(p, "slime") ? 1 : 0.5);
     p.grounded = false;
     p.jumpQueuedUntil = 0;
   }
@@ -1538,7 +1538,7 @@ function movePlayer(p, dt) {
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
   // 床と武器固有能力の速度倍率は加算せず、必ず乗算して適用する。
-  const floorMoveMultiplier = isOnFloorTile(p, "slime") ? 0.5 : 1;
+  const floorMoveMultiplier = p.charm === "floor" || !isOnFloorTile(p, "slime") ? 1 : 0.5;
   const weaponMoveMultiplier =
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
@@ -1759,7 +1759,7 @@ function startReload(p) {
   if (weapon.magazineSize <= 0 || p.health <= 0 || p.reloadingUntil > now) return false;
   if (p.ammo >= weapon.magazineSize) return false;
 
-  p.reloadingUntil = now + weapon.reloadTime;
+  p.reloadingUntil = now + weapon.reloadTime * (p.charm === "reload" ? 0.25 : 1);
   return true;
 }
 
@@ -2019,7 +2019,7 @@ function publicPlayer(p, includeSkin = false) {
     name: p.name,
     health: p.health,
     maxHealth: Number(p.maxHealth) || 100,
-    charm: ["hp", "speed"].includes(p.charm) ? p.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
@@ -2039,7 +2039,7 @@ function publicPlayer(p, includeSkin = false) {
 
 function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
   const now = Date.now();
-  const safeCharm = !isBot && ["hp", "speed"].includes(charm) ? charm : "none";
+  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
   return {
     id,
@@ -2161,7 +2161,7 @@ function queueAreaPlayer(socket, data = {}) {
     skin: sanitizeSkin(data.skin),
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
-    charm: ["hp", "speed"].includes(data.charm) ? data.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim"].includes(data.charm) ? data.charm : "none",
     queuedAt: Date.now()
   };
   if (entry.secondaryWeapon === entry.weapon) {
@@ -2560,7 +2560,7 @@ io.on("connection", (socket) => {
         : weapon === "rifle" ? "shotgun" : "rifle";
     }
     const weaponSlots = [weapon, secondaryWeapon];
-    const charm = ["hp", "speed"].includes(data.charm) ? data.charm : "none";
+    const charm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(data.charm) ? data.charm : "none";
     const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
@@ -2949,7 +2949,7 @@ setInterval(() => {
       finishReload(p, now);
       movePlayer(p, dt);
       // 燃える床は、接地中に500msごとに15ダメージ。
-      const onFireFloorGround = isOnFloorTile(p, "fire") &&
+      const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
         getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
