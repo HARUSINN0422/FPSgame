@@ -2054,7 +2054,7 @@ function publicPlayer(p, includeSkin = false) {
   };
 }
 
-function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
+function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
   const now = Date.now();
   const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
@@ -2077,6 +2077,11 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, team
     pitch: 0,
     health: maxHealth,
     maxHealth,
+    ultimateCharge: 0,
+    ultimateType: !isBot && ["skyfall", "teleport", "aegis"].includes(ultimateType) ? ultimateType : "skyfall",
+    shield: 0,
+    ultimateActiveUntil: 0,
+    ultimateAnchor: null,
     charm: safeCharm,
     kills: 0,
     deaths: 0,
@@ -2135,6 +2140,7 @@ function tryJoinExistingAreaMatch(socket, entry) {
       weapon: entry.weapon,
       secondaryWeapon: entry.secondaryWeapon,
       charm: entry.charm,
+      ultimateType: entry.ultimateType,
       team: bot.team,
       matchId: match.id,
       isBot: false,
@@ -2179,6 +2185,7 @@ function queueAreaPlayer(socket, data = {}) {
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
     charm: ["hp", "speed", "reload", "jump", "floor", "aim"].includes(data.charm) ? data.charm : "none",
+    ultimateType: ["skyfall", "teleport", "aegis"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
   };
   if (entry.secondaryWeapon === entry.weapon) {
