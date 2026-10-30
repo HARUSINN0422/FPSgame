@@ -3216,7 +3216,7 @@ socket.on("state", (players) => {
     if (ultimateButton) {
       const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
       ultimateButton.style.setProperty("--ultimate-progress", charge + "%");
-      ultimateButton.disabled = charge < 100;
+      ultimateButton.disabled = charge < 100 && !layoutEditing;
       ultimateButton.textContent = charge >= 100 ? "ULT" : Math.floor(charge) + "%";
     }
     document.getElementById("kills").textContent = String(myState.kills);
