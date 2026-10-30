@@ -827,7 +827,7 @@ function resolveDuelRound(winner, loser) {
   const map=[...availableMaps,...areaMaps].find(item=>item.id===room.mapId)||activeMap;
   const now=Date.now();
   for(const id of room.playerIds){const p=players.get(id);if(!p)continue;const index=room.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];
-    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
+    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.shield=0;p.ultimateCharge=0;p.ultimateActiveUntil=0;p.ultimateAnchor=null;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
     p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;
   }
   room.status = ended ? "ended" : "playing";
@@ -2810,6 +2810,9 @@ io.on("connection", (socket) => {
     p.lastGroundedAt = Date.now();
     p.jumpQueuedUntil = 0;
     p.health = Number(p.maxHealth) || 100;
+    p.shield = 0;
+    p.ultimateActiveUntil = 0;
+    p.ultimateAnchor = null;
     p.ammo = WEAPONS[p.weapon].magazineSize;
     if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
