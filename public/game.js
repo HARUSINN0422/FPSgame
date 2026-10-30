@@ -3360,7 +3360,7 @@ function updateLoadoutSelectionUi() {
     card.classList.toggle("selected-secondary", id === selectedSecondaryWeapon);
     card.classList.toggle("editing-slot", (loadoutSlotToEdit === 0 && id === selectedPrimaryWeapon) || (loadoutSlotToEdit === 1 && id === selectedSecondaryWeapon));
   });
-  document.querySelectorAll(".charm-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
+  document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
   document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit >= 2);
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
@@ -3383,7 +3383,7 @@ document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListene
   selectedUltimate = ["skyfall", "teleport", "aegis"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
   updateLoadoutSelectionUi();
 }));
-document.querySelectorAll(".charm-card").forEach(card => card.addEventListener("click", () => {
+document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
   selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
