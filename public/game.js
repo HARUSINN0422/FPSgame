@@ -504,7 +504,7 @@ const KEY_BINDING_LABELS = {
   lookUp: "上を向く", lookDown: "下を向く", lookRight: "右を向く", lookLeft: "左を向く",
   jump: "ジャンプ", crouch: "しゃがむ", reload: "リロード",
   switchWeapon: "武器切替", weapon1: "武器スロット1", weapon2: "武器スロット2",
-  fire: "発射", scope: "スコープを覗く"
+  fire: "発射", scope: "スコープを覗く", ultimate: "アルティメット"
 };
 let pendingKeyBindingAction = null;
 
@@ -631,7 +631,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -3196,6 +3196,8 @@ socket.on("state", (players) => {
       healthFill.style.width = (hp / maxHp * 100) + "%";
       healthFill.style.background = hp > 60 ? "#55d66f" : hp > 30 ? "#e6c84a" : "#e55a5a";
     }
+    const shieldFill = document.getElementById("shieldBarFill");
+    if (shieldFill) shieldFill.style.width = Math.max(0, Math.min(100, Number(myState.shield) || 0)) + "%";
 
     const ultimateButton = document.getElementById("ultimateButton");
     if (ultimateButton) {
