@@ -1537,9 +1537,12 @@ function movePlayer(p, dt) {
 
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
-  let moveSpeed = baseMoveSpeed * (isOnFloorTile(p, "slime") ? 0.5 : 1);
-  if (p.weapon === "bow" && p.bowChargeStartedAt) moveSpeed *= 0.5;
-  if (p.weapon === "minigun") moveSpeed *= 0.6;
+  // 床と武器固有能力の速度倍率は加算せず、必ず乗算して適用する。
+  const floorMoveMultiplier = isOnFloorTile(p, "slime") ? 0.5 : 1;
+  const weaponMoveMultiplier =
+    p.weapon === "minigun" ? 0.6 :
+    p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
+  let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier;
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
   } else if (p.damageSlowUntil > now) {
