@@ -474,6 +474,12 @@ function updateSettingsUi() {
     if (label) label.textContent = allowLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
 
+  const ultimateSizeSlider = document.getElementById("ultimateButtonSizeSlider");
+  ultimateSizeSlider?.addEventListener("input", () => {
+    gameSettings.layout.ultimateButton.size = Math.round(THREE.MathUtils.clamp(Number(ultimateSizeSlider.value) || 76, 48, 160));
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+
   const scopeSizeSlider = document.getElementById("scopeButtonSizeSlider");
   const scopeSizeValue = document.getElementById("scopeButtonSizeValue");
   const scopeSize = THREE.MathUtils.clamp(Number(gameSettings.layout.scopeButton.size) || 68, 60, 180);
