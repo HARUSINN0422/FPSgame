@@ -2690,22 +2690,53 @@ io.on("connection", (socket) => {
     if (Number.isFinite(Number(input.pitch))) p.pitch = clamp(Number(input.pitch), -1.35, 1.35);
   });
 
-  socket.on("ultimate", (payload = {}) => {
+  socket.on("ultimate", (payload = {}, acknowledge) => {
+    const reply = typeof acknowledge === "function" ? acknowledge : () => {};
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || (p.ultimateCharge || 0) < 100) return;
+    if (!p || p.health <= 0 || p.finished) {
+      reply({ ok: false, message: "現在はアルティメットを使用できません。" });
+      return;
+    }
+    if ((p.ultimateCharge || 0) < 100) {
+      reply({ ok: false, message: "チャージが不足しています。" });
+      return;
+    }
     const type = ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
     const now = Date.now();
     if (type === "skyfall") {
-      p.ultimateAnchor = { x: p.x, y: p.y, z: p.z }; p.y += 12; p.velocityY = 0; p.grounded = false; p.ultimateActiveUntil = now + 5000;
+      p.ultimateAnchor = { x: p.x, y: p.y, z: p.z };
+      p.y += 12;
+      p.velocityY = 0;
+      p.grounded = false;
+      p.ultimateActiveUntil = now + 5000;
     } else if (type === "aegis") {
-      p.health = 100; p.maxHealth = 100; p.shield = 100; p.ultimateActiveUntil = 0;
+      p.health = 100;
+      p.maxHealth = 100;
+      p.shield = 100;
+      p.ultimateActiveUntil = 0;
     } else {
-      const map = getMapForPlayer(p); const x = Number(payload.x), z = Number(payload.z);
-      if (!Number.isFinite(x) || !Number.isFinite(z) || x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS || z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) return;
-      const y = getGroundHeight(x, z, p.y, p); if (collides(x, z, y, PLAYER_HEIGHT, p)) return;
-      p.x = x; p.y = y; p.z = z; p.velocityY = 0; p.grounded = true;
+      const map = getMapForPlayer(p);
+      const x = Number(payload.x), z = Number(payload.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z) ||
+          x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS ||
+          z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) {
+        reply({ ok: false, message: "マップ内の地点を選択してください。" });
+        return;
+      }
+      const y = getGroundHeight(x, z, p.y, p);
+      if (collides(x, z, y, PLAYER_HEIGHT, p)) {
+        reply({ ok: false, message: "その地点にはテレポートできません。" });
+        return;
+      }
+      p.x = x;
+      p.y = y;
+      p.z = z;
+      p.velocityY = 0;
+      p.grounded = true;
     }
-    p.ultimateCharge = 0; broadcastPlayers();
+    p.ultimateCharge = 0;
+    broadcastPlayers();
+    reply({ ok: true, type });
   });
 
   socket.on("jump", () => {

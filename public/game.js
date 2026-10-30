@@ -1326,12 +1326,15 @@ function updateMinimap() {
   }
 }
 
+let lastLaserSightUpdate = 0;
 function updateLaserSight() {
   const enabled = joined && ATTACHMENT_WEAPONS.includes(selectedWeapon) && attachmentSettings[selectedWeapon] === "laser";
   if (!enabled) {
     if (laserSightLine) laserSightLine.visible = false;
     return;
   }
+  if (performance.now() - lastLaserSightUpdate < 33) return;
+  lastLaserSightUpdate = performance.now();
   if (!laserSightLine) {
     const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -60)]);
     const material = new THREE.LineBasicMaterial({
@@ -2161,7 +2164,11 @@ function isAimAssistBlockedBySmoke(origin, targetPoint) {
   return false;
 }
 
+let lastAimAssistUpdate = 0;
 function updateAimAssist() {
+  const now = performance.now();
+  if (now - lastAimAssistUpdate < 50) return;
+  lastAimAssistUpdate = now;
   if (!joined || !myState) return;
   const touchDevice = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
   let strengthPercent = 0;
@@ -3216,7 +3223,7 @@ socket.on("state", (players) => {
     if (ultimateButton) {
       const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
       ultimateButton.style.setProperty("--ultimate-progress", charge + "%");
-      ultimateButton.disabled = charge < 100 && !layoutEditing;
+      ultimateButton.disabled = !joined || Number(myState.health) <= 0 || layoutEditing;
       ultimateButton.textContent = charge >= 100 ? "ULT" : Math.floor(charge) + "%";
     }
     document.getElementById("kills").textContent = String(myState.kills);
@@ -4017,13 +4024,23 @@ document.getElementById("ultimateMapCanvas")?.addEventListener("click", event =>
   const z = Number(canvas.dataset.mapMinZ) + (pz - Number(canvas.dataset.mapOffsetZ)) / scale;
   const minX=Number(canvas.dataset.mapMinX), maxX=Number(canvas.dataset.mapMaxX), minZ=Number(canvas.dataset.mapMinZ), maxZ=Number(canvas.dataset.mapMaxZ);
   if (x <= minX || x >= maxX || z <= minZ || z >= maxZ) return;
-  socket.emit("ultimate", { x, z });
-  const overlay = document.getElementById("ultimateMapPicker"); overlay?.classList.add("hidden"); overlay?.setAttribute("aria-hidden", "true");
+  socket.emit("ultimate", { x, z }, (result) => {
+    if (!result?.ok) { showMessage(result?.message || "テレポートできませんでした。"); return; }
+    const overlay = document.getElementById("ultimateMapPicker");
+    overlay?.classList.add("hidden");
+    overlay?.setAttribute("aria-hidden", "true");
+    showMessage("空間跳躍！");
+  });
 });
 function activateUltimate() {
-  if (!joined || !myState || Number(myState.ultimateCharge) < 100) return;
+  if (!joined || !myState) { showMessage("ゲームに参加してから使用できます。"); return; }
+  const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
+  if (charge < 100) { showMessage("アルティメットのチャージ中です（" + Math.floor(charge) + "%）。"); return; }
   if (myState.ultimateType === "teleport") { openUltimateMapPicker(); return; }
-  socket.emit("ultimate");
+  socket.emit("ultimate", {}, (result) => {
+    if (!result?.ok) { showMessage(result?.message || "アルティメットを使用できませんでした。"); return; }
+    showMessage(result.type === "aegis" ? "蒼天障壁を展開！" : "天墜！");
+  });
 }
 
 function performBoundAction(action, pressed, isRepeat = false) {
