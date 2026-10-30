@@ -131,6 +131,7 @@ let selectedPrimaryWeapon = "pistol";
 let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
 let selectedCharm = "none";
+let selectedUltimate = "skyfall";
 let scopeEnabled = false;
 const ATTACHMENT_WEAPONS = ["smg", "rifle", "marksman"];
 const attachmentSettings = (() => {
@@ -253,7 +254,7 @@ const DEFAULT_SETTINGS = {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     lookUp: "ArrowUp", lookDown: "ArrowDown", lookRight: "ArrowRight", lookLeft: "ArrowLeft",
     jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
-    weapon1: "Digit1", weapon2: "Digit2", fire: "MouseLeft", scope: "MouseRight"
+    weapon1: "Digit1", weapon2: "Digit2", ultimate: "KeyF", fire: "MouseLeft", scope: "MouseRight"
   },
   layout: {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
@@ -263,6 +264,7 @@ const DEFAULT_SETTINGS = {
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
     inventoryButton: { x: 310, y: 230, side: "right", size: 88 },
+    ultimateButton: { x: 310, y: 320, side: "right", size: 76 },
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
     healthHud: { x: 0, y: 0 },
@@ -320,6 +322,7 @@ function loadGameSettings() {
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
         switchWeaponButton: { ...DEFAULT_SETTINGS.layout.switchWeaponButton, ...(saved.layout?.switchWeaponButton || {}) },
         inventoryButton: { ...DEFAULT_SETTINGS.layout.inventoryButton, ...(saved.layout?.inventoryButton || {}) },
+        ultimateButton: { ...DEFAULT_SETTINGS.layout.ultimateButton, ...(saved.layout?.ultimateButton || {}) },
         scopeButton: { ...DEFAULT_SETTINGS.layout.scopeButton, ...(saved.layout?.scopeButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
         healthHud: { ...DEFAULT_SETTINGS.layout.healthHud, ...(saved.layout?.healthHud || {}) },
@@ -348,6 +351,7 @@ function applyButtonLayout() {
     ["fireButton", gameSettings.layout.fireButton],
     ["switchWeaponButton", gameSettings.layout.switchWeaponButton],
     ["inventoryButton", gameSettings.layout.inventoryButton],
+    ["ultimateButton", gameSettings.layout.ultimateButton],
     ["scopeButton", gameSettings.layout.scopeButton]
   ];
 
@@ -3137,6 +3141,7 @@ socket.on("joined", ({ player }) => {
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
   selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(player.charm) ? player.charm : "none";
+  selectedUltimate = ["skyfall", "teleport", "aegis"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
   myId = player.id;
@@ -3281,6 +3286,7 @@ socket.on("connect", () => {
       charm: selectedCharm,
       skin: window.getPlayerSkinData?.(),
       charm: selectedCharm,
+      ultimateType: selectedUltimate,
       mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
@@ -3332,14 +3338,23 @@ function updateLoadoutSelectionUi() {
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
   document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit === 2);
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
+  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
   const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り" };
+  const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁" };
+  document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
+  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const charmName = charmNames[selectedCharm] || "未選択";
-  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
+  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + " ／ アルティメット：" + (ultimateNames[selectedUltimate] || "天墜") + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : loadoutSlotToEdit === 3 ? "アルティメット" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
 }
 document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEventListener("click", () => {
   const slot = Number(button.dataset.loadoutSlot);
-  loadoutSlotToEdit = slot === 1 || slot === 2 ? slot : 0;
+  loadoutSlotToEdit = slot >= 0 && slot <= 3 ? slot : 0;
+  updateLoadoutSelectionUi();
+}));
+document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListener("click", () => {
+  if (joined) return;
+  selectedUltimate = ["skyfall", "teleport", "aegis"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
   updateLoadoutSelectionUi();
 }));
 document.querySelectorAll(".charm-card").forEach(card => card.addEventListener("click", () => {
@@ -3937,6 +3952,12 @@ window.addEventListener("blur", () => {
   setScopeEnabled(false);
 });
 
+function activateUltimate() {
+  if (!joined || !myState || Number(myState.ultimateCharge) < 100) return;
+  if (myState.ultimateType === "teleport") { showMessage("テレポート先を選択するマップUIは準備中です"); return; }
+  socket.emit("ultimate");
+}
+
 function performBoundAction(action, pressed, isRepeat = false) {
   switch (action) {
     case "forward": movement.forward = pressed; break;
@@ -3975,6 +3996,9 @@ function performBoundAction(action, pressed, isRepeat = false) {
       break;
     case "scope":
       setScopeEnabled(pressed && selectedWeapon === "sniper");
+      break;
+    case "ultimate":
+      if (pressed && !isRepeat) activateUltimate();
       break;
   }
 }
