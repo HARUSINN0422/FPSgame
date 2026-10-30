@@ -111,6 +111,7 @@ let gamepadCrouchHeld = false;
 let gamepadSwitchHeld = false;
 let gamepadScopeHeld = false;
 let gamepadFireHeld = false;
+let gamepadUltimateHeld = false;
 let controllerRespawnRequested = false;
 const clock = new THREE.Clock();
 
@@ -246,7 +247,7 @@ const DEFAULT_SETTINGS = {
   controllerAimAssistStrength: 10,
   aimAssistEnabled: false,
   aimAssistStrength: 0,
-  controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, scope: 6, fire: 7 },
+  controllerButtons: { jump: 0, reload: 1, crouch: 2, switchWeapon: 3, ultimate: 5, scope: 6, fire: 7 },
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
   autoRespawnEnabled: false,
@@ -2263,6 +2264,9 @@ function pollGamepad(now) {
   const switchPressed = Boolean(pad.buttons?.[buttonFor("switchWeapon")]?.pressed);
   const scopePressed = Boolean(pad.buttons?.[buttonFor("scope")]?.pressed);
   const firePressed = Boolean(pad.buttons?.[buttonFor("fire")]?.pressed);
+  const ultimatePressed = Boolean(pad.buttons?.[buttonFor("ultimate")]?.pressed);
+  if (ultimatePressed && !gamepadUltimateHeld) activateUltimate();
+  gamepadUltimateHeld = ultimatePressed;
 
   if (jumpPressed && !gamepadJumpHeld) {
     if (myState?.health <= 0) {
