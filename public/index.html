@@ -220,11 +220,14 @@
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="2">お守り</button>
       </div>
-      <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル ／ お守り：なし</div>
+      <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル ／ お守り：未選択</div>
       <div id="charmGrid" class="charm-grid hidden">
-        <button type="button" class="charm-card" data-charm="none"><strong>なし</strong><span>お守りを装備しない</span></button>
         <button type="button" class="charm-card" data-charm="hp"><strong>HPのお守り</strong><span>最大HPが20増加（最大120）</span></button>
         <button type="button" class="charm-card" data-charm="speed"><strong>移動速度のお守り</strong><span>移動速度が1.5倍</span></button>
+        <button type="button" class="charm-card" data-charm="reload"><strong>リロードのお守り</strong><span>リロード時間が通常の1/4になる</span></button>
+        <button type="button" class="charm-card" data-charm="jump"><strong>ジャンプのお守り</strong><span>通常の2倍の高さまでジャンプできる</span></button>
+        <button type="button" class="charm-card" data-charm="floor"><strong>床のお守り</strong><span>床によるデバフ・ダメージを無効化</span></button>
+        <button type="button" class="charm-card" data-charm="aim"><strong>オートエイムのお守り</strong><span>エイムアシストが5%から8%、10%から12%に強化</span></button>
       </div>
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pickaxe">
