@@ -223,12 +223,13 @@ const WEAPONS = {
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
     reloadTime: 1900, automatic: false
   },
-  bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false }
+  bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false }
 };
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -240,7 +241,8 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
-  bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要"
+  bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
+  minigun: "長押しで弾をチャージ / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -1775,13 +1777,13 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
   if (shooter.weapon === "bow") {
     bowCharge = clamp(Number(bowCharge) || 0, 0, 1);
-  } else if (!weapon.melee && shooter.ammo <= 0) {
+  } else if (shooter.weapon !== "minigun" && !weapon.melee && shooter.ammo <= 0) {
     startReload(shooter);
     return;
   }
 
   shooter.lastFire = now;
-  if (!weapon.melee && shooter.weapon !== "bow") {
+  if (!weapon.melee && !["bow", "minigun"].includes(shooter.weapon)) {
     shooter.ammo -= 1;
     if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
   }
@@ -2517,7 +2519,9 @@ io.on("connection", (socket) => {
   socket.on("duel:rematchReady",({roomId}={})=>{const r=duelRooms.get(String(roomId||""));if(!r||r.status!=="ended")return;if(!r.readyIds.includes(socket.id))r.readyIds.push(socket.id);for(const id of r.playerIds)io.to(id).emit("duel:rematchWaiting",{readyCount:r.readyIds.length});if(r.playerIds.every(id=>r.readyIds.includes(id))){const map=[...availableMaps,...areaMaps].find(m=>m.id===r.mapId)||activeMap;r.status="starting";r.scores={};r.readyIds=[];r.roundResolved=false;const now=Date.now();for(const id of r.playerIds){const p=players.get(id);if(!p)continue;const index=r.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];p.duelMap=map;p.duelFirstTo=r.firstTo;p.finished=false;p.health=100;p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.respawnAt=0;p.invulnerableUntil=now+3000;p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;}r.status="playing";for(const id of r.playerIds)io.to(id).emit("duel:rematchStarted",{firstTo:r.firstTo});for(const id of r.playerIds){const p=players.get(id);if(p)io.to(id).emit("world",getWorldPayloadForMap(map,"Duel"));}broadcastPlayers();}});
   socket.on("leaveMatch", () => {
     const player = players.get(socket.id);
-    if (player?.mode === AREA_MODE) {
+    if (player?.minigunFireTimer) clearTimeout(player.minigunFireTimer);
+    if (player) player.minigunBurstId = (player.minigunBurstId || 0) + 1;
+    if (player?.mode === AREA_MODE {
       removeAreaPlayer(socket.id);
       return;
     }
@@ -2670,6 +2674,46 @@ io.on("connection", (socket) => {
     fireShot(p, false, clamp((now - startedAt) / 1500, 0, 1));
   });
 
+  socket.on("minigunChargeStart", () => {
+    const p = players.get(socket.id);
+    const now = Date.now();
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" || p.invulnerableUntil > now) return;
+    if (!p.minigunChargeStartedAt && !p.minigunFireTimer) p.minigunChargeStartedAt = now;
+  });
+
+  socket.on("minigunRelease", () => {
+    const p = players.get(socket.id);
+    const now = Date.now();
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" || !p.minigunChargeStartedAt) return;
+    const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 1500);
+    p.minigunChargeStartedAt = 0;
+    const shotCount = Math.floor(chargedMs / WEAPONS.minigun.fireInterval);
+    if (!shotCount) return;
+    const burstId = (p.minigunBurstId || 0) + 1;
+    p.minigunBurstId = burstId;
+    let remaining = shotCount;
+    const fireNext = () => {
+      if (p.minigunBurstId !== burstId || p.weapon !== "minigun" || p.health <= 0 || p.finished || remaining <= 0) {
+        if (p.minigunBurstId === burstId) p.minigunFireTimer = null;
+        return;
+      }
+      fireShot(p);
+      remaining -= 1;
+      if (remaining > 0) p.minigunFireTimer = setTimeout(fireNext, WEAPONS.minigun.fireInterval);
+      else p.minigunFireTimer = null;
+    };
+    fireNext();
+  });
+
+  socket.on("minigunCancel", () => {
+    const p = players.get(socket.id);
+    if (!p || p.weapon !== "minigun") return;
+    p.minigunChargeStartedAt = 0;
+    p.minigunBurstId = (p.minigunBurstId || 0) + 1;
+    if (p.minigunFireTimer) clearTimeout(p.minigunFireTimer);
+    p.minigunFireTimer = null;
+  });
+
   socket.on("requestSmokeState", () => {
     const p = players.get(socket.id);
     if (p) emitSmokeState(socket, p);
@@ -2746,6 +2790,10 @@ io.on("connection", (socket) => {
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
     if (nextSlot === p.activeWeaponSlot && nextWeapon === p.weapon) return;
     p.bowChargeStartedAt = 0;
+    p.minigunChargeStartedAt = 0;
+    p.minigunBurstId = (p.minigunBurstId || 0) + 1;
+    if (p.minigunFireTimer) clearTimeout(p.minigunFireTimer);
+    p.minigunFireTimer = null;
     if (!Array.isArray(p.weaponAmmo)) p.weaponAmmo = [WEAPONS[p.weaponSlots[0]].magazineSize, WEAPONS[p.weaponSlots[1] || p.weaponSlots[0]].magazineSize];
     p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.activeWeaponSlot = nextSlot;
