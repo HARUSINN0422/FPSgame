@@ -2154,7 +2154,8 @@ function updateAimAssist() {
   } else {
     return;
   }
-  if (![5, 10].includes(strengthPercent)) return;
+  if (![5, 8, 10, 12].includes(strengthPercent)) return;
+  if (myState.charm === "aim") strengthPercent = strengthPercent === 5 ? 8 : strengthPercent === 10 ? 12 : strengthPercent;
   const strength = strengthPercent / 100;
   const origin = camera.position.clone();
   let best = null;
@@ -3134,7 +3135,7 @@ socket.on("joined", ({ player }) => {
   weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
-  selectedCharm = ["hp", "speed"].includes(player.charm) ? player.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(player.charm) ? player.charm : "none";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
   myId = player.id;
@@ -3331,7 +3332,8 @@ function updateLoadoutSelectionUi() {
   document.querySelector(".weapon-grid")?.classList.toggle("hidden", loadoutSlotToEdit === 2);
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   const status = document.getElementById("loadoutSelectionStatus");
-  const charmName = selectedCharm === "hp" ? "HPのお守り" : selectedCharm === "speed" ? "移動速度のお守り" : "なし";
+  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り" };
+  const charmName = charmNames[selectedCharm] || "未選択";
   if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
 }
 document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEventListener("click", () => {
@@ -3341,7 +3343,7 @@ document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEve
 }));
 document.querySelectorAll(".charm-card").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedCharm = ["hp", "speed"].includes(card.dataset.charm) ? card.dataset.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
 }));
 for (const button of document.querySelectorAll(".weapon-card")) {
