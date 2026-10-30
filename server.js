@@ -1539,6 +1539,7 @@ function movePlayer(p, dt) {
   const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
   let moveSpeed = baseMoveSpeed * (isOnFloorTile(p, "slime") ? 0.5 : 1);
   if (p.weapon === "bow" && p.bowChargeStartedAt) moveSpeed *= 0.5;
+  if (p.weapon === "minigun") moveSpeed *= 0.6;
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
   } else if (p.damageSlowUntil > now) {
