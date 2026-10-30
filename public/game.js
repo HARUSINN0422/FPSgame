@@ -164,6 +164,8 @@ let crouchHeld = false;
 
 let yaw = 0;
 let pitch = 0;
+const keyboardLook = { up: false, down: false, left: false, right: false };
+let lastKeyboardLookAt = 0;
 let lookPointerId = null;
 let lastLookX = 0;
 let lastLookY = 0;
@@ -248,6 +250,7 @@ const DEFAULT_SETTINGS = {
   autoRespawnEnabled: false,
   keyboard: {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
+    lookUp: "ArrowUp", lookDown: "ArrowDown", lookRight: "ArrowRight", lookLeft: "ArrowLeft",
     jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
     weapon1: "Digit1", weapon2: "Digit2", fire: "MouseLeft", scope: "MouseRight"
   },
@@ -492,6 +495,7 @@ function updateSettingsUi() {
 
 const KEY_BINDING_LABELS = {
   forward: "前進", back: "後退", left: "左移動", right: "右移動",
+  lookUp: "上を向く", lookDown: "下を向く", lookRight: "右を向く", lookLeft: "左を向く",
   jump: "ジャンプ", crouch: "しゃがむ", reload: "リロード",
   switchWeapon: "武器切替", weapon1: "武器スロット1", weapon2: "武器スロット2",
   fire: "発射", scope: "スコープを覗く"
@@ -514,12 +518,9 @@ function mouseButtonCode(button) {
 
 function assignKeyBinding(action, code) {
   if (!action || !code) return false;
-  const arrowAlias = ({
-    ArrowUp: "forward", ArrowDown: "back", ArrowLeft: "left", ArrowRight: "right"
-  })[code];
   const conflict = Object.entries(gameSettings.keyboard).find(([otherAction, existingCode]) =>
     otherAction !== action && existingCode === code
-  ) || (arrowAlias && arrowAlias !== action ? [arrowAlias, code] : null);
+  );
 
   pendingKeyBindingAction = null;
   if (conflict) {
@@ -2303,6 +2304,12 @@ function sendInput(now) {
   // スコープを覗いている間は移動速度を落とす。
   const scopeMoveMultiplier = scopeEnabled ? 0.5 : 1;
   const forward = THREE.MathUtils.clamp(keyboardForward + joystick.forward, -1, 1) * scopeMoveMultiplier;
+  const lookDelta = lastKeyboardLookAt ? Math.min((now - lastKeyboardLookAt) / 1000, 0.1) : 0;
+  lastKeyboardLookAt = now;
+  const lookSpeed = 1.8 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  yaw += ((keyboardLook.right ? 1 : 0) - (keyboardLook.left ? 1 : 0)) * lookSpeed * lookDelta;
+  pitch += ((keyboardLook.down ? 1 : 0) - (keyboardLook.up ? 1 : 0)) * lookSpeed * lookDelta;
+  pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
   const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1) * scopeMoveMultiplier;
 
   socket.emit("input", { forward, strafe, crouch: crouchHeld, yaw, pitch });
@@ -3913,6 +3920,10 @@ function performBoundAction(action, pressed, isRepeat = false) {
     case "back": movement.back = pressed; break;
     case "left": movement.left = pressed; break;
     case "right": movement.right = pressed; break;
+    case "lookUp": keyboardLook.up = pressed; break;
+    case "lookDown": keyboardLook.down = pressed; break;
+    case "lookRight": keyboardLook.right = pressed; break;
+    case "lookLeft": keyboardLook.left = pressed; break;
     case "crouch": setCrouch(pressed); break;
     case "jump":
       if (pressed && !isRepeat) {
@@ -3970,27 +3981,12 @@ window.addEventListener("keydown", (e) => {
       handled = true;
     }
   }
-  const arrowActions = {
-    ArrowUp: "forward", ArrowDown: "back", ArrowLeft: "left", ArrowRight: "right"
-  };
-  const arrowAction = arrowActions[e.code];
-  if (arrowAction && gameSettings.keyboard[arrowAction] !== e.code) {
-    performBoundAction(arrowAction, true, e.repeat);
-    handled = true;
-  }
   if (handled) e.preventDefault();
 });
 
 window.addEventListener("keyup", (e) => {
   for (const [action, code] of Object.entries(gameSettings.keyboard || DEFAULT_SETTINGS.keyboard)) {
     if (code === e.code) performBoundAction(action, false, false);
-  }
-  const arrowActions = {
-    ArrowUp: "forward", ArrowDown: "back", ArrowLeft: "left", ArrowRight: "right"
-  };
-  const arrowAction = arrowActions[e.code];
-  if (arrowAction && gameSettings.keyboard[arrowAction] !== e.code) {
-    performBoundAction(arrowAction, false, false);
   }
 });
 
@@ -3999,6 +3995,8 @@ window.addEventListener("blur", () => {
   movement.back = false;
   movement.left = false;
   movement.right = false;
+  keyboardLook.up = keyboardLook.down = keyboardLook.left = keyboardLook.right = false;
+  lastKeyboardLookAt = 0;
   setCrouch(false);
 });
 
