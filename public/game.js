@@ -2154,8 +2154,9 @@ function updateAimAssist() {
   } else {
     return;
   }
-  if (![5, 8, 10, 12].includes(strengthPercent)) return;
-  if (myState.charm === "aim") strengthPercent = strengthPercent === 5 ? 8 : strengthPercent === 10 ? 12 : strengthPercent;
+  if (![5, 10].includes(strengthPercent)) return;
+  const aimAssistTargetPercent = strengthPercent;
+  if (myState.charm === "aim") strengthPercent = strengthPercent === 5 ? 8 : 12;
   const strength = strengthPercent / 100;
   const origin = camera.position.clone();
   let best = null;
@@ -2163,7 +2164,7 @@ function updateAimAssist() {
     const target = obj.userData.playerState;
     if (!target || target.health <= 0 || !obj.visible) continue;
     if (selectedGameMode === "Area" && target.team && myState.team && target.team === myState.team) continue;
-    const targetHeight = strengthPercent === 5
+    const targetHeight = aimAssistTargetPercent === 5
       ? (target.crouched ? 1.02 : 1.52)
       : (target.crouched ? 0.72 : 1.12);
     const point = obj.position.clone().add(new THREE.Vector3(0, targetHeight, 0));
