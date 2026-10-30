@@ -2490,8 +2490,10 @@ function switchWeapon() {
 
 let bowChargeInterval = null;
 let bowChargeStartedAt = 0;
+let bowNextChargeAt = 0;
+const BOW_FIRE_COOLDOWN_MS = 750;
 function startBowCharge() {
-  if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt) return;
+  if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt || performance.now() < bowNextChargeAt) return;
   bowChargeStartedAt = performance.now();
   socket.emit("bowChargeStart");
   const gauge = document.getElementById("bowChargeHud");
@@ -2514,6 +2516,7 @@ function releaseBowCharge() {
   document.getElementById("bowChargeHud")?.classList.add("hidden");
   const fill = document.getElementById("bowChargeFill");
   if (fill) fill.style.width = "0%";
+  bowNextChargeAt = performance.now() + BOW_FIRE_COOLDOWN_MS;
   socket.emit("bowRelease");
 }
 
