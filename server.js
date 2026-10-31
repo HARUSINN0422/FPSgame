@@ -2975,6 +2975,15 @@ io.on("connection", (socket) => {
     broadcastPlayers();
   });
 
+  // joined通知の後にもマップを再送し、Vercel側で初回worldイベントを取りこぼした場合に備える。
+  socket.on("requestWorld", () => {
+    const player = players.get(socket.id);
+    if (!player || player.isBot) return;
+    const map = player.duelMap || player.trainingMap || player.wanderMap ||
+      (player.mode === AREA_MODE ? areaMap : activeMap);
+    socket.emit("world", getWorldPayloadForMap(map, player.mode || MAP_MODE));
+  });
+
   socket.on("updateSkin", (skinDataUrl, acknowledge) => {
     const reply = typeof acknowledge === "function" ? acknowledge : () => {};
     const p = players.get(socket.id);
