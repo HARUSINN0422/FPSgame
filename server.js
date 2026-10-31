@@ -1139,6 +1139,14 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
 
 function updateGrenadeProjectiles(dt, now = Date.now()) {
   for (const projectile of [...grenadeProjectiles.values()]) {
+    // ショックウェーブは着弾から200ms待って、吹き飛ばしとエフェクトを同時に発生させる。
+    if (projectile.pendingShockwaveAt) {
+      if (now < projectile.pendingShockwaveAt) continue;
+      applyShockwave(projectile, projectile.pendingShockwavePosition, now);
+      grenadeProjectiles.delete(projectile.id);
+      continue;
+    }
+
     if (now >= projectile.expiresAt) {
       grenadeProjectiles.delete(projectile.id);
       broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
@@ -1217,10 +1225,15 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     }
 
     if (impact) {
-      if (projectile.type === "shockwave") applyShockwave(projectile, impact, now);
-      else explodeGrenade(projectile, impact, now);
-      grenadeProjectiles.delete(projectile.id);
-      broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      if (projectile.type === "shockwave") {
+        projectile.pendingShockwaveAt = now + 200;
+        projectile.pendingShockwavePosition = impact;
+        broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      } else {
+        explodeGrenade(projectile, impact, now);
+        grenadeProjectiles.delete(projectile.id);
+        broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      }
       continue;
     }
 
