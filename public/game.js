@@ -2944,7 +2944,7 @@ function updateAmmoHud() {
   if (!ammoEl || !myState) return;
 
   const ammo = Math.max(0, Math.floor(Number(myState.ammo) || 0));
-  const hasAmmoMagazine = !["pickaxe", "smoke", "bow", "minigun"].includes(selectedWeapon);
+  const hasAmmoMagazine = !["pickaxe", "smoke", "bow", "minigun", "shockwaveLauncher"].includes(selectedWeapon);
   ammoEl.textContent = myState.reloading ? "RELOADING..." : hasAmmoMagazine ? `${ammo} / ∞` : "弾薬不要";
   for (const id of ["reloadButton", "reloadTouchButton"]) {
     const reloadControl = document.getElementById(id);
