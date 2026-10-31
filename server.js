@@ -1603,7 +1603,7 @@ function movePlayer(p, dt) {
   const weaponMoveMultiplier =
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
-  const charmMoveMultiplier = p.charm === "speed" ? 1.3 : 1;
+  const charmMoveMultiplier = p.charm === "speed" ? 1.8 : 1;
   let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
@@ -1830,6 +1830,31 @@ function startReload(p) {
   return true;
 }
 
+function getMovementSpeedSpreadMultiplier(shooter, now = Date.now()) {
+  const input = shooter.input || {};
+  const isMoving = Math.abs(Number(input.forward) || 0) > 0.05 ||
+    Math.abs(Number(input.strafe) || 0) > 0.05;
+  if (!isMoving) return 1;
+
+  const baseMoveSpeed = shooter.crouched ? CROUCH_SPEED : PLAYER_SPEED;
+  const floorMoveMultiplier =
+    shooter.charm === "floor" || !isOnFloorTile(shooter, "slime") ? 1 : 0.5;
+  const weaponMoveMultiplier =
+    shooter.weapon === "minigun" ? 0.6 :
+    shooter.weapon === "bow" && shooter.bowChargeStartedAt ? 0.5 : 1;
+  const charmMoveMultiplier = shooter.charm === "speed" ? 1.8 : 1;
+  let actualMoveSpeed = baseMoveSpeed * floorMoveMultiplier *
+    weaponMoveMultiplier * charmMoveMultiplier;
+
+  if (shooter.damageHitstopUntil > now) actualMoveSpeed = 0;
+  else if (shooter.damageSlowUntil > now) actualMoveSpeed *= DAMAGE_SLOW_MULTIPLIER;
+
+  // 通常走行を1倍とし、それを超える速度は5乗で弾ブレに反映する。
+  // 移動速度のお守り（1.8倍）では約18.9倍の弾ブレになる。
+  const speedRatio = Math.max(1, actualMoveSpeed / PLAYER_SPEED);
+  return Math.min(40, Math.pow(speedRatio, 5));
+}
+
 function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   const weapon = WEAPONS[shooter.weapon];
   const now = Date.now();
@@ -1919,7 +1944,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
-      const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) * movingShotMultiplier;
+      const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) *
+        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now);
       const sniperUnscopedMultiplier = shooter.weapon === "sniper" && !sniperScoped ? 3.2 : 1;
       const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier * sniperUnscopedMultiplier;
       yaw += (Math.random() - 0.5) * spread;
@@ -2041,7 +2067,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     let visualPitch = shooter.pitch;
     if (weapon.spread) {
       const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
-      const movementSpreadMultiplier = shooter.grounded ? 1 : 2.0;
+      const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) *
+        getMovementSpeedSpreadMultiplier(shooter, now);
       const visualSpread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
       visualYaw += (Math.random() - 0.5) * visualSpread;
       visualPitch += (Math.random() - 0.5) * visualSpread;
