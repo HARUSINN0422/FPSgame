@@ -1690,7 +1690,6 @@ function movePlayer(p, dt) {
 
   if (p.skyfallImpactPending && p.grounded) {
     p.skyfallImpactPending = false;
-    p.skyfallImpactId = null;
     p.ultimateAnchor = null;
     resolveSkyfallImpact(p, now);
   }
