@@ -1600,6 +1600,10 @@ function respawnBot(p, now) {
   p.yaw = 0; p.pitch = 0;
   p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
   p.health = Number(p.maxHealth) || 100;
+  p.ultimateActiveUntil = 0;
+  p.ultimateAnchor = null;
+  p.skyfallImpactPending = false;
+  p.skyfallImpactId = null;
   p.ammo = WEAPONS[p.weapon].magazineSize;
   p.reloadingUntil = 0; p.lastFire = 0;
   p.input = { forward: 0, strafe: 0, crouch: false };
