@@ -98,6 +98,7 @@ const tracers = [];
 const smokeProjectileMeshes = new Map();
 const grenadeProjectileMeshes = new Map();
 const grenadeExplosionMeshes = new Map();
+const skyfallImpactMeshes = new Map();
 const smokeCloudMeshes = new Map();
 let localWeaponViewModel = null;
 let localWeaponViewModelType = "";
@@ -1574,6 +1575,22 @@ function removeGrenadeProjectileVisual(id) {
   mesh.material?.dispose();
   grenadeProjectileMeshes.delete(id);
 }
+function createSkyfallImpactVisual(data) {
+  if (!data?.id || skyfallImpactMeshes.has(data.id)) return;
+  const radius = Math.max(0.5, Number(data.radius) || 6);
+  const geometry = new THREE.CircleGeometry(radius, 48);
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xff2020, transparent: true, opacity: 0.3,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(Number(data.x) || 0, (Number(data.y) || 0) + 0.035, Number(data.z) || 0);
+  mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + 1800;
+  scene.add(mesh);
+  skyfallImpactMeshes.set(data.id, mesh);
+}
+
 function createGrenadeExplosionVisual(data) {
   if (!data?.id) return;
   const geometry = new THREE.SphereGeometry(Math.max(0.1, Number(data.radius) || 5.2), 18, 12);
@@ -1676,6 +1693,15 @@ function updateSmokeVisuals(now, dt) {
   for (const [id, mesh] of [...grenadeProjectileMeshes]) {
     if (Date.now() >= Number(mesh.userData.expiresAt || Infinity)) { removeGrenadeProjectileVisual(id); continue; }
     if (mesh.userData.targetPosition) mesh.position.lerp(mesh.userData.targetPosition, 1 - Math.exp(-24 * dt));
+  }
+  for (const [id, mesh] of [...skyfallImpactMeshes]) {
+    const remaining = Number(mesh.userData.expiresAt || 0) - Date.now();
+    if (remaining <= 0) {
+      scene.remove(mesh); mesh.geometry?.dispose(); mesh.material?.dispose();
+      skyfallImpactMeshes.delete(id);
+      continue;
+    }
+    mesh.material.opacity = 0.3 * Math.min(1, remaining / 450);
   }
   for (const [id, mesh] of [...grenadeExplosionMeshes]) {
     const remaining = Number(mesh.userData.expiresAt || 0) - Date.now();
@@ -3269,6 +3295,7 @@ socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
 socket.on("grenadeExplosion", createGrenadeExplosionVisual);
+socket.on("skyfallImpact", createSkyfallImpactVisual);
 socket.on("grenadeState", (projectiles = []) => {
   resetGrenadeVisuals();
   for (const projectile of projectiles) createGrenadeProjectileVisual(projectile);
@@ -3374,7 +3401,7 @@ function updateLoadoutSelectionUi() {
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
-  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り" };
+  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り" };
   const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁" };
   document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
@@ -3393,7 +3420,7 @@ document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListene
 }));
 document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(card.dataset.charm) ? card.dataset.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
 }));
 for (const button of document.querySelectorAll(".weapon-card")) {
