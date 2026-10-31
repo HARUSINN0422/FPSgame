@@ -2067,9 +2067,14 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     let visualPitch = shooter.pitch;
     if (weapon.spread) {
       const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
+      const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
+        Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
+      const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
       const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) *
-        getMovementSpeedSpreadMultiplier(shooter, now);
-      const visualSpread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier;
+        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now);
+      const sniperUnscopedMultiplier = shooter.weapon === "sniper" && !sniperScoped ? 3.2 : 1;
+      const visualSpread = weapon.spread * botSpreadMultiplier *
+        movementSpreadMultiplier * sniperUnscopedMultiplier;
       visualYaw += (Math.random() - 0.5) * visualSpread;
       visualPitch += (Math.random() - 0.5) * visualSpread;
     }
