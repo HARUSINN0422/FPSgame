@@ -3398,15 +3398,8 @@ socket.on("smokeState", ({ projectiles = [], clouds = [] } = {}) => {
 });
 
 socket.on("damageDealt", (event) => {
-  const shieldDamage = Math.max(0, Number(event.shieldDamage) || 0);
-  const healthDamage = Math.max(0, Number(event.healthDamage) || 0);
-  if (shieldDamage > 0 || healthDamage > 0) {
-    if (shieldDamage > 0) addDamageNumber(shieldDamage, event.zone, event.x, event.y, event.z, "shield");
-    if (healthDamage > 0) addDamageNumber(healthDamage, event.zone, event.x, event.y, event.z, "health");
-  } else {
-    // 旧サーバーとの互換性
-    addDamageNumber(event.damage, event.zone, event.x, event.y, event.z, "health");
-  }
+  const dealtDamage = Math.max(0, Number(event.damage) || 0);
+  if (dealtDamage > 0) addDamageNumber(dealtDamage, event.zone, event.x, event.y, event.z, "health");
 });
 
 socket.on("damageTaken", () => {
