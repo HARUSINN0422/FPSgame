@@ -997,12 +997,12 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     if (distance > radius) continue;
     const damage = Math.round(20 + 40 * (1 - distance / radius));
     if (damage <= 0) continue;
-    applyIncomingDamage(target, damage);
+    const damageSplit = applyIncomingDamage(target, damage);
     if (projectile.owner && projectile.owner.id !== target.id) addUltimateCharge(projectile.owner, damage);
     target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
     target.damageSlowUntil = now + DAMAGE_SLOW_MS;
     io.to(projectile.ownerId).emit("damageDealt", {
-      targetId: target.id, damage, zone: "body",
+      targetId: target.id, damage, shieldDamage: damageSplit.shieldDamage, healthDamage: damageSplit.healthDamage, zone: "body",
       x: target.x, y: target.y + targetHeight * 0.5, z: target.z
     });
     io.to(target.id).emit("damageTaken", {
@@ -1583,11 +1583,11 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
     if (Math.hypot(target.x - x, target.z - z) > SKYFALL_IMPACT_RADIUS) continue;
 
     const damage = 100;
-    applyIncomingDamage(target, damage);
+    const damageSplit = applyIncomingDamage(target, damage);
     target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
     target.damageSlowUntil = now + DAMAGE_SLOW_MS;
     io.to(attacker.id).emit("damageDealt", {
-      targetId: target.id, damage, zone: "body",
+      targetId: target.id, damage, shieldDamage: damageSplit.shieldDamage, healthDamage: damageSplit.healthDamage, zone: "body",
       x: target.x, y: target.y + (target.crouched ? 0.75 : 1), z: target.z
     });
     io.to(target.id).emit("damageTaken", {
@@ -1995,9 +1995,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
     if (best) {
       const damage = weapon.damage;
-      applyIncomingDamage(best.target, damage);
+      const split = applyIncomingDamage(best.target, damage);
       addUltimateCharge(shooter, damage);
-      damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, zone: "body"});
+      damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage, zone: "body"});
       hitResults.push({target: best.target, damage, zone: "body", x: best.target.x, y: best.target.y + 1, z: best.target.z});
     }
   }
@@ -2047,18 +2047,22 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 105 * bowCharge : weapon.damage;
     const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
-    applyIncomingDamage(bestHit.target, damage);
+    const split = applyIncomingDamage(bestHit.target, damage);
     addUltimateCharge(shooter, damage);
 
     const existing = damageByTarget.get(bestHit.target.id);
     if (existing) {
       existing.damage += damage;
+      existing.shieldDamage += split.shieldDamage;
+      existing.healthDamage += split.healthDamage;
       if (bestHit.zone === "head") existing.zone = "head";
     } else {
       damageByTarget.set(bestHit.target.id, {
         id: bestHit.target.id,
         target: bestHit.target,
         damage,
+        shieldDamage: split.shieldDamage,
+        healthDamage: split.healthDamage,
         zone: bestHit.zone
       });
     }
@@ -2081,6 +2085,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     io.to(shooter.id).emit("damageDealt", {
       targetId: result.target.id,
       damage: Math.round(result.damage),
+      shieldDamage: Math.round(result.shieldDamage),
+      healthDamage: Math.round(result.healthDamage),
       zone: result.zone,
       x: feedback?.x ?? result.target.x,
       y: feedback?.y ?? result.target.y + 1,
@@ -2174,13 +2180,16 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
 function applyIncomingDamage(target, amount) {
   let damage = Math.max(0, Number(amount) || 0);
+  let shieldDamage = 0;
   if (target.shield > 0 && damage > 0) {
-    const absorbed = Math.min(target.shield, damage);
-    target.shield -= absorbed;
-    damage -= absorbed;
+    shieldDamage = Math.min(target.shield, damage);
+    target.shield -= shieldDamage;
+    damage -= shieldDamage;
   }
-  if (damage > 0) target.health = Math.max(0, target.health - damage);
-  return damage;
+  const healthBefore = Math.max(0, Number(target.health) || 0);
+  if (damage > 0) target.health = Math.max(0, healthBefore - damage);
+  const healthDamage = Math.min(healthBefore, damage);
+  return { shieldDamage, healthDamage, totalDamage: shieldDamage + healthDamage };
 }
 
 function publicPlayer(p, includeSkin = false) {
