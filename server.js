@@ -1912,10 +1912,10 @@ function getMovementSpeedSpreadMultiplier(shooter, now = Date.now()) {
   if (shooter.damageHitstopUntil > now) actualMoveSpeed = 0;
   else if (shooter.damageSlowUntil > now) actualMoveSpeed *= DAMAGE_SLOW_MULTIPLIER;
 
-  // 通常走行を1倍とし、それを超える速度は5乗で弾ブレに反映する。
-  // 移動速度のお守り（1.8倍）では約18.9倍の弾ブレになる。
+  // 通常走行を1倍とし、それを超える速度は4.5乗で弾ブレに反映する。
+  // 移動速度のお守り（1.8倍）では約14倍の弾ブレになる。
   const speedRatio = Math.max(1, actualMoveSpeed / PLAYER_SPEED);
-  return Math.min(40, Math.pow(speedRatio, 5));
+  return Math.min(32, Math.pow(speedRatio, 4.5));
 }
 
 function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
