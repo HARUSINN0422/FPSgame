@@ -1686,6 +1686,7 @@ body.controller-mode #settingsButton {
   touch-action: none; user-select: none; -webkit-user-select: none;
 }
 #ultimateButton:disabled { opacity: .72; filter: saturate(.55); }
+#ultimateButton.ultimate-pressed { transform: scale(.92); filter: brightness(1.35); box-shadow: 0 0 24px rgba(70,205,255,.9); }
 #ultimateButton:not(:disabled) { border-color: #8be7ff; box-shadow: 0 0 18px rgba(70,205,255,.55); }
 .ultimate-card { border-color: rgba(78,190,235,.3); }
 
