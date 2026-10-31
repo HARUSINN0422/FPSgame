@@ -644,7 +644,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "ultimateButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -3223,7 +3223,7 @@ socket.on("state", (players) => {
     if (ultimateButton) {
       const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
       ultimateButton.style.setProperty("--ultimate-progress", charge + "%");
-      ultimateButton.disabled = !joined || Number(myState.health) <= 0 || layoutEditing || ultimateRequestPending;
+      ultimateButton.disabled = !joined || Number(myState.health) <= 0 || ultimateRequestPending;
       ultimateButton.textContent = charge >= 100 ? "ULT" : Math.floor(charge) + "%";
     }
     document.getElementById("kills").textContent = String(myState.kills);
@@ -3775,6 +3775,7 @@ setupDraggableButton("fireButton", "fireButton");
 setupDraggableButton("switchWeaponButton", "switchWeaponButton");
 setupDraggableButton("inventoryButton", "inventoryButton");
 setupDraggableButton("scopeButton", "scopeButton");
+setupDraggableButton("ultimateButton", "ultimateButton");
 setupDraggableOffset("minimap", "minimap");
 setupDraggableOffset("healthHud", "healthHud");
 setupDraggableOffset("kdHud", "kdHud");
@@ -4050,7 +4051,7 @@ function sendUltimateRequest(payload = {}, onSuccess) {
   socket.timeout(4000).emit("ultimate", payload, (error, result) => {
     ultimateRequestPending = false;
     if (button) {
-      button.disabled = !joined || Number(myState?.health) <= 0 || layoutEditing;
+      button.disabled = !joined || Number(myState?.health) <= 0;
       button.textContent = (Number(myState?.ultimateCharge) || 0) >= 100 ? "ULT" : Math.floor(Number(myState?.ultimateCharge) || 0) + "%";
     }
     if (error) {
@@ -4067,6 +4068,7 @@ function sendUltimateRequest(payload = {}, onSuccess) {
 }
 
 function activateUltimate() {
+  if (layoutEditing) return;
   if (!joined || !myState) { showMessage("ゲームに参加してから使用できます。"); return; }
   if (Number(myState.health) <= 0 || myState.finished) { showMessage("復活してから使用してください。"); return; }
   const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
