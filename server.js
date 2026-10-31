@@ -651,6 +651,8 @@ function getWorldPayloadForMap(map, mode) {
     ramps: map.ramps || [],
     elevatedPlatforms: map.elevatedPlatforms || [],
     floorTiles: map.floorTiles || [],
+    bridges: map.bridges || [],
+    bridgeSupports: map.bridgeSupports || [],
     world: map.world,
     ...(mode === AREA_MODE && map.areaZone ? { areaZone: map.areaZone } : {}),
     weapons: Object.fromEntries(
@@ -862,7 +864,28 @@ function resolveDuelRound(winner, loser) {
 
 const SKYFALL_IMPACT_RADIUS = 15;
 const SKYFALL_IMPACT_DURATION_MS = 1800;
+const SKYFALL_FLIGHT_DURATION_MS = 3000;
 let skyfallImpactSequence = 0;
+
+function activateSkyfall(player, now = Date.now()) {
+  if (!player || player.health <= 0 || player.finished || player.ultimateActiveUntil > now) return false;
+  player.ultimateAnchor = { x: player.x, y: player.y, z: player.z };
+  player.skyfallImpactId = "skyfall-impact-" + (++skyfallImpactSequence);
+  broadcastGameEvent(player, "skyfallTargeting", {
+    id: player.skyfallImpactId,
+    x: player.x,
+    y: getGroundHeight(player.x, player.z, player.y, player),
+    z: player.z,
+    radius: SKYFALL_IMPACT_RADIUS,
+    expiresAt: now + SKYFALL_FLIGHT_DURATION_MS + SKYFALL_IMPACT_DURATION_MS
+  });
+  player.y += 12;
+  player.velocityY = 0;
+  player.grounded = false;
+  player.skyfallImpactPending = false;
+  player.ultimateActiveUntil = now + SKYFALL_FLIGHT_DURATION_MS;
+  return true;
+}
 
 const SMOKE_RADIUS = 5.2;
 const SMOKE_DURATION_MS = 8500;
@@ -1311,7 +1334,9 @@ function syncBots() {
     isBot: true,
     x: spawn[0], y: 0, z: spawn[2],
     yaw: 0, pitch: 0,
-    health: 100, kills: 0, deaths: 0,
+    health: 100, maxHealth: 100, kills: 0, deaths: 0,
+    ultimateCharge: 0, ultimateType: "skyfall", ultimateActiveUntil: 0,
+    ultimateAnchor: null, skyfallImpactPending: false, skyfallImpactId: null,
     weapon: "rifle",
     weaponSlots: ["rifle", "marksman"],
     activeWeaponSlot: 0,
@@ -1333,7 +1358,7 @@ function syncBots() {
 }
 
 function updateBot(p, now) {
-  if (!p.isBot || p.health <= 0 || p.finished || now < p.botThinkAt) return;
+  if (!p.isBot || p.health <= 0 || p.finished || p.ultimateActiveUntil > now || now < p.botThinkAt) return;
   p.botThinkAt = now + 100 + Math.random() * 80;
 
   const isAreaBot = p.mode === AREA_MODE;
@@ -1354,6 +1379,78 @@ function updateBot(p, now) {
     isSameGame(p, other) &&
     (isAreaBot ? other.team !== p.team : !other.isBot)
   );
+
+  // チャージが完了し、無敵時間外の敵が近距離にいる場合はBOTも天墜を使う。
+  // 天墜は自分の足元に落ちるため、敵が半径内に入るまで温存する。
+  if ((p.ultimateCharge || 0) >= 100 && p.grounded && p.invulnerableUntil <= now) {
+    const closeEnemy = targets.find((other) =>
+      other.invulnerableUntil <= now &&
+      Math.hypot(other.x - p.x, other.z - p.z) <= SKYFALL_IMPACT_RADIUS * 0.68
+    );
+    if (closeEnemy && activateSkyfall(p, now)) {
+      p.ultimateCharge = 0;
+      return;
+    }
+  }
+
+  // 敵の天墜予告範囲に入ったBOTは、まず発動者を撃ち落とそうとし、
+  // 同時に範囲外へ移動する。遮蔽物があれば回り込む。
+  const incomingSkyfall = targets
+    .filter((other) => other.ultimateActiveUntil > now && other.skyfallImpactId)
+    .map((other) => ({
+      player: other,
+      anchor: other.ultimateAnchor || { x: other.x, z: other.z },
+      distance: Math.hypot(p.x - (other.ultimateAnchor?.x ?? other.x), p.z - (other.ultimateAnchor?.z ?? other.z))
+    }))
+    .filter((threat) => threat.distance <= SKYFALL_IMPACT_RADIUS + 1.25)
+    .sort((a, b) => a.distance - b.distance)[0];
+
+  if (incomingSkyfall) {
+    const attacker = incomingSkyfall.player;
+    const shotDx = attacker.x - p.x;
+    const shotDz = attacker.z - p.z;
+    const shotDistance = Math.hypot(shotDx, shotDz);
+    const shotYaw = Math.atan2(-shotDx, -shotDz);
+    const shotY = attacker.y + (attacker.crouched ? 0.75 : 1.0);
+    const shotOrigin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
+    const shotPitch = clamp(Math.atan2(shotY - shotOrigin.y, Math.max(0.001, shotDistance)), -1.25, 1.25);
+    const shotDirection = directionFromAngles(shotYaw, shotPitch);
+    const shotRange = Math.hypot(shotDx, shotY - shotOrigin.y, shotDz);
+    const shotWall = rayHitsObstacle(shotOrigin, shotDirection, Math.min(shotRange, WEAPONS[p.weapon].range), p);
+    if (shotRange <= WEAPONS[p.weapon].range &&
+        (shotWall === null || shotWall >= shotRange - 0.7) &&
+        now - p.lastFire >= WEAPONS[p.weapon].fireInterval &&
+        Math.random() < 0.85) {
+      const oldYaw = p.yaw, oldPitch = p.pitch;
+      p.yaw = shotYaw;
+      p.pitch = shotPitch;
+      fireShot(p);
+      p.yaw = oldYaw;
+      p.pitch = oldPitch;
+    }
+
+    const awayX = p.x - incomingSkyfall.anchor.x;
+    const awayZ = p.z - incomingSkyfall.anchor.z;
+    const awayLength = Math.hypot(awayX, awayZ) || 1;
+    const escapeYaw = Math.atan2(-(awayX / awayLength), -(awayZ / awayLength));
+    const escapeDelta = Math.atan2(Math.sin(escapeYaw - p.yaw), Math.cos(escapeYaw - p.yaw));
+    p.yaw += clamp(escapeDelta, -0.3, 0.3);
+    p.pitch = 0;
+    const escapeOrigin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
+    const escapeWall = rayHitsObstacle(escapeOrigin, directionFromAngles(p.yaw, 0), 3.8, p);
+    if (escapeWall !== null && escapeWall < 2.4) {
+      const side = Math.sin(now / 500 + (p.botOffset || 0)) >= 0 ? 1 : -1;
+      p.yaw += side * 0.62;
+      p.input.forward = 0.75;
+      p.input.strafe = side * 0.8;
+    } else {
+      p.input.forward = 1;
+      p.input.strafe = 0.12;
+    }
+    p.input.crouch = false;
+    if (p.grounded) p.jumpQueuedUntil = Math.max(p.jumpQueuedUntil || 0, now + 100);
+    return;
+  }
 
   // 視認できる敵がいる場合だけ戦闘を優先し、遮蔽物越しの敵には釣られず制圧へ向かう。
   const visibleTargets = isAreaBot ? targets.filter((other) => {
@@ -1651,7 +1748,7 @@ function movePlayer(p, dt) {
   if (p.ultimateActiveUntil > now) { p.input = { forward: 0, strafe: 0, crouch: false }; p.velocityY = 0; p.grounded = false; return; }
   if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) {
     p.ultimateActiveUntil = 0;
-    // 5秒経過時点の真下にある床面へ即座に着地。壁の上面も着地点に含める。
+    // 3秒経過時点の真下にある床面へ即座に着地。壁の上面も着地点に含める。
     p.y = getGroundHeight(p.x, p.z, p.y, p);
     p.velocityY = 0;
     p.grounded = true;
@@ -2917,20 +3014,10 @@ io.on("connection", (socket) => {
     const type = ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
     const now = Date.now();
     if (type === "skyfall") {
-      p.ultimateAnchor = { x: p.x, y: p.y, z: p.z };
-      p.skyfallImpactId = "skyfall-impact-" + (++skyfallImpactSequence);
-      broadcastGameEvent(p, "skyfallTargeting", {
-        id: p.skyfallImpactId,
-        x: p.x,
-        y: getGroundHeight(p.x, p.z, p.y, p),
-        z: p.z,
-        radius: SKYFALL_IMPACT_RADIUS,
-        expiresAt: now + 8000
-      });
-      p.y += 12;
-      p.velocityY = 0;
-      p.grounded = false;
-      p.ultimateActiveUntil = now + 5000;
+      if (!activateSkyfall(p, now)) {
+        reply({ ok: false, message: "天墜を発動できませんでした。" });
+        return;
+      }
     } else if (type === "aegis") {
       p.maxHealth = p.charm === "hp" ? 120 : 100;
       p.health = p.maxHealth;
