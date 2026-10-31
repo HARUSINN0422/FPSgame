@@ -1707,3 +1707,8 @@ body.controller-mode #settingsButton {
 /* Shield damage numbers use the same blue as the shield HUD. */
 .damage-number.shield-damage { color: #72c8ff; }
 .damage-number.health-damage { color: #ffffff; }
+/* HPダメージは白、ヘッドショット時は黄色を優先する。 */
+.damage-number.health-damage.head,
+.damage-number.health-damage.critical,
+.damage-number.shield-damage.head,
+.damage-number.shield-damage.critical { color: #ffb52e; }
