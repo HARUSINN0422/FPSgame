@@ -8,6 +8,10 @@ const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
 
 const socket = io(socketOrigin, {
   path: socketPath,
+  // Vercel側はApacheのWebSocketプロキシ経由で接続する。
+  // HTTP long-pollingは /FPSgame/socket.io/ のWS専用プロキシでは通らないため、
+  // Vercelフロントエンドでは最初からWebSocket接続に限定する。
+  ...(isVercelFrontend ? { transports: ["websocket"] } : {}),
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 500,
