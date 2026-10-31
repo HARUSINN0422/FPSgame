@@ -1576,8 +1576,15 @@ function removeGrenadeProjectileVisual(id) {
   grenadeProjectileMeshes.delete(id);
 }
 function createSkyfallImpactVisual(data) {
-  if (!data?.id || skyfallImpactMeshes.has(data.id)) return;
-  const radius = Math.max(0.5, Number(data.radius) || 6);
+  if (!data?.id) return;
+  const existing = skyfallImpactMeshes.get(data.id);
+  if (existing) {
+    existing.userData.expiresAt = Number(data.expiresAt) || Date.now() + 1800;
+    existing.userData.targeting = Boolean(data.targeting);
+    existing.material.opacity = data.targeting ? 0.24 : 0.3;
+    return;
+  }
+  const radius = Math.max(0.5, Number(data.radius) || 20);
   const geometry = new THREE.CircleGeometry(radius, 48);
   const material = new THREE.MeshBasicMaterial({
     color: 0xff2020, transparent: true, opacity: 0.3,
@@ -1586,7 +1593,9 @@ function createSkyfallImpactVisual(data) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(Number(data.x) || 0, (Number(data.y) || 0) + 0.035, Number(data.z) || 0);
-  mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + 1800;
+  mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + 8000;
+  mesh.userData.targeting = Boolean(data.targeting);
+  if (mesh.userData.targeting) material.opacity = 0.24;
   scene.add(mesh);
   skyfallImpactMeshes.set(data.id, mesh);
 }
@@ -3295,7 +3304,8 @@ socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
 socket.on("grenadeExplosion", createGrenadeExplosionVisual);
-socket.on("skyfallImpact", createSkyfallImpactVisual);
+socket.on("skyfallTargeting", (data) => createSkyfallImpactVisual({ ...data, targeting: true }));
+socket.on("skyfallImpact", (data) => createSkyfallImpactVisual({ ...data, targeting: false }));
 socket.on("grenadeState", (projectiles = []) => {
   resetGrenadeVisuals();
   for (const projectile of projectiles) createGrenadeProjectileVisual(projectile);
@@ -3627,22 +3637,45 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
 updateLoadoutSelectionUi();
 
 const fullscreenButton = document.getElementById("fullscreenButton");
-async function toggleFullscreen() {
-  try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen?.();
-    } else {
-      await document.exitFullscreen?.();
-    }
-  } catch (_) {}
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
 }
-fullscreenButton?.addEventListener("click", () => {
+function showFullscreenFallbackMessage() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  showMessage(isIOS
+    ? "iPhoneのSafariはWebページの全画面化に対応していません。共有メニューから「ホーム画面に追加」して起動してください。"
+    : "このブラウザでは全画面表示に対応していません。");
+}
+async function toggleFullscreen() {
+  const active = getFullscreenElement();
+  try {
+    if (active) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (typeof exit !== "function") { showFullscreenFallbackMessage(); return; }
+      await exit.call(document);
+    } else {
+      const target = document.documentElement;
+      const request = target.requestFullscreen || target.webkitRequestFullscreen;
+      if (typeof request !== "function") { showFullscreenFallbackMessage(); return; }
+      await request.call(target, { navigationUI: "hide" });
+    }
+  } catch (error) {
+    console.warn("[Fullscreen] 全画面切替に失敗しました:", error);
+    showFullscreenFallbackMessage();
+  }
+}
+fullscreenButton?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
   if (layoutEditing) return;
   toggleFullscreen();
 });
-document.addEventListener("fullscreenchange", () => {
-  if (fullscreenButton) fullscreenButton.textContent = document.fullscreenElement ? "全画面解除" : "全画面";
-});
+function updateFullscreenButton() {
+  if (fullscreenButton) fullscreenButton.textContent = getFullscreenElement() ? "全画面解除" : "全画面";
+}
+document.addEventListener("fullscreenchange", updateFullscreenButton);
+document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 
 const movePad = document.getElementById("movePad");
 const moveKnob = document.getElementById("moveKnob");
