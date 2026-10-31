@@ -293,15 +293,20 @@ body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
 }
 
 #fullscreenButton {
-  position: absolute;
-  right: 14px;
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
   top: calc(48px + env(safe-area-inset-top));
-  pointer-events: auto;
-  border: 1px solid rgba(255,255,255,.14);
+  z-index: 10030;
+  display: block;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid rgba(255,255,255,.2);
   border-radius: 12px;
-  padding: 8px 12px;
+  padding: 10px 14px;
+  min-height: 42px;
   color: #fff;
-  background: rgba(15,18,22,.78);
+  background: rgba(15,18,22,.9);
 }
 
 #message {
@@ -621,7 +626,8 @@ body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
 
   #fullscreenButton {
     top: calc(78px + env(safe-area-inset-top));
-    right: 12px;
+    right: max(12px, env(safe-area-inset-right));
+    z-index: 10030;
   }
 }
 
