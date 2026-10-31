@@ -235,7 +235,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   pistol: "単発 / 胴体50ダメージ / 装弾数6発・距離減衰はやや大きめ",
   smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
-  shotgun: "単発 / 8発の散弾（胴体全弾命中で80ダメージ） / 近距離向け",
+  shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
@@ -266,6 +266,10 @@ try {
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
 WEAPONS.marksman.fireInterval = 225;
+WEAPONS.shotgun.damage = 25;
+WEAPONS.shotgun.pellets = 8;
+WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
+WEAPONS.shotgun.minDamageMultiplier = 1;
 WEAPONS.shotgun.spread = 0.24 * 0.7;
 
 const app = express();
