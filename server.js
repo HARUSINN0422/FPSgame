@@ -883,6 +883,7 @@ function activateSkyfall(player, now = Date.now()) {
   player.velocityY = 0;
   player.grounded = false;
   player.skyfallImpactPending = false;
+  player.skyfallStartedAt = now;
   player.ultimateActiveUntil = now + SKYFALL_FLIGHT_DURATION_MS;
   return true;
 }
@@ -1745,7 +1746,28 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
 
 function movePlayer(p, dt) {
   const now = Date.now();
-  if (p.ultimateActiveUntil > now) { p.input = { forward: 0, strafe: 0, crouch: false }; p.velocityY = 0; p.grounded = false; return; }
+  if (p.ultimateActiveUntil > now) {
+    // 天墜の浮上中は上下位置を維持しつつ、ごく低速で横移動できる。
+    if (p.skyfallImpactId) {
+      const input = p.input || {};
+      const forward = clamp(Number(input.forward) || 0, -1, 1);
+      const strafe = clamp(Number(input.strafe) || 0, -1, 1);
+      const length = Math.hypot(forward, strafe) || 1;
+      const speed = 1.25;
+      const dx = (-Math.sin(p.yaw) * forward + Math.cos(p.yaw) * strafe) / length * speed * dt;
+      const dz = (-Math.cos(p.yaw) * forward - Math.sin(p.yaw) * strafe) / length * speed * dt;
+      const nextX = p.x + dx;
+      const nextZ = p.z + dz;
+      if (!collides(nextX, p.z, p.y, PLAYER_HEIGHT, p)) p.x = nextX;
+      if (!collides(p.x, nextZ, p.y, PLAYER_HEIGHT, p)) p.z = nextZ;
+      const bounds = getMapForPlayer(p).world;
+      p.x = clamp(p.x, bounds.minX + PLAYER_RADIUS, bounds.maxX - PLAYER_RADIUS);
+      p.z = clamp(p.z, bounds.minZ + PLAYER_RADIUS, bounds.maxZ - PLAYER_RADIUS);
+    }
+    p.velocityY = 0;
+    p.grounded = false;
+    return;
+  }
   if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) {
     p.ultimateActiveUntil = 0;
     // 3秒経過時点の真下にある床面へ即座に着地。壁の上面も着地点に含める。
@@ -2295,6 +2317,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
 function applyIncomingDamage(target, amount) {
   let damage = Math.max(0, Number(amount) || 0);
+  // 天墜で浮上している間は受けるダメージを75%軽減する。
+  if (target.skyfallImpactId && target.ultimateActiveUntil > Date.now()) damage *= 0.25;
   let shieldDamage = 0;
   if (target.shield > 0 && damage > 0) {
     shieldDamage = Math.min(target.shield, damage);
@@ -2304,6 +2328,13 @@ function applyIncomingDamage(target, amount) {
   const healthBefore = Math.max(0, Number(target.health) || 0);
   if (damage > 0) target.health = Math.max(0, healthBefore - damage);
   const healthDamage = Math.min(healthBefore, damage);
+  if (target.health <= 0) {
+    const magazineSize = WEAPONS[target.weapon]?.magazineSize || 0;
+    target.ammo = magazineSize;
+    if (Array.isArray(target.weaponAmmo)) target.weaponAmmo[target.activeWeaponSlot || 0] = magazineSize;
+    target.reloadingUntil = 0;
+    target.lastFire = 0;
+  }
   return { shieldDamage, healthDamage, totalDamage: shieldDamage + healthDamage };
 }
 
@@ -3000,12 +3031,22 @@ io.on("connection", (socket) => {
       reply({ ok: false, message: "現在はアルティメットを使用できません。" });
       return;
     }
+    const type = ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
+    const now = Date.now();
+    // 天墜開始から1秒経過後は、アルティメット再入力で任意に降下できる。
+    if (type === "skyfall" && p.skyfallImpactId && p.ultimateActiveUntil > now) {
+      if (now - (p.skyfallStartedAt || now) < 1000) {
+        reply({ ok: false, message: "天墜の降下は発動から1秒後に可能です。" });
+        return;
+      }
+      p.ultimateActiveUntil = now;
+      reply({ ok: true, type: "skyfall", descended: true });
+      return;
+    }
     if ((p.ultimateCharge || 0) < 100) {
       reply({ ok: false, message: "チャージが不足しています。" });
       return;
     }
-    const type = ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
-    const now = Date.now();
     if (type === "skyfall") {
       if (!activateSkyfall(p, now)) {
         reply({ ok: false, message: "天墜を発動できませんでした。" });
@@ -3013,7 +3054,6 @@ io.on("connection", (socket) => {
       }
     } else if (type === "aegis") {
       p.maxHealth = p.charm === "hp" ? 120 : 100;
-      p.health = p.maxHealth;
       p.shield = 50;
       p.ultimateActiveUntil = 0;
     } else {
