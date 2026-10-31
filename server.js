@@ -952,22 +952,26 @@ function applyShockwave(projectile, position, now = Date.now()) {
     if (target.invulnerableUntil > now) continue;
     const dx = target.x - position.x;
     const dz = target.z - position.z;
-    const distance = Math.hypot(dx, dz);
+    const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+    const dy = target.y + targetHeight * 0.5 - position.y;
+    const distance = Math.hypot(dx, dy, dz);
     if (distance > radius) continue;
     const proximity = 1 - clamp(distance / radius, 0, 1);
-    let dirX, dirZ;
+    let dirX, dirY, dirZ;
     if (distance > 0.001) {
       dirX = dx / distance;
+      dirY = dy / distance;
       dirZ = dz / distance;
     } else {
       const fallback = directionFromAngles(projectile.owner.yaw, 0);
       dirX = fallback.x;
+      dirY = 0;
       dirZ = fallback.z;
     }
     const impulse = 13 + 22 * proximity;
     target.knockbackVelocityX = (Number(target.knockbackVelocityX) || 0) + dirX * impulse;
     target.knockbackVelocityZ = (Number(target.knockbackVelocityZ) || 0) + dirZ * impulse;
-    target.velocityY = Math.max(Number(target.velocityY) || 0, 5 + 8 * proximity);
+    target.velocityY = Math.max(Number(target.velocityY) || 0, 5 + 8 * proximity + dirY * impulse);
     target.grounded = false;
     target.lastGroundedAt = 0;
   }
