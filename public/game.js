@@ -4132,6 +4132,9 @@ ultimateButtonElement?.addEventListener("click", event => {
 });
 
 function openUltimateMapPicker() {
+  // 空間跳躍の地点選択ではマウスカーソルを操作できるようPointer Lockを解除する。
+  if (document.pointerLockElement) document.exitPointerLock?.();
+  pointerLocked = false;
   const overlay = document.getElementById("ultimateMapPicker");
   const canvas = document.getElementById("ultimateMapCanvas");
   const ctx = canvas?.getContext("2d");
@@ -4213,6 +4216,12 @@ function activateUltimate() {
   if (!joined || !myState) { showMessage("ゲームに参加してから使用できます。"); return; }
   if (Number(myState.health) <= 0 || myState.finished) { showMessage("復活してから使用してください。"); return; }
   const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
+  if (myState.ultimateType === "skyfall" && Number(myState.ultimateActiveUntil) > Date.now()) {
+    const startedAt = Number(myState.ultimateActiveUntil) - 3000;
+    if (Date.now() - startedAt < 1000) { showMessage("降下は天墜の発動から1秒後に可能です。"); return; }
+    sendUltimateRequest({ descend: true });
+    return;
+  }
   if (charge < 100) { showMessage("アルティメットのチャージ中です（" + Math.floor(charge) + "%）。"); return; }
   if (myState.ultimateType === "teleport") {
     openUltimateMapPicker();
