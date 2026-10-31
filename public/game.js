@@ -179,6 +179,7 @@ const weaponConfig = {
   pickaxe: { fireInterval: 650, automatic: false, melee: true },
   smoke: { fireInterval: 1300, automatic: false },
   grenadeLauncher: { fireInterval: 900, automatic: false },
+  shockwaveLauncher: { fireInterval: 900, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
@@ -1478,7 +1479,7 @@ function createWeaponMesh(weapon) {
 }
 
 function refreshLocalWeaponViewModel() {
-  const shouldShow = joined && ["pickaxe", "smoke", "grenadeLauncher"].includes(selectedWeapon);
+  const shouldShow = joined && ["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher"].includes(selectedWeapon);
   if (!shouldShow) {
     if (localWeaponViewModel) camera.remove(localWeaponViewModel);
     localWeaponViewModel = null;
@@ -1496,7 +1497,7 @@ function refreshLocalWeaponViewModel() {
 }
 
 function startLocalWeaponAction(weapon) {
-  if (!["pickaxe", "smoke", "grenadeLauncher"].includes(weapon)) return;
+  if (!["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher"].includes(weapon)) return;
   localWeaponActionType = weapon;
   localWeaponActionStartedAt = performance.now();
 }
@@ -1516,7 +1517,7 @@ function animateLocalWeaponViewModel(now) {
     localWeaponViewModel.rotation.x = 0.16 + angle * 0.64;
     localWeaponViewModel.rotation.z = -0.28 - angle * 0.46;
     localWeaponViewModel.position.y = -0.34 - Math.max(0, angle) * 0.035;
-  } else if (["smoke", "grenadeLauncher"].includes(localWeaponActionType) && elapsed >= 0 && elapsed < 0.26) {
+  } else if (["smoke", "grenadeLauncher", "shockwaveLauncher"].includes(localWeaponActionType) && elapsed >= 0 && elapsed < 0.26) {
     const progress = elapsed / 0.26;
     localWeaponViewModel.position.set(0.38 + 0.12 * progress, -0.34 + 0.07 * Math.sin(progress * Math.PI), -0.62 - 0.1 * progress);
     localWeaponViewModel.rotation.z = -0.28 - progress * 0.48;
@@ -1551,7 +1552,11 @@ function createGrenadeProjectileVisual(data) {
   let mesh = grenadeProjectileMeshes.get(data.id);
   const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
   if (!mesh) {
-    const material = new THREE.MeshStandardMaterial({ color: 0x8b7a43, roughness: 0.5, metalness: 0.25 });
+    const isShockwave = data.type === "shockwave";
+    const material = new THREE.MeshStandardMaterial({
+      color: isShockwave ? 0x4bdcff : 0x8b7a43, roughness: 0.5, metalness: 0.25,
+      emissive: isShockwave ? 0x145b78 : 0x000000, emissiveIntensity: isShockwave ? 0.8 : 0
+    });
     mesh = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), material);
     mesh.userData.targetPosition = position.clone();
     mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 4500);
@@ -1600,6 +1605,19 @@ function createSkyfallImpactVisual(data) {
   skyfallImpactMeshes.set(data.id, mesh);
 }
 
+function createShockwaveBurstVisual(data) {
+  if (!data?.id) return;
+  const radius = Math.max(0.1, Number(data.radius) || 5.2);
+  const geometry = new THREE.TorusGeometry(radius * 0.72, 0.16, 8, 48);
+  const material = new THREE.MeshBasicMaterial({ color: 0x55ddff, transparent: true, opacity: 0.82, depthWrite: false });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.rotation.x = Math.PI / 2;
+  mesh.position.set(Number(data.x) || 0, (Number(data.y) || 0) + 0.18, Number(data.z) || 0);
+  mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + 520;
+  mesh.userData.maxScale = 1.38;
+  scene.add(mesh);
+  grenadeExplosionMeshes.set(data.id, mesh);
+}
 function createGrenadeExplosionVisual(data) {
   if (!data?.id) return;
   const geometry = new THREE.SphereGeometry(Math.max(0.1, Number(data.radius) || 5.2), 18, 12);
@@ -1716,7 +1734,8 @@ function updateSmokeVisuals(now, dt) {
     const remaining = Number(mesh.userData.expiresAt || 0) - Date.now();
     if (remaining <= 0) { scene.remove(mesh); mesh.geometry?.dispose(); mesh.material?.dispose(); grenadeExplosionMeshes.delete(id); continue; }
     mesh.material.opacity = Math.min(0.38, remaining / 420 * 0.38);
-    const scale = 1 + (1 - remaining / 420) * 0.15;
+    const duration = mesh.userData.maxScale > 1 ? 520 : 420;
+    const scale = 1 + (1 - remaining / duration) * ((mesh.userData.maxScale || 1) - 1);
     mesh.scale.setScalar(scale);
   }
   for (const [id, mesh] of [...smokeProjectileMeshes]) {
@@ -2401,7 +2420,7 @@ function fire() {
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (!["pickaxe", "smoke"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
+  if (!["pickaxe", "smoke", "shockwaveLauncher"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
     reload();
     return;
   }
@@ -2411,18 +2430,18 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
-  if (["pickaxe", "smoke", "grenadeLauncher"].includes(selectedWeapon)) startLocalWeaponAction(selectedWeapon);
+  if (["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher"].includes(selectedWeapon)) startLocalWeaponAction(selectedWeapon);
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
 function reload() {
-  if (!joined || myState?.reloading || ["pickaxe", "smoke"].includes(selectedWeapon)) return;
+  if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher"].includes(selectedWeapon)) return;
   stopFiring();
   socket.emit("reload");
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -2434,6 +2453,7 @@ function updateWeaponReticle() {
     pickaxe: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
+    shockwaveLauncher: ["weapon-grenade", "◉"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
@@ -3304,6 +3324,7 @@ socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
 socket.on("grenadeExplosion", createGrenadeExplosionVisual);
+socket.on("shockwaveBurst", createShockwaveBurstVisual);
 socket.on("skyfallTargeting", (data) => createSkyfallImpactVisual({ ...data, targeting: true }));
 socket.on("skyfallImpact", (data) => createSkyfallImpactVisual({ ...data, targeting: false }));
 socket.on("grenadeState", (projectiles = []) => {
