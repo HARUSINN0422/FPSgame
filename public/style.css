@@ -1676,6 +1676,8 @@ body.controller-mode #settingsButton {
 /* Ultimate ability control */
 #ultimateButton {
   position: absolute; display: grid; place-items: center; border-radius: 50%;
+  /* #touchUi disables pointer events globally; explicitly re-enable this control. */
+  pointer-events: auto; z-index: 18;
   border: 3px solid rgba(255,255,255,.72); color: #fff; font-weight: 950;
   font-size: 14px; letter-spacing: .04em; background:
     radial-gradient(circle, rgba(17,28,43,.96) 58%, transparent 60%),
