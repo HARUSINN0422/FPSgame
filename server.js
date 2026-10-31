@@ -968,10 +968,11 @@ function applyShockwave(projectile, position, now = Date.now()) {
       dirY = 0;
       dirZ = fallback.z;
     }
-    const impulse = 13 + 22 * proximity;
-    target.knockbackVelocityX = (Number(target.knockbackVelocityX) || 0) + dirX * impulse;
-    target.knockbackVelocityZ = (Number(target.knockbackVelocityZ) || 0) + dirZ * impulse;
-    target.velocityY = Math.max(Number(target.velocityY) || 0, 5 + 8 * proximity + dirY * impulse);
+    const horizontalImpulse = (13 + 22 * proximity) * 1.4;
+    target.knockbackVelocityX = (Number(target.knockbackVelocityX) || 0) + dirX * horizontalImpulse;
+    target.knockbackVelocityZ = (Number(target.knockbackVelocityZ) || 0) + dirZ * horizontalImpulse;
+    // 上方向の力は抑え、横方向へ大きく吹き飛ばす。
+    target.velocityY = Math.max(Number(target.velocityY) || 0, 3 + 4 * proximity);
     target.grounded = false;
     target.lastGroundedAt = 0;
   }
@@ -1912,10 +1913,9 @@ function getMovementSpeedSpreadMultiplier(shooter, now = Date.now()) {
   if (shooter.damageHitstopUntil > now) actualMoveSpeed = 0;
   else if (shooter.damageSlowUntil > now) actualMoveSpeed *= DAMAGE_SLOW_MULTIPLIER;
 
-  // 通常走行を1倍とし、それを超える速度は4.5乗で弾ブレに反映する。
-  // 移動速度のお守り（1.8倍）では約14倍の弾ブレになる。
+  // 通常走行を1倍とし、それを超える速度は3.5乗で弾ブレに反映する。
   const speedRatio = Math.max(1, actualMoveSpeed / PLAYER_SPEED);
-  return Math.min(32, Math.pow(speedRatio, 4.5));
+  return Math.min(40, Math.pow(speedRatio, 3.5));
 }
 
 function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
@@ -2660,6 +2660,7 @@ function createTrainingBotsForPlayer(player) {
       id, name: "練習BOT " + (index + 1), skin: "", mode: TRAINING_MODE,
       team: null, matchId: player.matchId, trainingMap: player.trainingMap || activeMap, finished: false, isBot: true,
       x: spawn[0], y: spawn[1] || 0, z: spawn[2],
+      spawnX: spawn[0], spawnY: spawn[1] || 0, spawnZ: spawn[2],
       yaw: Math.atan2(-(player.x - spawn[0]), -(player.z - spawn[2])), pitch: 0,
       health: 100, kills: 0, deaths: 0, weapon: "rifle",
       weaponSlots: ["rifle", "marksman"], activeWeaponSlot: 0,
@@ -3214,11 +3215,23 @@ setInterval(() => {
     if (p.finished) continue;
     if (p.isBot && p.mode === TRAINING_MODE) {
       if (p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
+        // 練習BOTは倒されたら、最初に配置されたスポーン地点へ戻す。
+        p.x = Number.isFinite(p.spawnX) ? p.spawnX : p.x;
+        p.y = Number.isFinite(p.spawnY) ? p.spawnY : 0;
+        p.z = Number.isFinite(p.spawnZ) ? p.spawnZ : p.z;
+        p.velocityY = 0;
+        p.grounded = true;
+        p.lastGroundedAt = now;
+        p.jumpQueuedUntil = 0;
+        p.knockbackVelocityX = 0;
+        p.knockbackVelocityZ = 0;
         p.health = Number(p.maxHealth) || 100;
         p.respawnAt = 0;
         p.damageHitstopUntil = 0;
         p.damageSlowUntil = 0;
       }
+      // BOTのAIは停止したまま、ノックバックと重力だけを適用する。
+      if (p.health > 0) movePlayer(p, dt);
       continue;
     }
     if (p.isBot && p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
