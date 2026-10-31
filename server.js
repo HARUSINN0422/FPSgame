@@ -827,7 +827,7 @@ function resolveDuelRound(winner, loser) {
   const map=[...availableMaps,...areaMaps].find(item=>item.id===room.mapId)||activeMap;
   const now=Date.now();
   for(const id of room.playerIds){const p=players.get(id);if(!p)continue;const index=room.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];
-    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.shield=0;p.ultimateCharge=0;p.ultimateActiveUntil=0;p.ultimateAnchor=null;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
+    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.shield=0;p.ultimateCharge=0;p.ultimateActiveUntil=0;p.ultimateAnchor=null;p.skyfallImpactPending=false;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
     p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;
   }
   room.status = ended ? "ended" : "playing";
@@ -835,6 +835,10 @@ function resolveDuelRound(winner, loser) {
   if(!ended)setTimeout(()=>{room.roundResolved=false;},1800);
   broadcastPlayers();
 }
+
+const SKYFALL_IMPACT_RADIUS = 6;
+const SKYFALL_IMPACT_DURATION_MS = 1800;
+let skyfallImpactSequence = 0;
 
 const SMOKE_RADIUS = 5.2;
 const SMOKE_DURATION_MS = 8500;
@@ -953,7 +957,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     const damage = Math.round(20 + 40 * (1 - distance / radius));
     if (damage <= 0) continue;
     applyIncomingDamage(target, damage);
-    if (projectile.owner && projectile.owner.id !== target.id) projectile.owner.ultimateCharge = Math.min(100, (projectile.owner.ultimateCharge || 0) + damage / 3);
+    if (projectile.owner && projectile.owner.id !== target.id) addUltimateCharge(projectile.owner, damage);
     target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
     target.damageSlowUntil = now + DAMAGE_SLOW_MS;
     io.to(projectile.ownerId).emit("damageDealt", {
@@ -1506,10 +1510,62 @@ function isOnFloorTile(p, type) {
     Math.abs(p.x - tile.x) <= tile.w / 2 && Math.abs(p.z - tile.z) <= tile.d / 2);
 }
 
+function addUltimateCharge(player, damage) {
+  if (!player || !Number.isFinite(Number(damage)) || Number(damage) <= 0) return;
+  const charmMultiplier = player.charm === "ultimate" ? 1.1 : 1;
+  player.ultimateCharge = Math.min(100, (player.ultimateCharge || 0) + Number(damage) / 10 * charmMultiplier);
+}
+
+function resolveSkyfallImpact(attacker, now = Date.now()) {
+  const id = "skyfall-impact-" + (++skyfallImpactSequence);
+  const x = attacker.x;
+  const z = attacker.z;
+  const y = getGroundHeight(x, z, attacker.y, attacker);
+  broadcastGameEvent(attacker, "skyfallImpact", {
+    id, x, y, z, radius: SKYFALL_IMPACT_RADIUS,
+    expiresAt: now + SKYFALL_IMPACT_DURATION_MS
+  });
+
+  for (const target of players.values()) {
+    if (target.id === attacker.id || target.health <= 0 || target.finished || !isSameGame(attacker, target)) continue;
+    if (attacker.mode === TRAINING_MODE && !target.isBot) continue;
+    if (attacker.mode === AREA_MODE && target.team === attacker.team) continue;
+    if (target.invulnerableUntil > now) continue;
+    if (Math.hypot(target.x - x, target.z - z) > SKYFALL_IMPACT_RADIUS) continue;
+
+    const damage = 100;
+    applyIncomingDamage(target, damage);
+    target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
+    target.damageSlowUntil = now + DAMAGE_SLOW_MS;
+    io.to(attacker.id).emit("damageDealt", {
+      targetId: target.id, damage, zone: "body",
+      x: target.x, y: target.y + (target.crouched ? 0.75 : 1), z: target.z
+    });
+    io.to(target.id).emit("damageTaken", {
+      damage, zone: "body", hitstopMs: DAMAGE_HITSTOP_MS,
+      slowMs: DAMAGE_SLOW_MS, slowMultiplier: DAMAGE_SLOW_MULTIPLIER
+    });
+
+    if (target.health <= 0) {
+      target.health = 0;
+      target.respawnAt = now + 5000;
+      target.deaths += 1;
+      attacker.health = Number(attacker.maxHealth) || 100;
+      attacker.kills = (attacker.kills || 0) + 1;
+      if (target.mode === "Duel") resolveDuelRound(attacker, target);
+      broadcastGameEvent(attacker, "elimination", {
+        killerId: attacker.id, killerName: attacker.name,
+        victimId: target.id, victimName: target.name,
+        killerKills: attacker.kills, zone: "body"
+      });
+    }
+  }
+}
+
 function movePlayer(p, dt) {
   const now = Date.now();
   if (p.ultimateActiveUntil > now) { p.input = { forward: 0, strafe: 0, crouch: false }; p.velocityY = 0; p.grounded = false; return; }
-  if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) { p.ultimateActiveUntil = 0; p.velocityY = -1; p.grounded = false; p.ultimateAnchor = null; }
+  if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) { p.ultimateActiveUntil = 0; p.velocityY = -1; p.grounded = false; p.skyfallImpactPending = true; }
   updateCrouchState(p);
 
   // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
@@ -1525,7 +1581,7 @@ function movePlayer(p, dt) {
 
   // ジャンプ入力は短時間保持する。坂の上でも接地していればジャンプできる。
   if (p.jumpQueuedUntil >= now && (p.grounded || now - p.lastGroundedAt <= 140)) {
-    p.velocityY = JUMP_SPEED * (p.charm === "jump" ? 1.3 : 1) * (p.charm === "floor" || p.charm === "jump" || !isOnFloorTile(p, "slime") ? 1 : 0.5);
+    p.velocityY = JUMP_SPEED * (p.charm === "jump" ? 1.5 : 1) * (p.charm === "floor" || p.charm === "jump" || !isOnFloorTile(p, "slime") ? 1 : 0.5);
     p.grounded = false;
     p.jumpQueuedUntil = 0;
   }
@@ -1545,7 +1601,7 @@ function movePlayer(p, dt) {
   const weaponMoveMultiplier =
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
-  const charmMoveMultiplier = p.charm === "speed" ? 1.5 : 1;
+  const charmMoveMultiplier = p.charm === "speed" ? 1.3 : 1;
   let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
   if (p.damageHitstopUntil > now) {
     moveSpeed = 0;
@@ -1628,6 +1684,12 @@ function movePlayer(p, dt) {
     p.lastGroundedAt = now;
   } else {
     p.grounded = false;
+  }
+
+  if (p.skyfallImpactPending && p.grounded) {
+    p.skyfallImpactPending = false;
+    p.ultimateAnchor = null;
+    resolveSkyfallImpact(p, now);
   }
 
   const playerBounds = getMapForPlayer(p).world;
@@ -1839,7 +1901,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     if (best) {
       const damage = weapon.damage;
       applyIncomingDamage(best.target, damage);
-      shooter.ultimateCharge = Math.min(100, (shooter.ultimateCharge || 0) + damage / 3);
+      addUltimateCharge(shooter, damage);
       damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, zone: "body"});
       hitResults.push({target: best.target, damage, zone: "body", x: best.target.x, y: best.target.y + 1, z: best.target.z});
     }
@@ -1890,7 +1952,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 105 * bowCharge : weapon.damage;
     const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
     applyIncomingDamage(bestHit.target, damage);
-    shooter.ultimateCharge = Math.min(100, (shooter.ultimateCharge || 0) + damage / 3);
+    addUltimateCharge(shooter, damage);
 
     const existing = damageByTarget.get(bestHit.target.id);
     if (existing) {
@@ -2036,7 +2098,7 @@ function publicPlayer(p, includeSkin = false) {
     ultimateType: ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
     shield: Math.max(0, Number(p.shield) || 0),
     ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim"].includes(p.charm) ? p.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
@@ -2056,7 +2118,7 @@ function publicPlayer(p, includeSkin = false) {
 
 function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
   const now = Date.now();
-  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim"].includes(charm) ? charm : "none";
+  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
   return {
     id,
@@ -2082,6 +2144,7 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
     shield: 0,
     ultimateActiveUntil: 0,
     ultimateAnchor: null,
+    skyfallImpactPending: false,
     charm: safeCharm,
     kills: 0,
     deaths: 0,
@@ -2184,7 +2247,7 @@ function queueAreaPlayer(socket, data = {}) {
     skin: sanitizeSkin(data.skin),
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim"].includes(data.charm) ? data.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(data.charm) ? data.charm : "none",
     ultimateType: ["skyfall", "teleport", "aegis"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
   };
@@ -2585,7 +2648,7 @@ io.on("connection", (socket) => {
         : weapon === "rifle" ? "shotgun" : "rifle";
     }
     const weaponSlots = [weapon, secondaryWeapon];
-    const charm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(data.charm) ? data.charm : "none";
+    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(data.charm) ? data.charm : "none";
     const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
@@ -2627,6 +2690,7 @@ io.on("connection", (socket) => {
       shield: 0,
       ultimateActiveUntil: 0,
       ultimateAnchor: null,
+      skyfallImpactPending: false,
       charm,
       kills: 0,
       deaths: 0,
@@ -2710,9 +2774,9 @@ io.on("connection", (socket) => {
       p.grounded = false;
       p.ultimateActiveUntil = now + 5000;
     } else if (type === "aegis") {
-      p.health = 100;
-      p.maxHealth = 100;
-      p.shield = 100;
+      p.maxHealth = p.charm === "hp" ? 120 : 100;
+      p.health = p.maxHealth;
+      p.shield = 50;
       p.ultimateActiveUntil = 0;
     } else {
       const map = getMapForPlayer(p);
@@ -2844,6 +2908,7 @@ io.on("connection", (socket) => {
     p.shield = 0;
     p.ultimateActiveUntil = 0;
     p.ultimateAnchor = null;
+    p.skyfallImpactPending = false;
     p.ammo = WEAPONS[p.weapon].magazineSize;
     if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
