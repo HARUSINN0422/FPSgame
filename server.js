@@ -266,6 +266,9 @@ try {
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
 WEAPONS.marksman.fireInterval = 225;
+WEAPONS.pistol.magazineSize = 6;
+WEAPONS.marksman.falloffStart = WEAPONS.marksman.range;
+WEAPONS.marksman.minDamageMultiplier = 0.95;
 WEAPONS.shotgun.damage = 25;
 WEAPONS.shotgun.pellets = 8;
 WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
@@ -2333,6 +2336,11 @@ function applyIncomingDamage(target, amount) {
   if (damage > 0) target.health = Math.max(0, healthBefore - damage);
   const healthDamage = Math.min(healthBefore, damage);
   if (target.health <= 0) {
+    // 死亡時はミニガンのチャージ・予約射撃を破棄し、リスポーンへの持ち越しを防ぐ。
+    target.minigunChargeStartedAt = 0;
+    target.minigunBurstId = (target.minigunBurstId || 0) + 1;
+    if (target.minigunFireTimer) clearTimeout(target.minigunFireTimer);
+    target.minigunFireTimer = null;
     const magazineSize = WEAPONS[target.weapon]?.magazineSize || 0;
     target.ammo = magazineSize;
     if (Array.isArray(target.weaponAmmo)) target.weaponAmmo[target.activeWeaponSlot || 0] = magazineSize;
