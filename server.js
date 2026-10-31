@@ -2071,10 +2071,13 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 }
 
 function applyIncomingDamage(target, amount) {
-  const damage = Math.max(0, Number(amount) || 0);
-  if (target.shield > 0 && damage >= target.shield) { target.shield = 0; return 0; }
-  if (target.shield > 0) { target.shield -= damage; return 0; }
-  target.health = Math.max(0, target.health - damage);
+  let damage = Math.max(0, Number(amount) || 0);
+  if (target.shield > 0 && damage > 0) {
+    const absorbed = Math.min(target.shield, damage);
+    target.shield -= absorbed;
+    damage -= absorbed;
+  }
+  if (damage > 0) target.health = Math.max(0, target.health - damage);
   return damage;
 }
 
