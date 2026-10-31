@@ -1703,3 +1703,7 @@ body.controller-mode #settingsButton {
 .ultimate-map-panel { width:min(760px,calc(100vw - 24px)); }
 #ultimateMapCanvas { display:block; width:100%; max-height:58vh; object-fit:contain; margin:12px auto; border:1px solid rgba(255,255,255,.2); border-radius:10px; touch-action:manipulation; }
 #ultimateMapCancel { width:100%; min-height:42px; }
+
+/* Shield damage numbers use the same blue as the shield HUD. */
+.damage-number.shield-damage { color: #72c8ff; }
+.damage-number.health-damage { color: #ffffff; }
