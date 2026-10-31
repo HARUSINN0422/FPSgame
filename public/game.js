@@ -3217,6 +3217,8 @@ socket.on("joined", ({ player }) => {
   joined = true;
   socket.emit("requestSmokeState");
   socket.emit("requestGrenadeState");
+  // join時の初回world通知に依存せず、参加確定後にマップデータを再取得する。
+  socket.emit("requestWorld");
   wasJoinedBeforeDisconnect = true;
   reconnecting = false;
   selectedGameMode = player.mode || "Melee";
