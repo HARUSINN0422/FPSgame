@@ -152,7 +152,7 @@ const attachmentSettings = (() => {
 })();
 let laserSightLine = null;
 let lastWeaponSwitchAt = -Infinity;
-const WEAPON_SWITCH_COOLDOWN_MS = 800;
+const WEAPON_SWITCH_COOLDOWN_MS = 400;
 let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
@@ -2313,6 +2313,8 @@ function pollGamepad(now) {
   const pad = findGamepad();
   if (!pad) {
     if (activeGamepad || controllerMode) {
+      if (gamepadFireHeld) stopFiring();
+      gamepadFireHeld = false;
       activeGamepad = null;
       applyControllerMode(false);
     }
@@ -2370,9 +2372,10 @@ function pollGamepad(now) {
   gamepadScopeHeld = scopePressed;
 
   // コントローラーの射撃ボタンは、長押し中に武器の発射間隔で連射する。
-  if (firePressed) {
-    if (!gamepadFireHeld || !autoFireTimer) startFiring(true);
-  } else if (gamepadFireHeld && autoFireTimer) {
+  if (firePressed && !gamepadFireHeld) {
+    startFiring(true);
+  } else if (!firePressed && gamepadFireHeld) {
+    // 弓・ミニガンはautoFireTimerを使わないため、ボタンを離した時は必ずチャージを解放する。
     stopFiring();
   }
   gamepadFireHeld = firePressed;
