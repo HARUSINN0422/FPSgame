@@ -542,7 +542,12 @@
     </section>
   </div>
 
-  <script src="socket.io/socket.io.js"></script>
+  <script>
+    const socketClientScript = location.hostname === "test-gamma-two-87.vercel.app"
+      ? "https://harusinn.com/FPSgame/socket.io/socket.io.js"
+      : "socket.io/socket.io.js";
+    document.write('<script src="' + socketClientScript + '"><\\/script>');
+  </script>
   <script type="importmap">
   {
     "imports": {
