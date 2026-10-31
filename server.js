@@ -940,7 +940,7 @@ function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
 }
 
 function applyShockwave(projectile, position, now = Date.now()) {
-  const radius = 5.2;
+  const radius = 7.8;
   const id = "shockwave-burst-" + (++smokeSequence);
   broadcastGameEvent(projectile.owner, "shockwaveBurst", {
     id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 520
@@ -971,8 +971,8 @@ function applyShockwave(projectile, position, now = Date.now()) {
     const horizontalImpulse = (13 + 22 * proximity) * 1.4;
     target.knockbackVelocityX = (Number(target.knockbackVelocityX) || 0) + dirX * horizontalImpulse;
     target.knockbackVelocityZ = (Number(target.knockbackVelocityZ) || 0) + dirZ * horizontalImpulse;
-    // 上方向の力は抑え、横方向へ大きく吹き飛ばす。
-    target.velocityY = Math.max(Number(target.velocityY) || 0, 3 + 4 * proximity);
+    // 上方向の力は、前回の強化前と直前の弱体化後の中間に調整する。
+    target.velocityY = Math.max(Number(target.velocityY) || 0, 4 + 6 * proximity);
     target.grounded = false;
     target.lastGroundedAt = 0;
   }
