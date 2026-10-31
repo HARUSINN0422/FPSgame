@@ -265,9 +265,11 @@ try {
   // 初回起動時はserver.js内の標準設定を使用します。
 }
 
-// 弓の発射間隔と最大胴体ダメージは、古いローカル武器設定に上書きされないよう固定する。
+// バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
+WEAPONS.marksman.fireInterval = 225;
+WEAPONS.shotgun.spread = 0.24 * 0.7;
 
 const app = express();
 
