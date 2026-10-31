@@ -370,7 +370,13 @@ function checkForUpdates() {
 }
 
 const server = http.createServer(app);
-const io = new Server(server);
+const VERCEL_FRONTEND_ORIGIN = "https://test-gamma-two-87.vercel.app";
+const io = new Server(server, {
+  cors: {
+    origin: [VERCEL_FRONTEND_ORIGIN],
+    methods: ["GET", "POST"]
+  }
+});
 
 server.on("error", (error) => {
   saveLatestError(error, "http.Server");
@@ -378,6 +384,21 @@ server.on("error", (error) => {
 });
 
 app.use(express.json({ limit: "256kb" }));
+
+// Vercel上のフロントエンドから、Raspberry Pi上の公開APIを呼び出せるようにする。
+// 許可するオリジンは指定したVercelサイトだけに限定する。
+app.use("/api", (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin === VERCEL_FRONTEND_ORIGIN) {
+    res.setHeader("Access-Control-Allow-Origin", VERCEL_FRONTEND_ORIGIN);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 const crypto = require("crypto");
@@ -1139,7 +1160,7 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
 
 function updateGrenadeProjectiles(dt, now = Date.now()) {
   for (const projectile of [...grenadeProjectiles.values()]) {
-    // ショックウェーブは着弾から200ms待って、吹き飛ばしとエフェクトを同時に発生させる。
+    // ショックウェーブは着弾から300ms待って、吹き飛ばしとエフェクトを同時に発生させる。
     if (projectile.pendingShockwaveAt) {
       if (now < projectile.pendingShockwaveAt) continue;
       applyShockwave(projectile, projectile.pendingShockwavePosition, now);
@@ -1226,7 +1247,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
 
     if (impact) {
       if (projectile.type === "shockwave") {
-        projectile.pendingShockwaveAt = now + 200;
+        projectile.pendingShockwaveAt = now + 300;
         projectile.pendingShockwavePosition = impact;
         broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
       } else {
