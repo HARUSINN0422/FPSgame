@@ -826,9 +826,53 @@ function setupSettings() {
     showMessage("ボタン配置を保存しました");
   });
 
+  const settingsExportButton = document.getElementById("settingsExportButton");
+  const settingsImportButton = document.getElementById("settingsImportButton");
+  const settingsImportInput = document.getElementById("settingsImportInput");
+  settingsExportButton?.addEventListener("click", () => {
+    const payload = {
+      format: "fpsgame-settings",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      settings: cloneSettings(gameSettings)
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "fpsgame-settings.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  });
+  settingsImportButton?.addEventListener("click", () => settingsImportInput?.click());
+  settingsImportInput?.addEventListener("change", async () => {
+    const file = settingsImportInput.files?.[0];
+    if (!file) return;
+    try {
+      if (file.size > 1024 * 1024) throw new Error("設定ファイルのサイズが大きすぎます。");
+      const parsed = JSON.parse(await file.text());
+      const imported = parsed?.format === "fpsgame-settings" ? parsed.settings : parsed;
+      if (!imported || typeof imported !== "object" || Array.isArray(imported) ||
+          !imported.layout || !imported.keyboard) {
+        throw new Error("FPSgameの設定ファイルではありません。");
+      }
+      if (!window.confirm("現在の設定を読み込んだ内容で上書きします。よろしいですか？")) return;
+      setCookie("fps_game_settings", JSON.stringify(imported), 3650);
+      window.location.reload();
+    } catch (error) {
+      window.alert(error?.message || "設定ファイルを読み込めませんでした。");
+    } finally {
+      settingsImportInput.value = "";
+    }
+  });
+
   resetLayout?.addEventListener("click", () => {
+    if (!window.confirm("画面上のボタンとHUDの配置・サイズを初期状態に戻します。よろしいですか？")) return;
     gameSettings.layout = cloneSettings(DEFAULT_SETTINGS.layout);
     applyButtonLayout();
+    updateSettingsUi();
     saveGameSettings();
   });
 
@@ -2234,7 +2278,8 @@ function updateAimAssist() {
   if (!joined || !myState) return;
   const touchDevice = window.matchMedia?.("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
   let strengthPercent = 0;
-  if (controllerMode) {
+  const controllerConnected = Boolean(controllerMode || activeGamepad?.connected);
+  if (controllerConnected) {
     strengthPercent = Number(gameSettings.controllerAimAssistStrength ?? (gameSettings.controllerAimAssistEnabled ? 10 : 0));
   } else if (touchDevice) {
     strengthPercent = Number(gameSettings.touchAimAssistStrength ?? (gameSettings.touchAimAssistEnabled ? 10 : 0));
