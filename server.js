@@ -224,12 +224,13 @@ const WEAPONS = {
     reloadTime: 1900, automatic: false
   },
   bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
-  minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false }
+  minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
+  shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false }
 };
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -239,6 +240,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
   shotgun: "単発 / 8発の散弾（胴体全弾命中で80ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
+  shockwaveLauncher: "投擲 / 着弾地点から半径5.2mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
   bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
@@ -447,7 +449,7 @@ app.post("/api/admin/weapons", adminAuth, (req, res) => {
     for (const key of numericKeys) {
       if (source[key] === undefined || source[key] === "") { if (key === "pellets") delete item[key]; continue; }
       const value = Number(source[key]);
-      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (["smoke", "bow"].includes(id) ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
+      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (["smoke", "bow", "shockwaveLauncher"].includes(id) ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
         return res.status(400).json({ error: id + " の " + key + " が不正です" });
       }
       item[key] = value;
@@ -837,7 +839,7 @@ function resolveDuelRound(winner, loser) {
   broadcastPlayers();
 }
 
-const SKYFALL_IMPACT_RADIUS = 20;
+const SKYFALL_IMPACT_RADIUS = 15;
 const SKYFALL_IMPACT_DURATION_MS = 1800;
 let skyfallImpactSequence = 0;
 
@@ -852,7 +854,7 @@ let smokeSequence = 0;
 function smokeProjectilePayload(projectile) {
   return {
     id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z,
-    ownerId: projectile.ownerId, expiresAt: projectile.expiresAt
+    ownerId: projectile.ownerId, type: projectile.type || "grenade", expiresAt: projectile.expiresAt
   };
 }
 
@@ -911,7 +913,7 @@ function spawnSmokeProjectile(shooter, now = Date.now()) {
   });
 }
 
-function spawnGrenadeProjectile(shooter, now = Date.now()) {
+function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
   const direction = directionFromAngles(shooter.yaw, shooter.pitch);
   const speed = 14;
   const horizontalSpeed = speed * 1.5;
@@ -921,9 +923,9 @@ function spawnGrenadeProjectile(shooter, now = Date.now()) {
     y: shooter.y + height - 0.18,
     z: shooter.z + direction.z * 0.62
   };
-  const id = "grenade-projectile-" + (++smokeSequence);
+  const id = (type === "shockwave" ? "shockwave-projectile-" : "grenade-projectile-") + (++smokeSequence);
   const projectile = {
-    id, owner: shooter, ownerId: shooter.id,
+    id, type, owner: shooter, ownerId: shooter.id,
     x: origin.x, y: origin.y, z: origin.z,
     startX: origin.x, startY: origin.y, startZ: origin.z,
     vx: direction.x * horizontalSpeed, vy: direction.y * speed + 4.5, vz: direction.z * horizontalSpeed,
@@ -933,8 +935,42 @@ function spawnGrenadeProjectile(shooter, now = Date.now()) {
   broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
   broadcastGameEvent(shooter, "shot", {
     id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
-    yaw: shooter.yaw, pitch: shooter.pitch, weapon: "grenadeLauncher", hit: null, tracers: []
+    yaw: shooter.yaw, pitch: shooter.pitch, weapon: type === "shockwave" ? "shockwaveLauncher" : "grenadeLauncher", hit: null, tracers: []
   });
+}
+
+function applyShockwave(projectile, position, now = Date.now()) {
+  const radius = 5.2;
+  const id = "shockwave-burst-" + (++smokeSequence);
+  broadcastGameEvent(projectile.owner, "shockwaveBurst", {
+    id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 520
+  });
+  for (const target of players.values()) {
+    if (target.health <= 0 || target.finished || !isSameGame(projectile.owner, target)) continue;
+    if (projectile.owner.mode === TRAINING_MODE && target.id !== projectile.ownerId && !target.isBot) continue;
+    if (projectile.owner.mode === AREA_MODE && target.team === projectile.owner.team) continue;
+    if (target.invulnerableUntil > now) continue;
+    const dx = target.x - position.x;
+    const dz = target.z - position.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > radius) continue;
+    const proximity = 1 - clamp(distance / radius, 0, 1);
+    let dirX, dirZ;
+    if (distance > 0.001) {
+      dirX = dx / distance;
+      dirZ = dz / distance;
+    } else {
+      const fallback = directionFromAngles(projectile.owner.yaw, 0);
+      dirX = fallback.x;
+      dirZ = fallback.z;
+    }
+    const impulse = 13 + 22 * proximity;
+    target.knockbackVelocityX = (Number(target.knockbackVelocityX) || 0) + dirX * impulse;
+    target.knockbackVelocityZ = (Number(target.knockbackVelocityZ) || 0) + dirZ * impulse;
+    target.velocityY = Math.max(Number(target.velocityY) || 0, 5 + 8 * proximity);
+    target.grounded = false;
+    target.lastGroundedAt = 0;
+  }
 }
 
 function explodeGrenade(projectile, position, now = Date.now()) {
@@ -1176,7 +1212,8 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     }
 
     if (impact) {
-      explodeGrenade(projectile, impact, now);
+      if (projectile.type === "shockwave") applyShockwave(projectile, impact, now);
+      else explodeGrenade(projectile, impact, now);
       grenadeProjectiles.delete(projectile.id);
       broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
       continue;
@@ -1486,6 +1523,12 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
       height = Math.max(height, platform.h);
     }
   }
+  // 高い位置から降下中なら、壁・障害物の上面も着地面として扱う。
+  for (const obstacle of map.obstacles || []) {
+    const insideX = Math.abs(x - obstacle.x) <= obstacle.w / 2 + PLAYER_RADIUS;
+    const insideZ = Math.abs(z - obstacle.z) <= obstacle.d / 2 + PLAYER_RADIUS;
+    if (insideX && insideZ && playerY >= obstacle.h - 0.2) height = Math.max(height, obstacle.h);
+  }
   return height;
 }
 
@@ -1567,7 +1610,15 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
 function movePlayer(p, dt) {
   const now = Date.now();
   if (p.ultimateActiveUntil > now) { p.input = { forward: 0, strafe: 0, crouch: false }; p.velocityY = 0; p.grounded = false; return; }
-  if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) { p.ultimateActiveUntil = 0; p.velocityY = -1; p.grounded = false; p.skyfallImpactPending = true; }
+  if (p.ultimateActiveUntil && p.ultimateActiveUntil <= now) {
+    p.ultimateActiveUntil = 0;
+    // 5秒経過時点の真下にある床面へ即座に着地。壁の上面も着地点に含める。
+    p.y = getGroundHeight(p.x, p.z, p.y, p);
+    p.velocityY = 0;
+    p.grounded = true;
+    p.lastGroundedAt = now;
+    p.skyfallImpactPending = true;
+  }
   updateCrouchState(p);
 
   // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
@@ -1610,8 +1661,16 @@ function movePlayer(p, dt) {
   } else if (p.damageSlowUntil > now) {
     moveSpeed *= DAMAGE_SLOW_MULTIPLIER;
   }
-  const dx = (-sin * forward + cos * strafe) * moveSpeed * dt;
-  const dz = (-cos * forward - sin * strafe) * moveSpeed * dt;
+  const knockbackX = Number(p.knockbackVelocityX) || 0;
+  const knockbackZ = Number(p.knockbackVelocityZ) || 0;
+  const dx = (-sin * forward + cos * strafe) * moveSpeed * dt + knockbackX * dt;
+  const dz = (-cos * forward - sin * strafe) * moveSpeed * dt + knockbackZ * dt;
+  p.knockbackVelocityX = knockbackX * Math.exp(-4.2 * dt);
+  p.knockbackVelocityZ = knockbackZ * Math.exp(-4.2 * dt);
+  if (Math.hypot(p.knockbackVelocityX, p.knockbackVelocityZ) < 0.15) {
+    p.knockbackVelocityX = 0;
+    p.knockbackVelocityZ = 0;
+  }
   const nextX = p.x + dx;
   const nextZ = p.z + dz;
 
@@ -1871,16 +1930,21 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     spawnSmokeProjectile(shooter, now);
     return;
   }
+  if (shooter.weapon === "shockwaveLauncher") {
+    shooter.lastFire = now;
+    spawnGrenadeProjectile(shooter, now, "shockwave");
+    return;
+  }
 
   if (shooter.weapon === "bow") {
     bowCharge = clamp(Number(bowCharge) || 0, 0, 1);
-  } else if (shooter.weapon !== "minigun" && !weapon.melee && shooter.ammo <= 0) {
+  } else if (!["minigun", "shockwaveLauncher"].includes(shooter.weapon) && !weapon.melee && shooter.ammo <= 0) {
     startReload(shooter);
     return;
   }
 
   shooter.lastFire = now;
-  if (!weapon.melee && !["bow", "minigun"].includes(shooter.weapon)) {
+  if (!weapon.melee && !["bow", "minigun", "shockwaveLauncher"].includes(shooter.weapon)) {
     shooter.ammo -= 1;
     if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
   }
