@@ -864,7 +864,8 @@ function resolveDuelRound(winner, loser) {
 
 const SKYFALL_IMPACT_RADIUS = 15;
 const SKYFALL_IMPACT_DURATION_MS = 1800;
-const SKYFALL_FLIGHT_DURATION_MS = 3000;
+// 天墜の浮上時間はサーバー側で3秒に固定する（クライアント表示時間ではなく実際の滞空時間）。
+const SKYFALL_FLIGHT_DURATION_MS = 3 * 1000;
 let skyfallImpactSequence = 0;
 
 function activateSkyfall(player, now = Date.now()) {
