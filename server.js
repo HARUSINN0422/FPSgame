@@ -827,7 +827,8 @@ function resolveDuelRound(winner, loser) {
   const map=[...availableMaps,...areaMaps].find(item=>item.id===room.mapId)||activeMap;
   const now=Date.now();
   for(const id of room.playerIds){const p=players.get(id);if(!p)continue;const index=room.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];
-    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.shield=0;p.ultimateCharge=0;p.ultimateActiveUntil=0;p.ultimateAnchor=null;p.skyfallImpactPending=false;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
+    p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.health=100;p.shield=0;p.ultimateCharge=0;p.ultimateActiveUntil=0;p.ultimateAnchor=null;p.skyfallImpactPending=false;
+    p.skyfallImpactId = null;p.respawnAt=0;p.velocityY=0;p.grounded=true;p.finished=ended;p.invulnerableUntil=now+2500;
     p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;
   }
   room.status = ended ? "ended" : "playing";
@@ -836,7 +837,7 @@ function resolveDuelRound(winner, loser) {
   broadcastPlayers();
 }
 
-const SKYFALL_IMPACT_RADIUS = 6;
+const SKYFALL_IMPACT_RADIUS = 20;
 const SKYFALL_IMPACT_DURATION_MS = 1800;
 let skyfallImpactSequence = 0;
 
@@ -1517,7 +1518,8 @@ function addUltimateCharge(player, damage) {
 }
 
 function resolveSkyfallImpact(attacker, now = Date.now()) {
-  const id = "skyfall-impact-" + (++skyfallImpactSequence);
+  const id = attacker.skyfallImpactId || ("skyfall-impact-" + (++skyfallImpactSequence));
+  attacker.skyfallImpactId = null;
   const x = attacker.x;
   const z = attacker.z;
   const y = getGroundHeight(x, z, attacker.y, attacker);
@@ -1688,6 +1690,7 @@ function movePlayer(p, dt) {
 
   if (p.skyfallImpactPending && p.grounded) {
     p.skyfallImpactPending = false;
+    p.skyfallImpactId = null;
     p.ultimateAnchor = null;
     resolveSkyfallImpact(p, now);
   }
@@ -2772,6 +2775,15 @@ io.on("connection", (socket) => {
     const now = Date.now();
     if (type === "skyfall") {
       p.ultimateAnchor = { x: p.x, y: p.y, z: p.z };
+      p.skyfallImpactId = "skyfall-impact-" + (++skyfallImpactSequence);
+      broadcastGameEvent(p, "skyfallTargeting", {
+        id: p.skyfallImpactId,
+        x: p.x,
+        y: getGroundHeight(p.x, p.z, p.y, p),
+        z: p.z,
+        radius: SKYFALL_IMPACT_RADIUS,
+        expiresAt: now + 8000
+      });
       p.y += 12;
       p.velocityY = 0;
       p.grounded = false;
@@ -2912,6 +2924,7 @@ io.on("connection", (socket) => {
     p.ultimateActiveUntil = 0;
     p.ultimateAnchor = null;
     p.skyfallImpactPending = false;
+    p.skyfallImpactId = null;
     p.ammo = WEAPONS[p.weapon].magazineSize;
     if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
