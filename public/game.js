@@ -1,10 +1,12 @@
 import * as THREE from "three";
 
-const socketPath = location.pathname.startsWith("/FPSgame/")
+const isVercelFrontend = location.hostname === "test-gamma-two-87.vercel.app";
+const socketPath = isVercelFrontend || location.pathname.startsWith("/FPSgame/")
   ? "/FPSgame/socket.io/"
   : "/socket.io/";
+const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
 
-const socket = io({
+const socket = io(socketOrigin, {
   path: socketPath,
   reconnection: true,
   reconnectionAttempts: Infinity,
@@ -192,7 +194,9 @@ const weaponConfig = {
 
 async function refreshPublicWeaponSettings() {
   try {
-    const apiBase = location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/";
+    const apiBase = location.hostname === "test-gamma-two-87.vercel.app"
+      ? "https://harusinn.com/FPSgame/"
+      : (location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/");
     const response = await fetch(apiBase + "api/weapons", { cache: "no-store" });
     if (!response.ok) return;
     const data = await response.json();
