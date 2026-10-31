@@ -49,9 +49,6 @@ const PLAYER_HEIGHT = 1.7;
 const CROUCH_HEIGHT = 1.0;
 const GRAVITY = 22;
 const JUMP_SPEED = 8.5;
-const DAMAGE_HITSTOP_MS = 100;
-const DAMAGE_SLOW_MS = 700;
-const DAMAGE_SLOW_MULTIPLIER = 0.45;
 
 const LOG_DIR = path.join(__dirname, "logs");
 const ERROR_LOG_FILE = path.join(LOG_DIR, "error.log");
@@ -1047,15 +1044,13 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     if (damage <= 0) continue;
     const damageSplit = applyIncomingDamage(target, damage);
     if (projectile.owner && projectile.owner.id !== target.id) addUltimateCharge(projectile.owner, damage);
-    target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
-    target.damageSlowUntil = now + DAMAGE_SLOW_MS;
+
     io.to(projectile.ownerId).emit("damageDealt", {
       targetId: target.id, damage, shieldDamage: damageSplit.shieldDamage, healthDamage: damageSplit.healthDamage, zone: "body",
       x: target.x, y: target.y + targetHeight * 0.5, z: target.z
     });
     io.to(target.id).emit("damageTaken", {
-      damage, zone: "body", hitstopMs: DAMAGE_HITSTOP_MS,
-      slowMs: DAMAGE_SLOW_MS, slowMultiplier: DAMAGE_SLOW_MULTIPLIER
+      damage, zone: "body"
     });
     if (target.health <= 0) {
       const selfElimination = target.id === projectile.ownerId;
@@ -1723,15 +1718,13 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
 
     const damage = 100;
     const damageSplit = applyIncomingDamage(target, damage);
-    target.damageHitstopUntil = now + DAMAGE_HITSTOP_MS;
-    target.damageSlowUntil = now + DAMAGE_SLOW_MS;
+
     io.to(attacker.id).emit("damageDealt", {
       targetId: target.id, damage, shieldDamage: damageSplit.shieldDamage, healthDamage: damageSplit.healthDamage, zone: "body",
       x: target.x, y: target.y + (target.crouched ? 0.75 : 1), z: target.z
     });
     io.to(target.id).emit("damageTaken", {
-      damage, zone: "body", hitstopMs: DAMAGE_HITSTOP_MS,
-      slowMs: DAMAGE_SLOW_MS, slowMultiplier: DAMAGE_SLOW_MULTIPLIER
+      damage, zone: "body"
     });
 
     if (target.health <= 0) {
@@ -1799,11 +1792,6 @@ function movePlayer(p, dt) {
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
   const charmMoveMultiplier = p.charm === "speed" ? 1.8 : 1;
   let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
-  if (p.damageHitstopUntil > now) {
-    moveSpeed = 0;
-  } else if (p.damageSlowUntil > now) {
-    moveSpeed *= DAMAGE_SLOW_MULTIPLIER;
-  }
   const knockbackX = Number(p.knockbackVelocityX) || 0;
   const knockbackZ = Number(p.knockbackVelocityZ) || 0;
   const dx = (-sin * forward + cos * strafe) * moveSpeed * dt + knockbackX * dt;
@@ -2048,9 +2036,6 @@ function getMovementSpeedSpreadMultiplier(shooter, now = Date.now()) {
   let actualMoveSpeed = baseMoveSpeed * floorMoveMultiplier *
     weaponMoveMultiplier * charmMoveMultiplier;
 
-  if (shooter.damageHitstopUntil > now) actualMoveSpeed = 0;
-  else if (shooter.damageSlowUntil > now) actualMoveSpeed *= DAMAGE_SLOW_MULTIPLIER;
-
   // 通常走行を1倍とし、それを超える速度は3.5乗で弾ブレに反映する。
   const speedRatio = Math.max(1, actualMoveSpeed / PLAYER_SPEED);
   return Math.min(40, Math.pow(speedRatio, 3.5));
@@ -2231,18 +2216,10 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       z: feedback?.z ?? result.target.z
     });
 
-    // 被弾時に短いヒットストップを入れ、その後しばらく移動速度を低下させる。
-    // 同時に複数回被弾した場合は効果時間を更新する。
-    const damageNow = Date.now();
-    result.target.damageHitstopUntil = damageNow + DAMAGE_HITSTOP_MS;
-    result.target.damageSlowUntil = damageNow + DAMAGE_SLOW_MS;
 
     io.to(result.target.id).emit("damageTaken", {
       damage: Math.round(result.damage),
       zone: result.zone,
-      hitstopMs: DAMAGE_HITSTOP_MS,
-      slowMs: DAMAGE_SLOW_MS,
-      slowMultiplier: DAMAGE_SLOW_MULTIPLIER
     });
 
     if (result.target.health <= 0) {
