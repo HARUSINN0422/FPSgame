@@ -3223,7 +3223,7 @@ socket.on("state", (players) => {
     if (ultimateButton) {
       const charge = Math.max(0, Math.min(100, Number(myState.ultimateCharge) || 0));
       ultimateButton.style.setProperty("--ultimate-progress", charge + "%");
-      ultimateButton.disabled = !joined || Number(myState.health) <= 0 || layoutEditing;
+      ultimateButton.disabled = !joined || Number(myState.health) <= 0 || layoutEditing || ultimateRequestPending;
       ultimateButton.textContent = charge >= 100 ? "ULT" : Math.floor(charge) + "%";
     }
     document.getElementById("kills").textContent = String(myState.kills);
@@ -4062,7 +4062,7 @@ function sendUltimateRequest(payload = {}, onSuccess) {
       return;
     }
     if (typeof onSuccess === "function") onSuccess(result);
-    else showMessage(result.type === "aegis" ? "蒼天障壁を展開！" : result.type === "teleport" ? "空間跳躍！" : "天墜！");
+    showMessage(result.type === "aegis" ? "蒼天障壁を展開！" : result.type === "teleport" ? "空間跳躍！" : "天墜！");
   });
 }
 
@@ -4075,7 +4075,7 @@ function activateUltimate() {
     openUltimateMapPicker();
     return;
   }
-  sendUltimateRequest({}, () => {});
+  sendUltimateRequest({});
 }
 
 function performBoundAction(action, pressed, isRepeat = false) {
