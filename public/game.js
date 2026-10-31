@@ -2799,12 +2799,12 @@ function triggerHitFlash() {
   el.classList.add("active");
 }
 
-function addDamageNumber(damage, zone, x, y, z) {
+function addDamageNumber(damage, zone, x, y, z, damageType = "health") {
   const container = document.getElementById("damageNumbers");
   if (!container) return;
 
   const el = document.createElement("div");
-  el.className = "damage-number" + (zone === "head" ? " head critical" : "");
+  el.className = "damage-number " + (damageType === "shield" ? "shield-damage" : "health-damage") + (zone === "head" ? " head critical" : "");
   el.textContent = String(Math.max(1, Math.round(damage)));
 
   // 被弾したプレイヤーのワールド座標を画面座標へ変換し、その周辺に表示する。
@@ -3340,7 +3340,15 @@ socket.on("smokeState", ({ projectiles = [], clouds = [] } = {}) => {
 });
 
 socket.on("damageDealt", (event) => {
-  addDamageNumber(event.damage, event.zone, event.x, event.y, event.z);
+  const shieldDamage = Math.max(0, Number(event.shieldDamage) || 0);
+  const healthDamage = Math.max(0, Number(event.healthDamage) || 0);
+  if (shieldDamage > 0 || healthDamage > 0) {
+    if (shieldDamage > 0) addDamageNumber(shieldDamage, event.zone, event.x, event.y, event.z, "shield");
+    if (healthDamage > 0) addDamageNumber(healthDamage, event.zone, event.x, event.y, event.z, "health");
+  } else {
+    // 旧サーバーとの互換性
+    addDamageNumber(event.damage, event.zone, event.x, event.y, event.z, "health");
+  }
 });
 
 socket.on("damageTaken", () => {
