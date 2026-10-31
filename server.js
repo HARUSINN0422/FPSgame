@@ -3009,6 +3009,15 @@ setInterval(() => {
   }
 }, 200);
 
+// Ultimate passive charge: update once per second instead of on every game tick.
+setInterval(() => {
+  for (const p of players.values()) {
+    if (p.finished || p.health <= 0) continue;
+    if (p.isBot && p.mode === TRAINING_MODE) continue;
+    p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + 0.5);
+  }
+}, 1000);
+
 setInterval(() => {
   const dt = 1 / TICK_RATE;
   const now = Date.now();
@@ -3027,7 +3036,6 @@ setInterval(() => {
       respawnBot(p, now);
     }
     if (p.health > 0) {
-      p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + dt * 0.5);
       if (p.isBot) updateBot(p, now);
       finishReload(p, now);
       movePlayer(p, dt);
