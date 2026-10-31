@@ -3658,14 +3658,14 @@ async function toggleFullscreen() {
       const target = document.documentElement;
       const request = target.requestFullscreen || target.webkitRequestFullscreen;
       if (typeof request !== "function") { showFullscreenFallbackMessage(); return; }
-      await request.call(target, { navigationUI: "hide" });
+      await request.call(target);
     }
   } catch (error) {
     console.warn("[Fullscreen] 全画面切替に失敗しました:", error);
     showFullscreenFallbackMessage();
   }
 }
-fullscreenButton?.addEventListener("click", (event) => {
+fullscreenButton?.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   event.stopPropagation();
   if (layoutEditing) return;
