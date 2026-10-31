@@ -992,7 +992,7 @@ function applyShockwave(projectile, position, now = Date.now()) {
     const horizontalImpulse = (13 + 22 * proximity) * 1.4;
     target.knockbackVelocityX = (Number(target.knockbackVelocityX) || 0) + dirX * horizontalImpulse;
     target.knockbackVelocityZ = (Number(target.knockbackVelocityZ) || 0) + dirZ * horizontalImpulse;
-    // 上方向の力を直前の設定から約5%強化する。
+    // 上方向の力を直前の設定から約6〜8%強化する。
     target.velocityY = Math.max(Number(target.velocityY) || 0, 4.3 + 6.3 * proximity);
     target.grounded = false;
     target.lastGroundedAt = 0;
