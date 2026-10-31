@@ -3991,7 +3991,43 @@ window.addEventListener("blur", () => {
   setScopeEnabled(false);
 });
 
-document.getElementById("ultimateButton")?.addEventListener("click", activateUltimate);
+const ultimateButtonElement = document.getElementById("ultimateButton");
+let ultimatePointer = null;
+ultimateButtonElement?.addEventListener("pointerdown", event => {
+  if (layoutEditing || ultimateButtonElement.disabled || !event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  event.preventDefault();
+  ultimatePointer = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  try { ultimateButtonElement.setPointerCapture(event.pointerId); } catch (_) {}
+  ultimateButtonElement.classList.add("ultimate-pressed");
+});
+ultimateButtonElement?.addEventListener("pointermove", event => {
+  if (!ultimatePointer || event.pointerId !== ultimatePointer.id) return;
+  if (Math.hypot(event.clientX - ultimatePointer.x, event.clientY - ultimatePointer.y) > 14) {
+    ultimatePointer.moved = true;
+    ultimateButtonElement.classList.remove("ultimate-pressed");
+  }
+});
+ultimateButtonElement?.addEventListener("pointerup", event => {
+  if (!ultimatePointer || event.pointerId !== ultimatePointer.id) return;
+  const shouldActivate = !ultimatePointer.moved && !layoutEditing && !ultimateButtonElement.disabled;
+  ultimatePointer = null;
+  ultimateButtonElement.classList.remove("ultimate-pressed");
+  if (shouldActivate) {
+    event.preventDefault();
+    activateUltimate();
+  }
+});
+const cancelUltimatePointer = event => {
+  if (!ultimatePointer || (event.pointerId != null && event.pointerId !== ultimatePointer.id)) return;
+  ultimatePointer = null;
+  ultimateButtonElement?.classList.remove("ultimate-pressed");
+};
+ultimateButtonElement?.addEventListener("pointercancel", cancelUltimatePointer);
+ultimateButtonElement?.addEventListener("lostpointercapture", cancelUltimatePointer);
+// キーボード操作や支援技術からの click は維持する。ポインター操作は pointerup 側で処理済み。
+ultimateButtonElement?.addEventListener("click", event => {
+  if (event.detail === 0 && !layoutEditing) activateUltimate();
+});
 
 function openUltimateMapPicker() {
   const overlay = document.getElementById("ultimateMapPicker");
@@ -4062,6 +4098,9 @@ function sendUltimateRequest(payload = {}, onSuccess) {
       showMessage(result?.message || "アルティメットを使用できませんでした。");
       return;
     }
+    if (myState) myState.ultimateCharge = 0;
+    const progressButton = document.getElementById("ultimateButton");
+    if (progressButton) progressButton.style.setProperty("--ultimate-progress", "0%");
     if (typeof onSuccess === "function") onSuccess(result);
     showMessage(result.type === "aegis" ? "蒼天障壁を展開！" : result.type === "teleport" ? "空間跳躍！" : "天墜！");
   });
