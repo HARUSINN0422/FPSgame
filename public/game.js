@@ -1421,8 +1421,8 @@ function createWeaponMesh(weapon) {
     return group;
   }
 
-  if (weapon === "smoke" || weapon === "grenadeLauncher") {
-    const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18 });
+  if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
+    const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "shockwaveLauncher" ? 0x39b9d8 : weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18, emissive: weapon === "shockwaveLauncher" ? 0x123d4b : 0x000000, emissiveIntensity: weapon === "shockwaveLauncher" ? 0.6 : 0 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
     group.add(body);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.025, 6, 16), new THREE.MeshStandardMaterial({ color: 0x292f2d, roughness: 0.7 }));
@@ -1780,7 +1780,7 @@ function updateSmokeVisuals(now, dt) {
       const angle = pickaxeSwingAngle(actionElapsed);
       if (weaponMesh) weaponMesh.rotation.set(-0.08 + angle * 0.55, 0, angle * 0.62);
       if (rightArm) rightArm.rotation.set(angle * 0.48, 0, 0.08 - angle * 0.24);
-    } else if (["smoke", "grenadeLauncher"].includes(obj.userData.weaponActionType) && obj.userData.weaponType === obj.userData.weaponActionType && actionElapsed >= 0 && actionElapsed < 0.26) {
+    } else if (["smoke", "grenadeLauncher", "shockwaveLauncher"].includes(obj.userData.weaponActionType) && obj.userData.weaponType === obj.userData.weaponActionType && actionElapsed >= 0 && actionElapsed < 0.26) {
       const progress = actionElapsed / 0.26;
       if (weaponMesh) {
         weaponMesh.position.set(0.34 + 0.1 * progress, 1.02 + 0.05 * Math.sin(progress * Math.PI), -0.22 - 0.1 * progress);
@@ -2859,7 +2859,7 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
-  if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher") {
+  if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     return;
   }
