@@ -828,6 +828,23 @@ function getPayloadPointAtDistance(distance) {
   for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],len=Math.hypot(b[0]-a[0],b[2]-a[2]);if(left<=len||i===pts.length-1){const t=len?clamp(left/len,0,1):0;return{x:a[0]+(b[0]-a[0])*t,y:(a[1]||0)+((b[1]||0)-(a[1]||0))*t,z:a[2]+(b[2]-a[2])*t,yaw:Math.atan2(-(b[0]-a[0]),-(b[2]-a[2]))};}left-=len;}
   const p=pts[pts.length-1];return{x:p[0],y:p[1]||0,z:p[2],yaw:0};
 }
+function getPayloadCartCollisionInfo(player, x = player?.x, z = player?.z) {
+  if (!player || player.mode !== PAYLOAD_MODE || !Number.isFinite(x) || !Number.isFinite(z)) return null;
+  const match = payloadMatches.get(player.matchId);
+  if (!match || match.finished) return null;
+  const cart = getPayloadPointAtDistance(match.progress);
+  const yaw = (Number(cart.yaw) || 0) + Math.PI / 2;
+  const dx = x - cart.x, dz = z - cart.z;
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  return {
+    cart, yaw,
+    localX: cos * dx - sin * dz,
+    localZ: sin * dx + cos * dz,
+    deckTop: (Number(cart.y) || 0) + 1.46,
+    cargoTop: (Number(cart.y) || 0) + 2.575
+  };
+}
+
 function getPayloadSpawnPoint(player, index = 0) {
   const match = payloadMatches.get(player?.matchId);
   const total = getPayloadTrackLength();
@@ -1706,8 +1723,22 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   const bodyBottom = y;
   const bodyTop = y + height;
 
+  const cartInfo = getPayloadCartCollisionInfo(player, x, z);
+  if (cartInfo) {
+    const { localX, localZ, deckTop, cargoTop } = cartInfo;
+    // 台車のデッキは上面に着地でき、側面は通り抜けられない。
+    if (bodyBottom < deckTop - 0.03 && bodyTop > 0.08 &&
+        Math.abs(localX) < 2.1 + PLAYER_RADIUS &&
+        Math.abs(localZ) < 1.225 + PLAYER_RADIUS) return true;
+    // 荷物部分も独立した立体として扱う。
+    if (bodyBottom < cargoTop - 0.03 && bodyTop > deckTop - 0.04 &&
+        Math.abs(localX + 0.35) < 0.775 + PLAYER_RADIUS &&
+        Math.abs(localZ) < 0.775 + PLAYER_RADIUS) return true;
+  }
+
   return mapObstacles.some((o) => {
-    // リスポーン区画の出口ゲートは、その区画のチームだけ通過できる。
+    // リスポーン区画のゲートは、該当ロールのプレイヤーだけ通過できる。
+    if (o.teamOnlyRole && player?.role === o.teamOnlyRole) return false;
     if (o.teamOnly && player?.team === o.teamOnly) return false;
     if (bodyTop <= 0 || bodyBottom >= o.h) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
@@ -1747,6 +1778,19 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
     if (Math.abs(x - platform.x) <= platform.w / 2 - PLAYER_RADIUS &&
         Math.abs(z - platform.z) <= platform.d / 2 + PLAYER_RADIUS) {
       height = Math.max(height, platform.h);
+    }
+  }
+  const cartInfo = getPayloadCartCollisionInfo(player, x, z);
+  if (cartInfo) {
+    if (playerY >= cartInfo.deckTop - 0.35 &&
+        Math.abs(cartInfo.localX) <= 2.1 - PLAYER_RADIUS * 0.25 &&
+        Math.abs(cartInfo.localZ) <= 1.225 - PLAYER_RADIUS * 0.25) {
+      height = Math.max(height, cartInfo.deckTop);
+    }
+    if (playerY >= cartInfo.cargoTop - 0.35 &&
+        Math.abs(cartInfo.localX + 0.35) <= 0.775 - PLAYER_RADIUS * 0.25 &&
+        Math.abs(cartInfo.localZ) <= 0.775 - PLAYER_RADIUS * 0.25) {
+      height = Math.max(height, cartInfo.cargoTop);
     }
   }
   // 高い位置から降下中なら、壁・障害物の上面も着地面として扱う。
@@ -1903,8 +1947,28 @@ function movePlayer(p, dt) {
   let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
   const knockbackX = Number(p.knockbackVelocityX) || 0;
   const knockbackZ = Number(p.knockbackVelocityZ) || 0;
-  const dx = (-sin * forward + cos * strafe) * moveSpeed * dt + knockbackX * dt;
-  const dz = (-cos * forward - sin * strafe) * moveSpeed * dt + knockbackZ * dt;
+  let dx = (-sin * forward + cos * strafe) * moveSpeed * dt + knockbackX * dt;
+  let dz = (-cos * forward - sin * strafe) * moveSpeed * dt + knockbackZ * dt;
+  const cartContact = getPayloadCartCollisionInfo(p);
+  if (cartContact) {
+    const onDeck = p.y >= cartContact.deckTop - 0.22 &&
+      Math.abs(cartContact.localX) <= 2.1 && Math.abs(cartContact.localZ) <= 1.225;
+    const onCargo = p.y >= cartContact.cargoTop - 0.22 &&
+      Math.abs(cartContact.localX + 0.35) <= 0.775 && Math.abs(cartContact.localZ) <= 0.775;
+    if (onDeck || onCargo) {
+      const localX = onCargo ? cartContact.localX + 0.35 : cartContact.localX;
+      const localZ = cartContact.localZ;
+      const halfX = onCargo ? 0.775 : 2.1;
+      const halfZ = onCargo ? 0.775 : 1.225;
+      let pushLocalX = 0, pushLocalZ = 0;
+      if (Math.abs(localX) / halfX > Math.abs(localZ) / halfZ) pushLocalX = localX < 0 ? -1 : 1;
+      else pushLocalZ = localZ < 0 ? -1 : 1;
+      const c = Math.cos(cartContact.yaw), s = Math.sin(cartContact.yaw);
+      const slideSpeed = onCargo ? 2.6 : 3.4;
+      dx += (c * pushLocalX + s * pushLocalZ) * slideSpeed * dt;
+      dz += (-s * pushLocalX + c * pushLocalZ) * slideSpeed * dt;
+    }
+  }
   p.knockbackVelocityX = knockbackX * Math.exp(-4.2 * dt);
   p.knockbackVelocityZ = knockbackZ * Math.exp(-4.2 * dt);
   if (Math.hypot(p.knockbackVelocityX, p.knockbackVelocityZ) < 0.15) {
