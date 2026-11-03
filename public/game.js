@@ -129,6 +129,7 @@ let respawnTimer = null;
 let autoRespawnRequested = false;
 
 let joined = false;
+const payloadReconnectToken = (() => { try { let token = localStorage.getItem("fpsPayloadReconnectToken"); if (!token) { token = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(36).slice(2)); localStorage.setItem("fpsPayloadReconnectToken", token); } return token; } catch (_) { return String(Date.now()) + "-" + Math.random().toString(36).slice(2); } })();
 let myId = null;
 let myState = null;
 let selectedGameMode = "Melee";
@@ -3661,6 +3662,7 @@ socket.on("connect", () => {
       charm: selectedCharm,
       ultimateType: selectedUltimate,
       skin: window.getPlayerSkinData?.(),
+      reconnectToken: payloadReconnectToken,
       charm: selectedCharm,
       ultimateType: selectedUltimate,
       mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
@@ -3960,7 +3962,7 @@ document.getElementById("payloadModeButton")?.addEventListener("click", () => {
   if (payloadQueueTimeText) payloadQueueTimeText.textContent = "20秒";
   if (payloadQueueProgressFill) payloadQueueProgressFill.style.width = "0%";
   payloadQueuePanel?.classList.remove("hidden");
-  socket.emit("joinPayloadQueue", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, charm: selectedCharm, ultimateType: selectedUltimate, skin: window.getPlayerSkinData?.() });
+  socket.emit("joinPayloadQueue", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, charm: selectedCharm, ultimateType: selectedUltimate, skin: window.getPlayerSkinData?.(), reconnectToken: payloadReconnectToken });
 });
 updateLoadoutSelectionUi();
 
