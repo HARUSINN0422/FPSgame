@@ -831,17 +831,36 @@ function getPayloadPointAtDistance(distance) {
 function getPayloadSpawnPoint(player, index = 0) {
   const match = payloadMatches.get(player?.matchId);
   const total = getPayloadTrackLength();
-  const ratio = total > 0 ? clamp((match?.progress || 0) / total, 0, 1) : 0;
-  // リスポーン地点は進行率35%・70%で段階的に更新し、カートの小さな移動では変えない。
-  const stage = ratio >= 0.70 ? 2 : ratio >= 0.35 ? 1 : 0;
-  const anchorDistance = stage === 2 ? total * 0.70 : stage === 1 ? total * 0.35 : 0;
-  // 両チームの専用リスポーン区画はマップ両端の対角に配置し、カート経路から分離。
-  const base = player?.role === "defense"
-    ? { x: 116, z: 112 }
-    : { x: -116, z: -112 };
-  const offsets = [[-4, -4], [4, -4], [-4, 4], [4, 4], [0, 0], [0, 7]];
-  const offset = offsets[Math.abs(index) % offsets.length];
-  return [base.x + offset[0], 0, base.z + offset[1]];
+  if (!total || !payloadMap?.payloadPath?.length) return [0, 0, 10];
+
+  // Overwatch型: 防衛はカートの少し先、攻撃はカートの後方から復帰する。
+  // カートが進むたびに両チームの基準地点も同じだけ移動する。
+  const progress = clamp(Number(match?.progress) || 0, 0, total);
+  const isDefense = player?.role === "defense";
+  const targetDistance = clamp(progress + (isDefense ? 14 : -38), 0, total);
+  const anchor = getPayloadPointAtDistance(targetDistance);
+  const sideX = Math.cos(anchor.yaw);
+  const sideZ = -Math.sin(anchor.yaw);
+
+  // チームごとにカートを挟んだ反対側へ配置し、障害物内なら候補地点をずらす。
+  const side = isDefense ? -1 : 1;
+  const offsets = [12, 18, 24, 8, 30, 0, -12, -18];
+  const world = payloadMap.world || { minX: -140, maxX: 140, minZ: -140, maxZ: 140 };
+  const obstacles = payloadMap.obstacles || [];
+  const candidates = offsets.map((distance) => {
+    const lateral = side * distance;
+    const x = anchor.x + sideX * lateral;
+    const z = anchor.z + sideZ * lateral;
+    const insideWorld = x >= world.minX + 2 && x <= world.maxX - 2 &&
+      z >= world.minZ + 2 && z <= world.maxZ - 2;
+    const blocked = obstacles.some((obstacle) =>
+      Math.abs(x - obstacle.x) < obstacle.w / 2 + 1.8 &&
+      Math.abs(z - obstacle.z) < obstacle.d / 2 + 1.8
+    );
+    return { point: [x, anchor.y || 0, z], valid: insideWorld && !blocked };
+  });
+  const valid = candidates.filter((candidate) => candidate.valid);
+  return (valid.length ? valid[Math.abs(index) % valid.length] : candidates[0]).point;
 }
 function isTeamMatchMode(mode){return mode===AREA_MODE||mode===PAYLOAD_MODE;}
 function pickSpawnForPlayer(player, index = 0) {
