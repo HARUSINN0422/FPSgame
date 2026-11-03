@@ -1160,7 +1160,7 @@ function buildPayloadTrackVisual(pathPoints) {
 function updatePayloadCartVisual(cart) {
   if (!payloadCartGroup || !cart) return;
   payloadCartGroup.position.set(Number(cart.x) || 0, (Number(cart.y) || 0) + 0.02, Number(cart.z) || 0);
-  payloadCartGroup.rotation.y = Number(cart.yaw) || 0;
+  payloadCartGroup.rotation.y = (Number(cart.yaw) || 0) + Math.PI / 2;
 }
 
 function buildWorld(data) {
