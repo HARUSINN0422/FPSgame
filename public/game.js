@@ -1266,7 +1266,27 @@ function buildWorld(data) {
   }
 
   for (const o of data.obstacles || []) {
-    makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
+    if (o.teamOnlyRole) {
+      const gateColor = o.teamOnlyRole === "attack" ? 0x258be8 : 0xe34b52;
+      const gate = new THREE.Mesh(
+        new THREE.BoxGeometry(o.w, o.h, o.d),
+        new THREE.MeshStandardMaterial({
+          color: gateColor,
+          emissive: gateColor,
+          emissiveIntensity: 0.3,
+          transparent: true,
+          opacity: 0.48,
+          depthWrite: false,
+          metalness: 0.25,
+          roughness: 0.35
+        })
+      );
+      gate.position.set(o.x, o.h / 2, o.z);
+      gate.renderOrder = 3;
+      worldGroup.add(gate);
+    } else {
+      makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
+    }
   }
 
   // 射撃場専用の特殊床。薄い直方体全体をBasicMaterialで描画し、面を完全な単色にする。
