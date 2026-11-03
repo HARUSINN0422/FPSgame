@@ -1790,3 +1790,19 @@ body.controller-mode #settingsButton {
   .payload-result-progress { padding: 13px; }
   .payload-result-progress strong { font-size: 24px; }
 }
+
+
+/* Matchmaking shared treatment for Payload */
+#payloadQueueProgressFill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #c68c37, #ffe09a);
+  transition: width .2s linear;
+}
+#payloadQueueCount { font-size: 20px; font-weight: 900; }
+#payloadQueueTime { font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.payload-queue-panel #cancelPayloadQueueButton { margin-top: 8px; }
+@media (max-width: 620px) {
+  #payloadQueueCount { font-size: 18px; }
+  #payloadQueueTime { font-size: 23px; }
+}
