@@ -833,34 +833,19 @@ function getPayloadSpawnPoint(player, index = 0) {
   const total = getPayloadTrackLength();
   if (!total || !payloadMap?.payloadPath?.length) return [0, 0, 10];
 
-  // Overwatch型: 防衛はカートの少し先、攻撃はカートの後方から復帰する。
-  // カートが進むたびに両チームの基準地点も同じだけ移動する。
+  // 進行率を3段階に分け、各段階・各チームに固定の復帰地点を使う。
+  // 段階内ではカートが進んでも座標は変わらない。
   const progress = clamp(Number(match?.progress) || 0, 0, total);
-  const isDefense = player?.role === "defense";
-  const targetDistance = clamp(progress + (isDefense ? 14 : -38), 0, total);
-  const anchor = getPayloadPointAtDistance(targetDistance);
-  const sideX = Math.cos(anchor.yaw);
-  const sideZ = -Math.sin(anchor.yaw);
+  const progressPercent = (progress / total) * 100;
+  const stage = progressPercent < 35 ? "early" : progressPercent < 71 ? "middle" : "late";
+  const role = player?.role === "defense" ? "defense" : "attack";
+  const point = payloadMap.respawnPoints?.[stage]?.[role];
 
-  // チームごとにカートを挟んだ反対側へ配置し、障害物内なら候補地点をずらす。
-  const side = isDefense ? -1 : 1;
-  const offsets = isDefense ? [8, 12, 16, 20, 24, 28, 4, 0] : [24, 30, 18, 36, 12, 42, 48, 6];
-  const world = payloadMap.world || { minX: -140, maxX: 140, minZ: -140, maxZ: 140 };
-  const obstacles = payloadMap.obstacles || [];
-  const candidates = offsets.map((distance) => {
-    const lateral = side * distance;
-    const x = anchor.x + sideX * lateral;
-    const z = anchor.z + sideZ * lateral;
-    const insideWorld = x >= world.minX + 2 && x <= world.maxX - 2 &&
-      z >= world.minZ + 2 && z <= world.maxZ - 2;
-    const blocked = obstacles.some((obstacle) =>
-      Math.abs(x - obstacle.x) < obstacle.w / 2 + 1.8 &&
-      Math.abs(z - obstacle.z) < obstacle.d / 2 + 1.8
-    );
-    return { point: [x, anchor.y || 0, z], valid: insideWorld && !blocked };
-  });
-  const valid = candidates.filter((candidate) => candidate.valid);
-  return (valid.length ? valid[Math.abs(index) % valid.length] : candidates[0]).point;
+  if (Array.isArray(point) && point.length >= 3) return [...point];
+
+  // マップデータに復帰地点がない場合のみ、マップ定義の通常スポーン地点へ退避する。
+  const fallback = payloadMap.spawnPoints || [];
+  return fallback[Math.abs(index) % fallback.length] || [0, 0, 10];
 }
 function isTeamMatchMode(mode){return mode===AREA_MODE||mode===PAYLOAD_MODE;}
 function pickSpawnForPlayer(player, index = 0) {
