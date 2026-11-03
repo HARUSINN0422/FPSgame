@@ -325,6 +325,10 @@
           <strong>エリア（3対3）</strong>
           <span>中央エリアを5秒間確保するとカウントが進行。100%に到達したチームが勝利します。</span>
         </button>
+        <button id="payloadModeButton" class="mode-card payload-mode-card" type="button">
+          <strong>ペイロード（3対3）</strong>
+          <span>攻撃側はカートを護送し、防衛側は進行を阻止します。チェックポイント到達で再出撃地点が前進します。</span>
+        </button>
         <button id="duelModeButton" class="mode-card duel-mode-card" type="button">
           <strong>タイマンモード（1対1）</strong>
           <span>部屋を作成してルールを設定するか、募集中の部屋に参加して1対1で対戦します。</span>
@@ -379,6 +383,32 @@
     </section>
   </div>
 
+  <div id="payloadQueuePanel" class="overlay hidden" aria-live="polite">
+    <section class="panel area-queue-panel payload-queue-panel">
+      <div class="eyebrow">PAYLOAD MATCHMAKING</div>
+      <h1>ペイロード対戦を検索中</h1>
+      <p id="payloadQueueStatus">対戦相手を募集しています。</p>
+      <div class="area-queue-progress"><div id="payloadQueueProgressFill"></div></div>
+      <div class="area-queue-count"><strong id="payloadQueueCount">1 / 6 人</strong><span id="payloadQueueTime">20秒</span></div>
+      <button id="cancelPayloadQueueButton" class="mode-back-button" type="button">キャンセルして戻る</button>
+    </section>
+  </div>
+
+  <div id="payloadResultPanel" class="overlay hidden" aria-live="polite">
+    <section class="panel area-result-panel payload-result-panel">
+      <div class="eyebrow">PAYLOAD MATCH RESULT</div>
+      <h1 id="payloadResultTitle">試合終了</h1>
+      <p id="payloadResultSummary">勝敗が確定しました。</p>
+      <div class="payload-result-progress"><span>ペイロード進行率</span><strong id="payloadResultProgress">0%</strong></div>
+      <div class="area-result-kd">
+        <span>あなたのキル</span><strong id="payloadResultKills">0</strong>
+        <span>あなたのデス</span><strong id="payloadResultDeaths">0</strong>
+        <span>K/D</span><strong id="payloadResultKD">0.00</strong>
+      </div>
+      <button id="payloadResultCloseButton" class="start-game-button" type="button">閉じてゲームモード選択へ</button>
+    </section>
+  </div>
+
   <div id="areaResultPanel" class="overlay hidden" aria-live="polite">
     <section class="panel area-result-panel">
       <div class="eyebrow">AREA MATCH RESULT</div>
@@ -413,6 +443,13 @@
       <div class="area-progress-row blue"><span>BLUE</span><div class="area-progress-track"><div id="areaBlueFill" class="area-progress-fill"></div></div><strong id="areaBlueScore">0%</strong></div>
       <div class="area-progress-row red"><span>RED</span><div class="area-progress-track"><div id="areaRedFill" class="area-progress-fill"></div></div><strong id="areaRedScore">0%</strong></div>
       <div id="areaCaptureStatus" class="area-capture-status">中央エリアを確保してください。</div>
+    </div>
+    <div id="payloadHud" class="payload-hud hidden" aria-label="ペイロード進行状況">
+      <div class="payload-hud-header"><strong>ペイロード護送</strong><span id="payloadTeamLabel">攻撃側</span></div>
+      <div class="payload-progress-track"><div id="payloadProgressFill"></div></div>
+      <div class="payload-progress-meta"><strong id="payloadProgressText">0%</strong><span id="payloadTimer">04:00</span></div>
+      <div id="payloadStatus">ペイロード周辺を確保してください</div>
+      <div id="payloadPresence">攻撃 0人 / 防衛 0人</div>
     </div>
     <div id="connectionStatus" class="disconnected">接続中…</div>
     <div id="mapChangeCountdown" class="hidden" role="status" aria-live="polite"></div>
