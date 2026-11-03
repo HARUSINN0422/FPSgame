@@ -3313,6 +3313,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     cancelAreaQueue(socket.id);
+    cancelPayloadQueue(socket.id);
     const player = players.get(socket.id);
     if (player?.mode === AREA_MODE) {
       removeAreaPlayer(socket.id);
@@ -3415,6 +3416,21 @@ setInterval(() => {
   if (second !== lastAreaQueueSecond) {
     lastAreaQueueSecond = second;
     broadcastAreaQueueStatus();
+  }
+}, 200);
+
+// Payload matchmaking: close the six-player lobby immediately, otherwise start with BOT fill after 20 seconds.
+setInterval(() => {
+  if (!payloadQueue.length) return;
+  const remaining = AREA_QUEUE_DURATION_MS - (Date.now() - payloadQueueStartedAt);
+  if (payloadQueue.length >= 6 || remaining <= 0) {
+    startPayloadMatch(payloadQueue.length < 6);
+    return;
+  }
+  const second = Math.ceil(remaining / 1000);
+  if (second !== lastPayloadQueueSecond) {
+    lastPayloadQueueSecond = second;
+    broadcastPayloadQueueStatus();
   }
 }, 200);
 
