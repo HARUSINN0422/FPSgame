@@ -3233,6 +3233,7 @@ socket.on("areaMatchStarted", ({ team, botCount, map } = {}) => {
 
 socket.on("payloadQueueStatus", status => {
   if (!payloadQueuePanel || joined) return;
+  if (selectedGameMode === "Payload") { payloadQueuePanel.classList.remove("hidden"); document.getElementById("modeScreen")?.classList.add("hidden"); }
   const remaining = Math.max(0, Number(status.remainingMs) || 0);
   const seconds = Math.ceil(remaining / 1000);
   if (payloadQueueStatusText) payloadQueueStatusText.textContent = seconds ? "対戦相手を募集しています。" : "BOTを補充して試合を準備しています。";
@@ -3670,8 +3671,8 @@ socket.on("connect", () => {
     };
     if (selectedGameMode === "Payload") {
       document.getElementById("modeScreen")?.classList.add("hidden");
-      payloadQueuePanel?.classList.remove("hidden");
-      if (payloadQueueStatusText) payloadQueueStatusText.textContent = "再接続しました。ペイロード対戦を再検索しています。";
+      payloadQueuePanel?.classList.add("hidden");
+      showMessage("ペイロードの試合へ復帰しています…");
       socket.emit("joinPayloadQueue", rejoinData);
     } else if (selectedGameMode === "Area") {
       document.getElementById("modeScreen")?.classList.add("hidden");
