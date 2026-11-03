@@ -1112,24 +1112,56 @@ function makeRamp(ramp, color = 0x71808d) {
 
 function buildPayloadTrackVisual(pathPoints) {
   if (!Array.isArray(pathPoints) || pathPoints.length < 2) return;
-  const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x252d35, roughness: 0.94 });
-  const railMaterial = new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.55, roughness: 0.5 });
-  for (let i = 1; i < pathPoints.length; i++) {
-    const a = pathPoints[i - 1], b = pathPoints[i];
-    const dx = b[0] - a[0], dz = b[2] - a[2];
-    const length = Math.hypot(dx, dz);
-    const angle = -Math.atan2(dz, dx);
-    const road = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 0.10, 8.2), roadMaterial);
-    road.position.set((a[0] + b[0]) / 2, 0.055, (a[2] + b[2]) / 2);
-    road.rotation.y = angle;
-    worldGroup.add(road);
-    for (const side of [-1, 1]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(length + 0.2, 0.22, 0.22), railMaterial);
-      rail.position.set((a[0] + b[0]) / 2 + Math.sin(angle) * side * 3.85, 0.16,
-        (a[2] + b[2]) / 2 + Math.cos(angle) * side * 3.85);
-      rail.rotation.y = angle;
-      worldGroup.add(rail);
+  const points = pathPoints.map(point => new THREE.Vector3(point[0], (point[1] || 0) + 0.055, point[2]));
+  const roadMaterial = new THREE.MeshStandardMaterial({
+    color: 0x252d35, roughness: 0.94, side: THREE.DoubleSide
+  });
+  const railMaterial = new THREE.MeshStandardMaterial({
+    color: 0xb8bec4, metalness: 0.55, roughness: 0.5
+  });
+
+  // 角ごとに直方体を重ねる方式をやめ、連続した路面リボンとして描画する。
+  // サーバー側の細分化済みpayloadPathと同じ点列を使うため、カートの軌道とずれない。
+  const positions = [];
+  const indices = [];
+  for (let i = 0; i < points.length; i++) {
+    const before = points[Math.max(0, i - 1)];
+    const after = points[Math.min(points.length - 1, i + 1)];
+    const tangent = new THREE.Vector3(after.x - before.x, 0, after.z - before.z).normalize();
+    const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+    const point = points[i];
+    positions.push(
+      point.x + side.x * 4.1, 0.055, point.z + side.z * 4.1,
+      point.x - side.x * 4.1, 0.055, point.z - side.z * 4.1
+    );
+    if (i > 0) {
+      const previous = (i - 1) * 2;
+      const current = i * 2;
+      indices.push(previous, current, previous + 1, previous + 1, current, current + 1);
     }
+  }
+  const roadGeometry = new THREE.BufferGeometry();
+  roadGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  roadGeometry.setIndex(indices);
+  roadGeometry.computeVertexNormals();
+  worldGroup.add(new THREE.Mesh(roadGeometry, roadMaterial));
+
+  // ガードレールも経路全体を滑らかな曲線でつなぎ、折れ角での食い違いを防ぐ。
+  for (const railSide of [-1, 1]) {
+    const railPoints = points.map((point, index) => {
+      const before = points[Math.max(0, index - 1)];
+      const after = points[Math.min(points.length - 1, index + 1)];
+      const tangent = new THREE.Vector3(after.x - before.x, 0, after.z - before.z).normalize();
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+      return new THREE.Vector3(
+        point.x + side.x * railSide * 3.85,
+        0.18,
+        point.z + side.z * railSide * 3.85
+      );
+    });
+    const railCurve = new THREE.CatmullRomCurve3(railPoints, false, "centripetal");
+    const railGeometry = new THREE.TubeGeometry(railCurve, Math.max(96, points.length * 2), 0.11, 6, false);
+    worldGroup.add(new THREE.Mesh(railGeometry, railMaterial));
   }
 
   payloadCartGroup = new THREE.Group();
@@ -1238,12 +1270,17 @@ function buildWorld(data) {
   }
 
   // 射撃場専用の特殊床。薄い直方体全体をBasicMaterialで描画し、面を完全な単色にする。
+  const floorStyles = {
+    fire: { color: 0xd92727 },
+    slime: { color: 0x7756d6 },
+    safe: { color: 0x26b866 }
+  };
   for (const tile of data.floorTiles || []) {
-    const isFire = tile.type === "fire";
+    const style = floorStyles[tile.type] || floorStyles.safe;
     const tileMesh = new THREE.Mesh(
       new THREE.BoxGeometry(tile.w, 0.06, tile.d),
       new THREE.MeshBasicMaterial({
-        color: isFire ? 0xd92727 : 0x26b866,
+        color: style.color,
         side: THREE.DoubleSide,
         toneMapped: false
       })
@@ -2238,7 +2275,7 @@ function updateRemotePlayers(players) {
 
     if (p.skin) applyPlayerSkin(obj, p.skin);
     if (!obj.userData.skinDataUrl) {
-      const clothingColor = p.mode === "Area"
+      const clothingColor = ["Area", "Payload"].includes(p.mode)
         ? new THREE.Color(p.team === "blue" ? 0x287bd1 : 0xc93636)
         : playerClothingColor(p.name);
       for (const mesh of [obj.userData.skinMeshes?.base?.torso, obj.userData.skinMeshes?.base?.armL, obj.userData.skinMeshes?.base?.armR]) {
@@ -2249,7 +2286,7 @@ function updateRemotePlayers(players) {
     }
     obj.userData.playerState = p;
     const nameSprite = obj.userData.nameSprite;
-    const teamColor = p.mode === "Area"
+    const teamColor = ["Area", "Payload"].includes(p.mode)
       ? (p.team === "blue" ? "#54b7ff" : "#ff6565")
       : "#ffffff";
     if (nameSprite && (obj.userData.nameText !== p.name || obj.userData.nameColor !== teamColor)) {

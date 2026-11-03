@@ -1657,7 +1657,7 @@ body.controller-mode #settingsButton {
 #bowChargeFill { width: 0%; height: 100%; background: linear-gradient(90deg, #d9b56d, #ffe8a5); transition: width 30ms linear; }
 
 /* Duel mode */
-.duel-mode-card { border-color: rgba(236,190,91,.65); }
+.duel-mode-card { border-color: rgba(255,255,255,.18); }
 .duel-panel { width:min(620px,calc(100vw - 28px)); max-height:min(86vh,760px); overflow-y:auto; }
 .duel-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
 .duel-actions>button { flex:1 1 180px; }
@@ -1715,7 +1715,7 @@ body.controller-mode #settingsButton {
 
 
 /* Payload escort mode */
-.payload-mode-card { border-color: rgba(220, 177, 91, .6); }
+.payload-mode-card { border-color: rgba(255,255,255,.18); }
 .payload-hud {
   position: absolute;
   top: 70px;

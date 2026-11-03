@@ -670,7 +670,7 @@ function getWorldPayloadForMap(map, mode) {
     bridgeSupports: map.bridgeSupports || [],
     world: map.world,
     ...(mode === AREA_MODE && map.areaZone ? { areaZone: map.areaZone } : {}),
-    ...(mode === PAYLOAD_MODE && Array.isArray(map.payloadPath) ? { payloadPath: map.payloadPath, payloadCheckpointDistances: map.payloadCheckpointDistances || [] } : {}),
+    ...(Array.isArray(map.payloadPath) ? { payloadPath: map.payloadPath, payloadCheckpointDistances: map.payloadCheckpointDistances || [] } : {}),
     weapons: Object.fromEntries(
       Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
     )
@@ -828,9 +828,21 @@ function getPayloadPointAtDistance(distance) {
   for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],len=Math.hypot(b[0]-a[0],b[2]-a[2]);if(left<=len||i===pts.length-1){const t=len?clamp(left/len,0,1):0;return{x:a[0]+(b[0]-a[0])*t,y:(a[1]||0)+((b[1]||0)-(a[1]||0))*t,z:a[2]+(b[2]-a[2])*t,yaw:Math.atan2(-(b[0]-a[0]),-(b[2]-a[2]))};}left-=len;}
   const p=pts[pts.length-1];return{x:p[0],y:p[1]||0,z:p[2],yaw:0};
 }
-function getPayloadSpawnPoint(player,index=0){
- const match=payloadMatches.get(player?.matchId),distance=(match?.progress||0)+(player?.role==="defense"?24:-24),at=getPayloadPointAtDistance(distance),side=[-7,0,7][Math.abs(index)%3];
- return[clamp(at.x+Math.cos(at.yaw)*side,payloadMap.world.minX+4,payloadMap.world.maxX-4),at.y,clamp(at.z-Math.sin(at.yaw)*side,payloadMap.world.minZ+4,payloadMap.world.maxZ-4)];
+function getPayloadSpawnPoint(player, index = 0) {
+  const match = payloadMatches.get(player?.matchId);
+  const total = getPayloadTrackLength();
+  const ratio = total > 0 ? clamp((match?.progress || 0) / total, 0, 1) : 0;
+  // リスポーン地点は進行率35%・70%で段階的に更新し、カートの小さな移動では変えない。
+  const stage = ratio >= 0.70 ? 2 : ratio >= 0.35 ? 1 : 0;
+  const anchorDistance = stage === 2 ? total * 0.70 : stage === 1 ? total * 0.35 : 0;
+  const distance = anchorDistance + (player?.role === "defense" ? 26 : -26);
+  const at = getPayloadPointAtDistance(distance);
+  const side = [-7, 0, 7][Math.abs(index) % 3];
+  return [
+    clamp(at.x + Math.cos(at.yaw) * side, payloadMap.world.minX + 4, payloadMap.world.maxX - 4),
+    at.y,
+    clamp(at.z - Math.sin(at.yaw) * side, payloadMap.world.minZ + 4, payloadMap.world.maxZ - 4)
+  ];
 }
 function isTeamMatchMode(mode){return mode===AREA_MODE||mode===PAYLOAD_MODE;}
 function pickSpawnForPlayer(player, index = 0) {
@@ -1390,8 +1402,10 @@ function syncBots() {
 }
 
 function updateBot(p, now) {
-  if (!p.isBot || p.health <= 0 || p.finished || p.ultimateActiveUntil > now || now < p.botThinkAt) return;
-  p.botThinkAt = now + 100 + Math.random() * 80;
+  if (!p.isBot || p.health <= 0 || p.finished || now < p.botThinkAt) return;
+  const botSkyfallActive = Boolean(p.skyfallImpactId && p.ultimateActiveUntil > now);
+  if (p.ultimateActiveUntil > now && !botSkyfallActive) return;
+  p.botThinkAt = now + (botSkyfallActive ? 80 : 100 + Math.random() * 80);
 
   const isAreaBot=p.mode===AREA_MODE;
   const isPayloadBot=p.mode===PAYLOAD_MODE;
@@ -1413,6 +1427,37 @@ function updateBot(p, now) {
     isSameGame(p, other) &&
     (isObjectiveBot ? other.team !== p.team : !other.isBot)
   );
+
+  // BOTも浮上中に敵の位置を追い、発動1秒後から狙いに合わせて任意降下する。
+  if (botSkyfallActive) {
+    const elapsed = now - (p.skyfallStartedAt || now);
+    const skyfallTarget = targets.slice().sort((a, b) =>
+      Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z)
+    )[0];
+    let targetDistance = Infinity;
+    if (skyfallTarget) {
+      const dx = skyfallTarget.x - p.x;
+      const dz = skyfallTarget.z - p.z;
+      targetDistance = Math.hypot(dx, dz);
+      const targetYaw = Math.atan2(-dx, -dz);
+      const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
+      p.yaw += clamp(yawDelta, -0.22, 0.22);
+      p.pitch = clamp(Math.atan2((skyfallTarget.y || 0) + 1 - p.y, Math.max(0.001, targetDistance)), -0.8, 0.8);
+      p.input.forward = targetDistance > 4 ? 1 : 0;
+      p.input.strafe = Math.abs(yawDelta) > 0.4 ? Math.sign(yawDelta) * 0.25 : 0;
+    } else {
+      p.input.forward = 0;
+      p.input.strafe = 0;
+      p.pitch = 0;
+    }
+    if (elapsed >= 1000 &&
+        ((skyfallTarget && targetDistance <= SKYFALL_IMPACT_RADIUS * 0.9) || elapsed >= 2200)) {
+      p.ultimateActiveUntil = now;
+      p.input.forward = 0;
+      p.input.strafe = 0;
+    }
+    return;
+  }
 
   // チャージが完了し、無敵時間外の敵が近距離にいる場合はBOTも天墜を使う。
   // 天墜は自分の足元に落ちるため、敵が半径内に入るまで温存する。
@@ -1513,10 +1558,11 @@ function updateBot(p, now) {
   const enemyIsTakingZone=isAreaBot&&Boolean(match?.captureTeam&&match.captureTeam!==p.team);
   // 中立/敵側のエリアでは味方の人数にかかわらずBOTも制圧に参加する。
   // 自チーム所有中は、エリア内の味方が2人未満なら守備要員として向かう。
-  const needsObjectiveSupport=isPayloadBot?livingTeamMembersInZone<1:livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
-  const moveToObjective = Boolean(zone && !botInsideZone && visibleTargets.length === 0 && needsObjectiveSupport);
-  // 敵が視認できないときは、エリア内にいるBOTが持ち場を離れないようにする。
-  const holdObjective = Boolean(zone && botInsideZone && visibleTargets.length === 0);
+  const needsObjectiveSupport=isPayloadBot?livingTeamMembersInZone<2:livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
+  const visibleCloseEnemy = visibleTargets.some((target) => Math.hypot(target.x - p.x, target.z - p.z) <= 8);
+  const moveToObjective = Boolean(zone && !botInsideZone && needsObjectiveSupport && (!visibleTargets.length || !visibleCloseEnemy));
+  // ペイロードBOTは交戦中もカート周辺に残り、護送・停止判定に参加する。
+  const holdObjective = Boolean(zone && botInsideZone && (isPayloadBot || visibleTargets.length === 0));
 
   if (moveToObjective) {
     const dx = zone.x - p.x;
@@ -1612,9 +1658,9 @@ function updateBot(p, now) {
     p.input.strafe = Math.sin(now / 500) * 0.5;
   }
   p.input.crouch = false;
-  // 両モードのBOTは、射線が通り照準条件を満たしたとき60%の確率で射撃する。
-  const botFireChance = 0.60;
-  const botAimOffChance = isAreaBot ? 0.82 : 0.5;
+  // ペイロードBOTは交戦の手数を少し増やし、目標周辺の攻防を維持する。
+  const botFireChance = isPayloadBot ? 0.72 : 0.60;
+  const botAimOffChance = isAreaBot ? 0.82 : isPayloadBot ? 0.42 : 0.5;
   if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < botFireChance) {
     const originalYaw = p.yaw;
     const originalPitch = p.pitch;
@@ -2842,7 +2888,7 @@ function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQu
 function startPayloadMatch(fillWithBots){const waiting=payloadQueue.splice(0,6).filter(e=>io.sockets.sockets.has(e.socketId));payloadQueueStartedAt=0;lastPayloadQueueSecond=null;if(!waiting.length)return;const used=new Set(waiting.map(e=>e.name.toLowerCase())),names=PAYLOAD_BOT_NAMES.filter(n=>!used.has(n.toLowerCase()));for(let i=names.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const parts=waiting.map(e=>({...e,isBot:false}));while((fillWithBots||parts.length<6)&&parts.length<6)parts.push({socketId:null,name:names.shift()||("Payload BOT "+(parts.length+1)),skin:"",weapon:Math.random()<.65?"rifle":"marksman",secondaryWeapon:"shotgun",charm:"none",ultimateType:"skyfall",isBot:true});const counts={blue:0,red:0};for(const p of parts.filter(p=>!p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}for(const p of parts.filter(p=>p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}const attackingTeam=Math.random()<.5?"blue":"red",matchId="payload-"+Date.now()+"-"+(++payloadMatchSequence);const match={id:matchId,playerIds:[],humanIds:waiting.map(e=>e.socketId),attackingTeam,defendingTeam:attackingTeam==="blue"?"red":"blue",progress:0,checkpointIndex:0,startedAt:Date.now(),lastStateAt:0,finished:false,overtime:false,status:"playing"};payloadMatches.set(matchId,match);const indexes={blue:0,red:0};parts.forEach((e,i)=>{const role=e.team===attackingTeam?"attack":"defense",id=e.isBot?"bot:"+matchId+":"+i:e.socketId,spawn=getPayloadSpawnPoint({matchId,role},indexes[e.team]++),p=createPayloadPlayer({id,name:e.name,skin:e.skin,weapon:e.weapon,secondaryWeapon:e.secondaryWeapon,charm:e.charm,ultimateType:e.ultimateType,team:e.team,role,matchId,isBot:e.isBot,botSpawnIndex:indexes[e.team]-1},spawn);players.set(id,p);match.playerIds.push(id);if(!e.isBot){const c=io.sockets.sockets.get(e.socketId);if(c){c.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));c.emit("joined",{player:publicPlayer(p,true)});c.emit("payloadMatchStarted",{matchId,team:p.team,role:p.role,botCount:parts.filter(q=>q.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});}}});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 試合開始:",matchId);}
 function sendPayloadMatchState(match,force=false){if(!match||match.finished)return;const now=Date.now();if(!force&&now-match.lastStateAt<150)return;match.lastStateAt=now;const cart=getPayloadPointAtDistance(match.progress),near=match.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),attackers=near.filter(p=>p.team===match.attackingTeam).length,defenders=near.filter(p=>p.team===match.defendingTeam).length,total=getPayloadTrackLength();const state={matchId:match.id,progress:total?Math.min(100,match.progress/total*100):0,distance:match.progress,totalDistance:total,cart,attackingTeam:match.attackingTeam,defendingTeam:match.defendingTeam,attackers,defenders,timeRemainingMs:Math.max(0,PAYLOAD_ROUND_TIME_MS-(now-match.startedAt)),overtime:match.overtime,checkpointIndex:match.checkpointIndex,status:attackers&&defenders?"contested":attackers?"pushing":"stalled"};for(const id of match.humanIds)io.to(id).emit("payloadState",state);}
 function finishPayloadMatch(match,winnerTeam){if(!match||match.finished)return;match.finished=true;const winnerRole=winnerTeam===match.attackingTeam?"attack":"defense";for(const id of match.playerIds){const p=players.get(id);if(p){p.finished=true;p.input={forward:0,strafe:0,crouch:false};p.jumpQueuedUntil=0;p.respawnAt=0;}}for(const id of match.humanIds){const p=players.get(id);if(p)io.to(id).emit("payloadMatchEnd",{matchId:match.id,won:p.role===winnerRole,team:p.team,role:p.role,winnerRole,progress:Math.min(100,match.progress/getPayloadTrackLength()*100),kills:p.kills,deaths:p.deaths});}broadcastPlayers();}
-function updatePayloadMatches(dt,now){const total=getPayloadTrackLength();for(const m of payloadMatches.values()){if(m.finished)continue;const cart=getPayloadPointAtDistance(m.progress),near=m.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),a=near.filter(p=>p.team===m.attackingTeam).length,d=near.filter(p=>p.team===m.defendingTeam).length;if(a>0&&!d)m.progress=Math.min(total,m.progress+(2.6+Math.max(0,Math.min(2,a-1))*.55)*dt);const cps=payloadMap.payloadCheckpointDistances||[];while(m.checkpointIndex+1<cps.length&&m.progress>=cps[m.checkpointIndex+1]){m.checkpointIndex++;for(const id of m.playerIds){const p=players.get(id);if(p&&!p.isBot){p.ultimateCharge=Math.min(100,(p.ultimateCharge||0)+10);io.to(id).emit("payloadCheckpoint",{checkpointIndex:m.checkpointIndex});}}}if(m.progress>=total){m.progress=total;sendPayloadMatchState(m,true);finishPayloadMatch(m,m.attackingTeam);continue;}const expired=now-m.startedAt>=PAYLOAD_ROUND_TIME_MS,onCart=near.some(p=>p.team===m.attackingTeam);if(expired&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}if(expired)m.overtime=true;if(m.overtime&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}sendPayloadMatchState(m);}}
+function updatePayloadMatches(dt,now){const total=getPayloadTrackLength();for(const m of payloadMatches.values()){if(m.finished)continue;const cart=getPayloadPointAtDistance(m.progress),near=m.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),a=near.filter(p=>p.team===m.attackingTeam).length,d=near.filter(p=>p.team===m.defendingTeam).length;if(a>0&&!d)m.progress=Math.min(total,m.progress+(3.5+Math.max(0,Math.min(2,a-1))*.7)*dt);const cps=payloadMap.payloadCheckpointDistances||[];while(m.checkpointIndex+1<cps.length&&m.progress>=cps[m.checkpointIndex+1]){m.checkpointIndex++;for(const id of m.playerIds){const p=players.get(id);if(p&&!p.isBot){p.ultimateCharge=Math.min(100,(p.ultimateCharge||0)+10);io.to(id).emit("payloadCheckpoint",{checkpointIndex:m.checkpointIndex});}}}if(m.progress>=total){m.progress=total;sendPayloadMatchState(m,true);finishPayloadMatch(m,m.attackingTeam);continue;}const expired=now-m.startedAt>=PAYLOAD_ROUND_TIME_MS,onCart=near.some(p=>p.team===m.attackingTeam);if(expired&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}if(expired)m.overtime=true;if(m.overtime&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}sendPayloadMatchState(m);}}
 function removePayloadPlayer(socketId){cancelPayloadQueue(socketId);const player=players.get(socketId);if(!player||player.mode!==PAYLOAD_MODE){io.to(socketId).emit("payloadReturnToModeSelect");return;}const match=payloadMatches.get(player.matchId);players.delete(socketId);if(!match){io.to(socketId).emit("payloadReturnToModeSelect");broadcastPlayers();return;}match.playerIds=match.playerIds.filter(id=>id!==socketId);match.humanIds=match.humanIds.filter(id=>id!==socketId);io.to(socketId).emit("payloadReturnToModeSelect");if(!match.humanIds.length){for(const id of match.playerIds)players.delete(id);payloadMatches.delete(match.id);}else if(!match.finished){const id="bot:"+match.id+":replacement:"+Date.now(),bot=createPayloadPlayer({id,name:PAYLOAD_BOT_NAMES[Math.floor(Math.random()*PAYLOAD_BOT_NAMES.length)],weapon:"rifle",secondaryWeapon:"shotgun",team:player.team,role:player.role,matchId:match.id,isBot:true},[player.x,player.y,player.z]);players.set(id,bot);match.playerIds.push(id);}broadcastPlayers();sendPayloadMatchState(match,true);}
 
 function removeTrainingBots(matchId) {
@@ -2893,7 +2939,11 @@ io.on("connection", (socket) => {
   }
 
   socket.on("getWanderMaps", () => {
-    const maps = [...availableMaps, ...areaMaps].map((map) => ({ id: map.id, name: map.name, mode: map === areaMap ? AREA_MODE : MAP_MODE }));
+    const maps = [...availableMaps, ...areaMaps, ...payloadMaps].map((map) => ({
+      id: map.id,
+      name: map.name,
+      mode: Array.isArray(map.payloadPath) ? PAYLOAD_MODE : map === areaMap ? AREA_MODE : MAP_MODE
+    }));
     maps.push({ id: "shooting-range", name: "射撃場", mode: TRAINING_MODE });
     socket.emit("wanderMaps", maps);
   });
@@ -2983,7 +3033,7 @@ io.on("connection", (socket) => {
     const duelMap=requestedMode==="Duel"?[...availableMaps,...areaMaps].find(m=>m.id===duelRoom.mapId)||activeMap:null;
     const trainingMap = requestedMode === TRAINING_MODE ? createTrainingMap() : null;
     const wanderMap = requestedMode === "Wander"
-      ? (data.mapId === "shooting-range" ? createTrainingMap() : [...availableMaps, ...areaMaps].find((map) => map.id === data.mapId) || activeMap)
+      ? (data.mapId === "shooting-range" ? createTrainingMap() : [...availableMaps, ...areaMaps, ...payloadMaps].find((map) => map.id === data.mapId) || activeMap)
       : null;
     const chosenMap = duelMap || trainingMap || wanderMap;
     const spawnIndex=requestedMode==="Duel"?Math.max(0,duelRoom.playerIds.indexOf(socket.id)):0;
@@ -3476,12 +3526,13 @@ setInterval(() => {
       if (p.isBot) updateBot(p, now);
       finishReload(p, now);
       movePlayer(p, dt);
-      // 燃える床は、接地中に500msごとに15ダメージ。
+      // 燃える床は、接地中に500msごとに5ダメージ。床のお守りなら無効化する。
       const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
         getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
-        applyIncomingDamage(p, 3);
+        applyIncomingDamage(p, 5);
+        io.to(p.id).emit("damageTaken", { damage: 5, zone: "environment", source: "fire-floor" });
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
