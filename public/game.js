@@ -129,7 +129,7 @@ let respawnTimer = null;
 let autoRespawnRequested = false;
 
 let joined = false;
-const payloadReconnectToken = (() => { try { let token = localStorage.getItem("fpsPayloadReconnectToken"); if (!token) { token = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(36).slice(2)); localStorage.setItem("fpsPayloadReconnectToken", token); } return token; } catch (_) { return String(Date.now()) + "-" + Math.random().toString(36).slice(2); } })();
+const payloadReconnectToken = (() => { try { let token = sessionStorage.getItem("fpsPayloadReconnectToken"); if (!token) { token = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(36).slice(2)); sessionStorage.setItem("fpsPayloadReconnectToken", token); } return token; } catch (_) { return String(Date.now()) + "-" + Math.random().toString(36).slice(2); } })();
 let myId = null;
 let myState = null;
 let selectedGameMode = "Melee";
