@@ -844,7 +844,7 @@ function getPayloadSpawnPoint(player, index = 0) {
 
   // チームごとにカートを挟んだ反対側へ配置し、障害物内なら候補地点をずらす。
   const side = isDefense ? -1 : 1;
-  const offsets = [12, 18, 24, 8, 30, 0, -12, -18];
+  const offsets = isDefense ? [8, 12, 16, 20, 24, 28, 4, 0] : [24, 30, 18, 36, 12, 42, 48, 6];
   const world = payloadMap.world || { minX: -140, maxX: 140, minZ: -140, maxZ: 140 };
   const obstacles = payloadMap.obstacles || [];
   const candidates = offsets.map((distance) => {
