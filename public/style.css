@@ -1712,3 +1712,81 @@ body.controller-mode #settingsButton {
 .damage-number.health-damage.critical,
 .damage-number.shield-damage.head,
 .damage-number.shield-damage.critical { color: #ffb52e; }
+
+
+/* Payload escort mode */
+.payload-mode-card { border-color: rgba(220, 177, 91, .6); }
+.payload-hud {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(420px, 80vw);
+  padding: 10px 14px;
+  border: 1px solid rgba(255,255,255,.36);
+  border-radius: 12px;
+  background: rgba(8,13,20,.86);
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 5px 22px rgba(0,0,0,.28);
+}
+.payload-hud.hidden { display: none !important; }
+.payload-hud-header,
+.payload-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.payload-hud-header { font-size: 13px; }
+#payloadTeamLabel { color: #ffd27b; font-weight: 850; }
+.payload-progress-track {
+  width: 100%;
+  height: 13px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(255,255,255,.18);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.35);
+}
+#payloadProgressFill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c68c37, #ffe09a);
+  transition: width .18s linear;
+}
+.payload-progress-meta { margin-top: 5px; font-size: 12px; font-variant-numeric: tabular-nums; }
+#payloadProgressText { font-size: 17px; }
+#payloadTimer { font-weight: 850; }
+#payloadStatus { margin-top: 5px; color: #ffe4aa; font-size: 11px; font-weight: 800; }
+#payloadPresence { margin-top: 3px; color: rgba(255,255,255,.72); font-size: 10px; }
+.payload-result-progress {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.06);
+}
+.payload-result-progress span { opacity: .72; }
+.payload-result-progress strong { font-size: 28px; font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) {
+  .payload-hud {
+    top: calc(max(76px, calc(76px + env(safe-area-inset-top))) + var(--layout-y, 0px));
+    width: min(390px, 72vw);
+    padding: 7px 9px;
+  }
+  .payload-hud-header { font-size: 10px; }
+  .payload-progress-track { height: 10px; margin-top: 5px; }
+  .payload-progress-meta { font-size: 10px; }
+  #payloadProgressText { font-size: 14px; }
+  #payloadStatus { margin-top: 3px; font-size: 9px; }
+  #payloadPresence { font-size: 9px; }
+  .payload-result-progress { padding: 13px; }
+  .payload-result-progress strong { font-size: 24px; }
+}
