@@ -1582,7 +1582,7 @@ function updateBot(p, now) {
   // 自チーム所有中は、エリア内の味方が2人未満なら守備要員として向かう。
   const needsObjectiveSupport=isPayloadBot?livingTeamMembersInZone<2:livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
   const visibleCloseEnemy = visibleTargets.some((target) => Math.hypot(target.x - p.x, target.z - p.z) <= 8);
-  const moveToObjective = Boolean(zone && !botInsideZone && needsObjectiveSupport && (!visibleTargets.length || !visibleCloseEnemy));
+  const moveToObjective = Boolean(zone && !botInsideZone && needsObjectiveSupport && (isPayloadBot || !visibleTargets.length || !visibleCloseEnemy));
   // ペイロードBOTは交戦中もカート周辺に残り、護送・停止判定に参加する。
   const holdObjective = Boolean(zone && botInsideZone && (isPayloadBot || visibleTargets.length === 0));
 
