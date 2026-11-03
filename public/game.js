@@ -98,6 +98,8 @@ scene.add(sun);
 
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
+let payloadCartGroup = null;
+let payloadRole = null;
 
 const remotePlayers = new Map();
 const tracers = [];
@@ -1108,6 +1110,59 @@ function makeRamp(ramp, color = 0x71808d) {
   return mesh;
 }
 
+function buildPayloadTrackVisual(pathPoints) {
+  if (!Array.isArray(pathPoints) || pathPoints.length < 2) return;
+  const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x252d35, roughness: 0.94 });
+  const railMaterial = new THREE.MeshStandardMaterial({ color: 0xb8bec4, metalness: 0.55, roughness: 0.5 });
+  for (let i = 1; i < pathPoints.length; i++) {
+    const a = pathPoints[i - 1], b = pathPoints[i];
+    const dx = b[0] - a[0], dz = b[2] - a[2];
+    const length = Math.hypot(dx, dz);
+    const angle = -Math.atan2(dz, dx);
+    const road = new THREE.Mesh(new THREE.BoxGeometry(length + 0.4, 0.10, 8.2), roadMaterial);
+    road.position.set((a[0] + b[0]) / 2, 0.055, (a[2] + b[2]) / 2);
+    road.rotation.y = angle;
+    worldGroup.add(road);
+    for (const side of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(length + 0.2, 0.22, 0.22), railMaterial);
+      rail.position.set((a[0] + b[0]) / 2 + Math.sin(angle) * side * 3.85, 0.16,
+        (a[2] + b[2]) / 2 + Math.cos(angle) * side * 3.85);
+      rail.rotation.y = angle;
+      worldGroup.add(rail);
+    }
+  }
+
+  payloadCartGroup = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x202a33, metalness: 0.45, roughness: 0.58 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.72, 2.45), new THREE.MeshStandardMaterial({ color: 0x31536b, metalness: 0.25, roughness: 0.65 }));
+  body.position.y = 0.95;
+  payloadCartGroup.add(body);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.16, 2.2), new THREE.MeshStandardMaterial({ color: 0xc18a3d, metalness: 0.2, roughness: 0.8 }));
+  deck.position.y = 1.38;
+  payloadCartGroup.add(deck);
+  const cargo = new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.15, 1.55), new THREE.MeshStandardMaterial({ color: 0x5b6871, metalness: 0.25, roughness: 0.75 }));
+  cargo.position.set(-0.35, 2.0, 0);
+  payloadCartGroup.add(cargo);
+  const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 0.45, 12), new THREE.MeshStandardMaterial({ color: 0xffcb45, emissive: 0x9b5d08, emissiveIntensity: 0.65 }));
+  beacon.position.set(1.25, 2.05, 0);
+  payloadCartGroup.add(beacon);
+  const wheelGeometry = new THREE.CylinderGeometry(0.52, 0.52, 0.34, 16);
+  for (const x of [-1.35, 1.35]) for (const z of [-1.18, 1.18]) {
+    const wheel = new THREE.Mesh(wheelGeometry, dark);
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(x, 0.56, z);
+    payloadCartGroup.add(wheel);
+  }
+  payloadCartGroup.traverse(part => { if (part.isMesh) { part.castShadow = true; part.receiveShadow = true; } });
+  worldGroup.add(payloadCartGroup);
+  updatePayloadCartVisual({ x: pathPoints[0][0], y: pathPoints[0][1] || 0, z: pathPoints[0][2], yaw: 0 });
+}
+function updatePayloadCartVisual(cart) {
+  if (!payloadCartGroup || !cart) return;
+  payloadCartGroup.position.set(Number(cart.x) || 0, (Number(cart.y) || 0) + 0.02, Number(cart.z) || 0);
+  payloadCartGroup.rotation.y = Number(cart.yaw) || 0;
+}
+
 function buildWorld(data) {
   // マップ切替時は前の床・壁・障害物を破棄してから新しいマップを描画する。
   for (const oldObject of [...worldGroup.children]) {
@@ -1123,6 +1178,7 @@ function buildWorld(data) {
   }
 
   worldData = data;
+  payloadCartGroup = null;
   const bounds = data.world || { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
   // マップ境界の外側に2ユニット分の床と壁を設けます。
   const worldWidth = bounds.maxX - bounds.minX + 4;
@@ -1222,6 +1278,7 @@ function buildWorld(data) {
   makeBox(worldWidth, 3, 1, centerX, 1.5, bounds.maxZ + 2, 0x58636e);
   makeBox(1, 3, worldDepth, bounds.minX - 2, 1.5, centerZ, 0x58636e);
   makeBox(1, 3, worldDepth, bounds.maxX + 2, 1.5, centerZ, 0x58636e);
+  if (Array.isArray(data.payloadPath)) buildPayloadTrackVisual(data.payloadPath);
 }
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
@@ -3068,6 +3125,11 @@ socket.on("mapChanged", ({ map } = {}) => {
   }, 3000);
 });
 
+const payloadQueuePanel = document.getElementById("payloadQueuePanel");
+const payloadQueueStatusText = document.getElementById("payloadQueueStatus");
+const payloadQueueCountText = document.getElementById("payloadQueueCount");
+const payloadQueueTimeText = document.getElementById("payloadQueueTime");
+const payloadQueueProgressFill = document.getElementById("payloadQueueProgressFill");
 const areaQueuePanel = document.getElementById("areaQueuePanel");
 const areaQueueStatusText = document.getElementById("areaQueueStatus");
 const areaQueueCountText = document.getElementById("areaQueueCount");
@@ -3108,6 +3170,106 @@ socket.on("areaMatchStarted", ({ team, botCount, map } = {}) => {
   const teamLabel = document.getElementById("areaTeamLabel");
   if (teamLabel) teamLabel.textContent = "あなた：" + (team === "blue" ? "BLUE" : "RED");
   showMessage((map?.name ? map.name + " · " : "") + "エリア対戦開始" + (botCount ? "（BOT " + botCount + "人）" : ""));
+});
+
+
+socket.on("payloadQueueStatus", status => {
+  if (!payloadQueuePanel || joined) return;
+  const remaining = Math.max(0, Number(status.remainingMs) || 0);
+  const seconds = Math.ceil(remaining / 1000);
+  if (payloadQueueStatusText) payloadQueueStatusText.textContent = seconds ? "対戦相手を募集しています。" : "BOTを補充して試合を準備しています。";
+  if (payloadQueueCountText) payloadQueueCountText.textContent = (Number(status.waiting) || 0) + " / 6 人";
+  if (payloadQueueTimeText) payloadQueueTimeText.textContent = seconds + "秒";
+  if (payloadQueueProgressFill) payloadQueueProgressFill.style.width = Math.max(0, Math.min(100, 100 - remaining / 20000 * 100)) + "%";
+});
+socket.on("payloadQueueError", ({ message } = {}) => {
+  if (payloadQueueStatusText) payloadQueueStatusText.textContent = message || "マッチメイキングに失敗しました。";
+});
+socket.on("payloadQueueCancelled", () => {
+  payloadQueuePanel?.classList.add("hidden");
+  document.getElementById("modeScreen")?.classList.remove("hidden");
+  selectedGameMode = "Melee";
+  wasJoinedBeforeDisconnect = false;
+});
+socket.on("payloadMatchStarted", ({ team, role, botCount, map } = {}) => {
+  selectedGameMode = "Payload";
+  payloadRole = role || null;
+  payloadQueuePanel?.classList.add("hidden");
+  document.getElementById("payloadResultPanel")?.classList.add("hidden");
+  document.getElementById("payloadHud")?.classList.remove("hidden");
+  const teamLabel = document.getElementById("payloadTeamLabel");
+  if (teamLabel) teamLabel.textContent = (role === "attack" ? "攻撃側" : "防衛側") + " · " + (team === "blue" ? "BLUE" : "RED");
+  showMessage((map?.name ? map.name + " · " : "") + "ペイロード開始" + (botCount ? "（BOT " + botCount + "人）" : ""));
+});
+socket.on("payloadState", state => {
+  if (state.matchId !== myState?.matchId || selectedGameMode !== "Payload") return;
+  updatePayloadCartVisual(state.cart);
+  const progress = Math.max(0, Math.min(100, Number(state.progress) || 0));
+  const fill = document.getElementById("payloadProgressFill");
+  const progressText = document.getElementById("payloadProgressText");
+  if (fill) fill.style.width = progress + "%";
+  if (progressText) progressText.textContent = Math.floor(progress) + "%";
+  const timer = Math.max(0, Number(state.timeRemainingMs) || 0);
+  const minutes = Math.floor(timer / 60000);
+  const seconds = Math.floor(timer % 60000 / 1000);
+  const timerText = document.getElementById("payloadTimer");
+  if (timerText) timerText.textContent = state.overtime ? "延長戦" : String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+  const status = document.getElementById("payloadStatus");
+  if (status) {
+    if (state.status === "contested") status.textContent = "争奪中 · 防衛側がカートを停止";
+    else if (state.status === "pushing") status.textContent = "攻撃側がペイロードを護送中";
+    else status.textContent = "ペイロード周辺を確保してください";
+  }
+  const counts = document.getElementById("payloadPresence");
+  if (counts) counts.textContent = "攻撃 " + (Number(state.attackers) || 0) + "人 / 防衛 " + (Number(state.defenders) || 0) + "人";
+});
+socket.on("payloadCheckpoint", ({ checkpointIndex } = {}) => {
+  showMessage("チェックポイント " + (Number(checkpointIndex) || 0) + " 到達 · 再出撃地点を更新");
+});
+socket.on("payloadMatchEnd", result => {
+  stopAllControls();
+  const won = Boolean(result.won);
+  const title = document.getElementById("payloadResultTitle");
+  const summary = document.getElementById("payloadResultSummary");
+  if (title) { title.textContent = won ? "勝利" : "敗北"; title.classList.toggle("area-result-win", won); }
+  const role = result.winnerRole === "attack" ? "攻撃側" : "防衛側";
+  if (summary) summary.textContent = role + "が勝利しました。ペイロード進行率：" + Math.floor(Number(result.progress) || 0) + "%";
+  const value = document.getElementById("payloadResultProgress");
+  if (value) value.textContent = Math.floor(Number(result.progress) || 0) + "%";
+  const kills = document.getElementById("payloadResultKills");
+  const deaths = document.getElementById("payloadResultDeaths");
+  const kd = document.getElementById("payloadResultKD");
+  const k = Number(result.kills) || 0, d = Number(result.deaths) || 0;
+  if (kills) kills.textContent = String(k);
+  if (deaths) deaths.textContent = String(d);
+  if (kd) kd.textContent = d ? (k / d).toFixed(2) : (k ? "∞" : "0.00");
+  document.getElementById("payloadHud")?.classList.add("hidden");
+  document.getElementById("payloadResultPanel")?.classList.remove("hidden");
+});
+document.getElementById("cancelPayloadQueueButton")?.addEventListener("click", () => socket.emit("cancelPayloadQueue"));
+document.getElementById("payloadResultCloseButton")?.addEventListener("click", () => socket.emit("leavePayloadMatch"));
+socket.on("payloadReturnToModeSelect", () => {
+  joined = false;
+  wasJoinedBeforeDisconnect = false;
+  reconnecting = false;
+  areaResultOpen = false;
+  payloadRole = null;
+  selectedGameMode = "Melee";
+  myId = null;
+  myState = null;
+  stopAllControls();
+  setScopeEnabled(false);
+  document.getElementById("payloadQueuePanel")?.classList.add("hidden");
+  document.getElementById("payloadResultPanel")?.classList.add("hidden");
+  document.getElementById("payloadHud")?.classList.add("hidden");
+  document.getElementById("hud")?.classList.add("hidden");
+  document.getElementById("touchUi")?.classList.add("hidden");
+  document.getElementById("settingsButton")?.classList.add("hidden");
+  document.getElementById("settingsPanel")?.classList.add("hidden");
+  document.getElementById("weaponScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "weaponScreen");
+  document.getElementById("modeScreen")?.classList.toggle("hidden", lobbyScreenAfterLeave !== "modeScreen");
+  lobbyScreenAfterLeave = "modeScreen";
+  mapChangeCountdownElement?.classList.add("hidden");
 });
 
 socket.on("areaState", (state = {}) => {
@@ -3223,7 +3385,7 @@ socket.on("returnedToLobby", () => {
   stopAllControls();
   setScopeEnabled(false);
   for (const id of [
-    "weaponScreen", "modeScreen", "areaQueuePanel", "areaResultPanel", "hud", "touchUi",
+    "weaponScreen", "modeScreen", "areaQueuePanel", "areaResultPanel", "payloadQueuePanel", "payloadResultPanel", "payloadHud", "hud", "touchUi",
     "settingsPanel", "duelResultScreen", "duelScoreHud"
   ]) {
     document.getElementById(id)?.classList.add("hidden");
@@ -3290,6 +3452,8 @@ socket.on("joined", ({ player }) => {
   document.getElementById("modeScreen")?.classList.add("hidden");
   document.getElementById("areaQueuePanel")?.classList.add("hidden");
   document.getElementById("areaResultPanel")?.classList.add("hidden");
+  document.getElementById("payloadQueuePanel")?.classList.add("hidden");
+  document.getElementById("payloadResultPanel")?.classList.add("hidden");
   showDuelScreen(null);
   document.getElementById("duelResultScreen")?.classList.add("hidden");
   document.getElementById("duelScoreHud")?.classList.toggle("hidden", selectedGameMode !== "Duel");
@@ -3298,10 +3462,14 @@ socket.on("joined", ({ player }) => {
   document.getElementById("touchUi").classList.remove("hidden");
   document.getElementById("settingsButton")?.classList.remove("hidden");
   document.getElementById("areaHud")?.classList.toggle("hidden", selectedGameMode !== "Area");
+  document.getElementById("payloadHud")?.classList.toggle("hidden", selectedGameMode !== "Payload");
+  payloadRole = player.role || payloadRole;
   const areaTeamLabel = document.getElementById("areaTeamLabel");
   if (areaTeamLabel) areaTeamLabel.textContent = selectedGameMode === "Area"
     ? "あなた：" + (player.team === "blue" ? "BLUE" : "RED")
     : "";
+  const payloadTeamLabel = document.getElementById("payloadTeamLabel");
+  if (payloadTeamLabel && selectedGameMode === "Payload") payloadTeamLabel.textContent = (payloadRole === "attack" ? "攻撃側" : "防衛側") + " · " + (player.team === "blue" ? "BLUE" : "RED");
   setConnectionStatus("接続済み", true);
   updateAmmoHud();
   updateWeaponSwitchButton();
@@ -3441,7 +3609,12 @@ socket.on("connect", () => {
       mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
-    if (selectedGameMode === "Area") {
+    if (selectedGameMode === "Payload") {
+      document.getElementById("modeScreen")?.classList.add("hidden");
+      payloadQueuePanel?.classList.remove("hidden");
+      if (payloadQueueStatusText) payloadQueueStatusText.textContent = "再接続しました。ペイロード対戦を再検索しています。";
+      socket.emit("joinPayloadQueue", rejoinData);
+    } else if (selectedGameMode === "Area") {
       document.getElementById("modeScreen")?.classList.add("hidden");
       document.getElementById("areaResultPanel")?.classList.add("hidden");
       areaQueuePanel?.classList.remove("hidden");
@@ -3458,7 +3631,7 @@ socket.on("connect", () => {
 socket.on("disconnect", () => {
   setConnectionStatus("接続中…", false);
 
-  if (joined || (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden"))) {
+  if (joined || (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden")) || (selectedGameMode === "Payload" && payloadQueuePanel && !payloadQueuePanel.classList.contains("hidden"))) {
     wasJoinedBeforeDisconnect = true;
     joined = false;
     stopAllControls();
@@ -3705,6 +3878,7 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
   if (areaQueueTimeText) areaQueueTimeText.textContent = "20秒";
   if (areaQueueProgressFill) areaQueueProgressFill.style.width = "0%";
   if (areaQueuePanel) areaQueuePanel.classList.remove("hidden");
+  document.getElementById("payloadQueuePanel")?.classList.add("hidden");
   socket.emit("joinAreaQueue", {
     name,
     weapon: selectedPrimaryWeapon,
@@ -3713,6 +3887,23 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
       ultimateType: selectedUltimate,
     skin: window.getPlayerSkinData?.()
   });
+});
+document.getElementById("payloadModeButton")?.addEventListener("click", () => {
+  if (joined) return;
+  const name = savePlayerName();
+  selectedGameMode = "Payload";
+  payloadRole = null;
+  areaResultOpen = false;
+  selectedWeapon = selectedPrimaryWeapon;
+  weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("payloadResultPanel")?.classList.add("hidden");
+  if (payloadQueueStatusText) payloadQueueStatusText.textContent = "対戦相手を募集しています。";
+  if (payloadQueueCountText) payloadQueueCountText.textContent = "1 / 6 人";
+  if (payloadQueueTimeText) payloadQueueTimeText.textContent = "20秒";
+  if (payloadQueueProgressFill) payloadQueueProgressFill.style.width = "0%";
+  payloadQueuePanel?.classList.remove("hidden");
+  socket.emit("joinPayloadQueue", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, charm: selectedCharm, ultimateType: selectedUltimate, skin: window.getPlayerSkinData?.() });
 });
 updateLoadoutSelectionUi();
 
