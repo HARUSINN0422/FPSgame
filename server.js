@@ -519,6 +519,7 @@ const MAP_ROOT = path.join(__dirname, "map");
 const MAP_OVERRIDE_ROOT = path.join(__dirname, "data", "maps");
 const MAP_MODE = "Melee";
 const AREA_MODE = "Area";
+const PAYLOAD_MODE = "Payload";
 const TRAINING_MODE = "Training";
 const MAP_ROTATION_INTERVAL_MS = 10 * 60 * 1000;
 const MAP_CHANGE_COUNTDOWN_MS = 5 * 1000;
@@ -588,6 +589,8 @@ function loadMapsForMode(mode) {
 let availableMaps = loadMapsForMode(MAP_MODE);
 let areaMaps = loadMapsForMode(AREA_MODE);
 let areaMap = areaMaps[0];
+let payloadMaps = loadMapsForMode(PAYLOAD_MODE);
+let payloadMap = payloadMaps[0];
 let activeMapIndex = 0;
 let activeMap = availableMaps[activeMapIndex];
 let WORLD = activeMap.world;
@@ -600,6 +603,11 @@ let lastMapCountdownSecond = null;
 
 const areaMatches = new Map();
 let areaQueue = [];
+const payloadMatches = new Map();
+let payloadQueue = [];
+let payloadQueueStartedAt = 0;
+let lastPayloadQueueSecond = null;
+let payloadMatchSequence = 0;
 let areaQueueStartedAt = 0;
 let lastAreaQueueSecond = null;
 let areaMatchSequence = 0;
@@ -634,6 +642,7 @@ function getMapInfo(map, mode = MAP_MODE) {
 
 function getMapForPlayer(player) {
   if (player?.mode === AREA_MODE) return areaMap;
+  if (player?.mode === PAYLOAD_MODE) return payloadMap;
   if (player?.mode === "Duel") return player.duelMap || activeMap;
   if (player?.mode === TRAINING_MODE) return player.trainingMap || activeMap;
   if (player?.mode === "Wander") return player.wanderMap || activeMap;
@@ -661,6 +670,7 @@ function getWorldPayloadForMap(map, mode) {
     bridgeSupports: map.bridgeSupports || [],
     world: map.world,
     ...(mode === AREA_MODE && map.areaZone ? { areaZone: map.areaZone } : {}),
+    ...(mode === PAYLOAD_MODE && Array.isArray(map.payloadPath) ? { payloadPath: map.payloadPath, payloadCheckpointDistances: map.payloadCheckpointDistances || [] } : {}),
     weapons: Object.fromEntries(
       Object.entries(WEAPONS).map(([id, w]) => [id, { name: w.name, fireInterval: w.fireInterval }])
     )
@@ -711,7 +721,7 @@ app.get("/api/admin/maps", adminAuth, (req, res) => {
     if (req.query.file) {
       const filename = safeMapFilename(String(req.query.file));
       const mode = String(req.query.mode || MAP_MODE);
-      if (!filename || ![MAP_MODE, AREA_MODE].includes(mode)) return res.status(400).json({ error: "マップ指定が不正です" });
+      if (!filename || ![MAP_MODE, AREA_MODE, PAYLOAD_MODE].includes(mode)) return res.status(400).json({ error: "マップ指定が不正です" });
       const overrideTarget = path.join(MAP_OVERRIDE_ROOT, mode, filename);
       const baseTarget = path.join(MAP_ROOT, mode, filename);
       const target = fs.existsSync(overrideTarget) ? overrideTarget : baseTarget;
@@ -719,7 +729,7 @@ app.get("/api/admin/maps", adminAuth, (req, res) => {
       return res.json({ map: JSON.parse(fs.readFileSync(target, "utf8")) });
     }
     const maps = [];
-    for (const mode of [MAP_MODE, AREA_MODE]) {
+    for (const mode of [MAP_MODE, AREA_MODE, PAYLOAD_MODE]) {
       const filenames = new Set();
       for (const dir of [path.join(MAP_ROOT, mode), path.join(MAP_OVERRIDE_ROOT, mode)]) {
         for (const filename of fs.readdirSync(dir).filter(f => f.endsWith(".json"))) filenames.add(filename);
@@ -742,7 +752,7 @@ app.get("/api/admin/maps", adminAuth, (req, res) => {
 app.post("/api/admin/maps", adminAuth, (req, res) => {
   const mode = String(req.body?.mode || "");
   const mapData = req.body?.map;
-  if (![MAP_MODE, AREA_MODE].includes(mode) || !validateMapData(mapData)) return res.status(400).json({ error: "マップデータが不正です。スポーン地点・寸法・オブジェクトを確認してください" });
+  if (![MAP_MODE, AREA_MODE, PAYLOAD_MODE].includes(mode) || !validateMapData(mapData)) return res.status(400).json({ error: "マップデータが不正です。スポーン地点・寸法・オブジェクトを確認してください" });
   const suppliedFilename = req.body?.filename ? safeMapFilename(String(req.body.filename)) : null;
   if (req.body?.filename && !suppliedFilename) return res.status(400).json({ error: "ファイル名が不正です" });
   const filename = suppliedFilename || (mapData.id + ".json");
@@ -754,6 +764,8 @@ app.post("/api/admin/maps", adminAuth, (req, res) => {
     fs.writeFileSync(target, JSON.stringify(mapData, null, 2) + "\n", "utf8");
     availableMaps = loadMapsForMode(MAP_MODE);
     areaMaps = loadMapsForMode(AREA_MODE);
+    payloadMaps = loadMapsForMode(PAYLOAD_MODE);
+    payloadMap = payloadMaps.find(m => m.id === payloadMap.id) || payloadMaps[0];
     const updatedActive = availableMaps.find(m => m.id === activeMap.id) || availableMaps[0];
     activeMapIndex = Math.max(0, availableMaps.findIndex(m => m.id === updatedActive.id));
     activeMap = updatedActive;
@@ -790,7 +802,7 @@ function sanitizeSkin(value) {
 }
 
 function pickSpawn() {
-  const alivePlayers = Array.from(players.values()).filter((p) => p.health > 0 && p.mode !== AREA_MODE);
+  const alivePlayers = Array.from(players.values()).filter((p) => p.health > 0 && p.mode !== AREA_MODE && p.mode !== PAYLOAD_MODE);
   const scored = spawnPoints.map((spawn) => {
     const [x, _y, z] = spawn;
     const nearestDistance = alivePlayers.length
@@ -808,7 +820,21 @@ function pickSpawn() {
   return scored[0]?.spawn || [0, 0, 10];
 }
 
+function getPayloadTrackLength() {
+  const pts=payloadMap?.payloadPath||[];let n=0;for(let i=1;i<pts.length;i++)n+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][2]-pts[i-1][2]);return n;
+}
+function getPayloadPointAtDistance(distance) {
+  const pts=payloadMap?.payloadPath||[];if(!pts.length)return{x:0,y:0,z:0,yaw:0};let left=clamp(Number(distance)||0,0,getPayloadTrackLength());
+  for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],len=Math.hypot(b[0]-a[0],b[2]-a[2]);if(left<=len||i===pts.length-1){const t=len?clamp(left/len,0,1):0;return{x:a[0]+(b[0]-a[0])*t,y:(a[1]||0)+((b[1]||0)-(a[1]||0))*t,z:a[2]+(b[2]-a[2])*t,yaw:Math.atan2(-(b[0]-a[0]),-(b[2]-a[2]))};}left-=len;}
+  const p=pts[pts.length-1];return{x:p[0],y:p[1]||0,z:p[2],yaw:0};
+}
+function getPayloadSpawnPoint(player,index=0){
+ const match=payloadMatches.get(player?.matchId),distance=(match?.progress||0)+(player?.role==="defense"?24:-24),at=getPayloadPointAtDistance(distance),side=[-7,0,7][Math.abs(index)%3];
+ return[clamp(at.x+Math.cos(at.yaw)*side,payloadMap.world.minX+4,payloadMap.world.maxX-4),at.y,clamp(at.z-Math.sin(at.yaw)*side,payloadMap.world.minZ+4,payloadMap.world.maxZ-4)];
+}
+function isTeamMatchMode(mode){return mode===AREA_MODE||mode===PAYLOAD_MODE;}
 function pickSpawnForPlayer(player, index = 0) {
+  if(player?.mode===PAYLOAD_MODE)return getPayloadSpawnPoint(player,index);
   if (player?.mode === AREA_MODE) {
     const teamSpawns = areaMap.teamSpawnPoints?.[player.team] || areaMap.spawnPoints;
     if (teamSpawns?.length) return teamSpawns[Math.abs(index) % teamSpawns.length];
@@ -821,7 +847,7 @@ function isSameGame(a, b) {
   const modeA = a.mode || MAP_MODE;
   const modeB = b.mode || MAP_MODE;
   if (modeA !== modeB) return false;
-  if (modeA === AREA_MODE || modeA === TRAINING_MODE || modeA === "Duel") return Boolean(a.matchId && a.matchId === b.matchId);
+  if (isTeamMatchMode(modeA) || modeA === TRAINING_MODE || modeA === "Duel") return Boolean(a.matchId && a.matchId === b.matchId);
   return true;
 }
 
@@ -1000,7 +1026,7 @@ function applyShockwave(projectile, position, now = Date.now()) {
   for (const target of players.values()) {
     if (target.health <= 0 || target.finished || !isSameGame(projectile.owner, target)) continue;
     if (projectile.owner.mode === TRAINING_MODE && target.id !== projectile.ownerId && !target.isBot) continue;
-    if (projectile.owner.mode === AREA_MODE && target.team === projectile.owner.team) continue;
+    if (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
     if (target.invulnerableUntil > now) continue;
     const dx = target.x - position.x;
     const dz = target.z - position.z;
@@ -1040,7 +1066,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     if (target.health <= 0 || target.finished ||
         !isSameGame(projectile.owner, target)) continue;
     if (target.id !== projectile.ownerId && projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
-    if (projectile.owner.mode === AREA_MODE && target.team === projectile.owner.team) continue;
+    if (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
     if (target.invulnerableUntil > now) continue;
     const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
     const dx = target.x - position.x;
@@ -1367,7 +1393,9 @@ function updateBot(p, now) {
   if (!p.isBot || p.health <= 0 || p.finished || p.ultimateActiveUntil > now || now < p.botThinkAt) return;
   p.botThinkAt = now + 100 + Math.random() * 80;
 
-  const isAreaBot = p.mode === AREA_MODE;
+  const isAreaBot=p.mode===AREA_MODE;
+  const isPayloadBot=p.mode===PAYLOAD_MODE;
+  const isObjectiveBot=isAreaBot||isPayloadBot;
   const botMap = getMapForPlayer(p);
   const isInfernoCrossing = botMap.id === "inferno-crossing" || botMap.name === "Inferno Crossing";
   // Inferno Crossingでは、炎床の高さにいるBOTは接地したタイミングでジャンプを予約する。
@@ -1378,12 +1406,12 @@ function updateBot(p, now) {
         Math.abs(p.z - tile.z) <= tile.d / 2)) {
     p.jumpQueuedUntil = Math.max(p.jumpQueuedUntil || 0, now + 120);
   }
-  const match = isAreaBot ? areaMatches.get(p.matchId) : null;
+  const match=isAreaBot?areaMatches.get(p.matchId):isPayloadBot?payloadMatches.get(p.matchId):null;
   const targets = Array.from(players.values()).filter((other) =>
     other.id !== p.id &&
     other.health > 0 &&
     isSameGame(p, other) &&
-    (isAreaBot ? other.team !== p.team : !other.isBot)
+    (isObjectiveBot ? other.team !== p.team : !other.isBot)
   );
 
   // チャージが完了し、無敵時間外の敵が近距離にいる場合はBOTも天墜を使う。
@@ -1459,7 +1487,7 @@ function updateBot(p, now) {
   }
 
   // 視認できる敵がいる場合だけ戦闘を優先し、遮蔽物越しの敵には釣られず制圧へ向かう。
-  const visibleTargets = isAreaBot ? targets.filter((other) => {
+  const visibleTargets = isObjectiveBot ? targets.filter((other) => {
     const dx = other.x - p.x;
     const dz = other.z - p.z;
     const distance = Math.max(0.001, Math.hypot(dx, dz));
@@ -1474,17 +1502,18 @@ function updateBot(p, now) {
   }) : [];
 
   // 視認中の敵との交戦は優先し、それ以外の時間は制圧地点へ向かう。
-  const zone = isAreaBot ? areaMap.areaZone : null;
+  const cart=isPayloadBot?getPayloadPointAtDistance(match?.progress||0):null;
+  const zone=isAreaBot?areaMap.areaZone:isPayloadBot?{x:cart.x,z:cart.z,radius:9}:null;
   const livingTeamMembersInZone = zone ? Array.from(players.values()).filter((other) =>
     isSameGame(p, other) && other.health > 0 && other.team === p.team &&
     Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius
   ).length : 0;
   const botInsideZone = Boolean(zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= zone.radius * 0.9);
-  const enemyOwnsOrUnclaimedZone = Boolean(zone && (!match?.ownerTeam || match.ownerTeam !== p.team));
-  const enemyIsTakingZone = Boolean(match?.captureTeam && match.captureTeam !== p.team);
+  const enemyOwnsOrUnclaimedZone=isAreaBot&&Boolean(zone&&(!match?.ownerTeam||match.ownerTeam!==p.team));
+  const enemyIsTakingZone=isAreaBot&&Boolean(match?.captureTeam&&match.captureTeam!==p.team);
   // 中立/敵側のエリアでは味方の人数にかかわらずBOTも制圧に参加する。
   // 自チーム所有中は、エリア内の味方が2人未満なら守備要員として向かう。
-  const needsObjectiveSupport = livingTeamMembersInZone < 2 || enemyOwnsOrUnclaimedZone || enemyIsTakingZone;
+  const needsObjectiveSupport=isPayloadBot?livingTeamMembersInZone<1:livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
   const moveToObjective = Boolean(zone && !botInsideZone && visibleTargets.length === 0 && needsObjectiveSupport);
   // 敵が視認できないときは、エリア内にいるBOTが持ち場を離れないようにする。
   const holdObjective = Boolean(zone && botInsideZone && visibleTargets.length === 0);
@@ -1515,7 +1544,7 @@ function updateBot(p, now) {
   }
 
   if (!targets.length) {
-    if (isAreaBot && holdObjective) {
+    if (isObjectiveBot && holdObjective) {
       // 敵がエリア付近にいないときは、その場に留まって制圧を継続する。
       p.input.forward = 0;
       p.input.strafe = 0;
@@ -1544,7 +1573,7 @@ function updateBot(p, now) {
   }
 
   targets.sort((a, b) => {
-    if (isAreaBot && visibleTargets.length) {
+    if (isObjectiveBot && visibleTargets.length) {
       const aVisible = visibleTargets.includes(a);
       const bVisible = visibleTargets.includes(b);
       if (aVisible !== bVisible) return aVisible ? -1 : 1;
@@ -1720,7 +1749,7 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
   for (const target of players.values()) {
     if (target.id === attacker.id || target.health <= 0 || target.finished || !isSameGame(attacker, target)) continue;
     if (attacker.mode === TRAINING_MODE && !target.isBot) continue;
-    if (attacker.mode === AREA_MODE && target.team === attacker.team) continue;
+    if (isTeamMatchMode(attacker.mode) && target.team === attacker.team) continue;
     if (target.invulnerableUntil > now) continue;
     if (Math.hypot(target.x - x, target.z - z) > SKYFALL_IMPACT_RADIUS) continue;
 
@@ -2127,7 +2156,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
       if (shooter.mode === TRAINING_MODE && !target.isBot) continue;
-      if (shooter.mode === AREA_MODE && target.team === shooter.team) continue;
+      if (isTeamMatchMode(shooter.mode) && target.team === shooter.team) continue;
       if (target.invulnerableUntil > now) continue;
       const dx = target.x - shooter.x;
       const dz = target.z - shooter.z;
@@ -2160,7 +2189,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     if (weapon.spread) {
       // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
-      const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
+      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 6.5 : 1;
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
@@ -2178,7 +2207,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
       if (shooter.mode === TRAINING_MODE && !target.isBot) continue;
-      if (shooter.mode === AREA_MODE && target.team === shooter.team) continue;
+      if (isTeamMatchMode(shooter.mode) && target.team === shooter.team) continue;
       // リスポーン直後3秒間は被弾しない。
       if (target.invulnerableUntil > now) continue;
 
@@ -2284,7 +2313,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     let visualYaw = shooter.yaw;
     let visualPitch = shooter.pitch;
     if (weapon.spread) {
-      const botSpreadMultiplier = shooter.isBot && shooter.mode === AREA_MODE ? 6.5 : 1;
+      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 6.5 : 1;
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
@@ -2355,6 +2384,7 @@ function publicPlayer(p, includeSkin = false) {
     id: p.id,
     mode: p.mode || MAP_MODE,
     team: p.team || null,
+    role: p.role || null,
     matchId: p.matchId || null,
     finished: Boolean(p.finished),
     x: p.x,
@@ -2388,7 +2418,7 @@ function publicPlayer(p, includeSkin = false) {
   };
 }
 
-function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0 }, spawn) {
+function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0, mode = AREA_MODE, role = null }, spawn) {
   const now = Date.now();
   const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
@@ -2396,8 +2426,9 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
     id,
     name,
     skin: skin || "",
-    mode: AREA_MODE,
+    mode,
     team,
+    role,
     matchId,
     isBot: Boolean(isBot),
     finished: false,
@@ -2439,6 +2470,8 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
     damageSlowUntil: 0
   };
 }
+
+function createPayloadPlayer(options,spawn){return createAreaPlayer({...options,mode:PAYLOAD_MODE},spawn);}
 
 function areaQueueStatus() {
   const remainingMs = Math.max(0, AREA_QUEUE_DURATION_MS - (Date.now() - areaQueueStartedAt));
@@ -2797,6 +2830,21 @@ function removeAreaPlayer(socketId) {
   broadcastPlayers();
 }
 
+
+const PAYLOAD_BOT_NAMES=["Avery","Ethan","Mason","Logan","Eli","Mila","Aria","Leo","Ivy","Ezra","Nora","Kai"];
+const PAYLOAD_ROUND_TIME_MS=240000,PAYLOAD_CAPTURE_RADIUS=9;
+function payloadQueueStatus(){const remainingMs=Math.max(0,AREA_QUEUE_DURATION_MS-(Date.now()-payloadQueueStartedAt));return{waiting:payloadQueue.length,required:6,remainingMs,secondsRemaining:Math.ceil(remainingMs/1000)};}
+function broadcastPayloadQueueStatus(){const status=payloadQueueStatus();for(const e of payloadQueue)io.to(e.socketId).emit("payloadQueueStatus",status);}
+function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate"].includes(data.charm)?data.charm:"none",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
+function tryJoinExistingPayloadMatch(socket,entry){for(const match of payloadMatches.values()){if(match.finished||match.playerIds.length>=6)continue;const counts={blue:0,red:0};for(const id of match.humanIds){const p=players.get(id);if(p?.team)counts[p.team]++;}const order=counts.blue===counts.red?["blue","red"]:[counts.blue<counts.red?"blue":"red"];let botId=null;for(const team of order){botId=match.playerIds.find(id=>{const p=players.get(id);return p?.isBot&&p.mode===PAYLOAD_MODE&&p.team===team;});if(botId)break;}if(!botId)continue;const bot=players.get(botId);const player=createPayloadPlayer({id:socket.id,name:entry.name,skin:entry.skin,weapon:entry.weapon,secondaryWeapon:entry.secondaryWeapon,charm:entry.charm,ultimateType:entry.ultimateType,team:bot.team,role:bot.role,matchId:match.id,isBot:false},[bot.x,bot.y,bot.z]);players.delete(botId);match.playerIds[match.playerIds.indexOf(botId)]=socket.id;match.humanIds.push(socket.id);players.set(socket.id,player);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(player,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:player.team,role:player.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);return true;}return false;}
+function queuePayloadPlayer(socket,data={}){if(players.has(socket.id)){socket.emit("payloadQueueError",{message:"現在の対戦を終了してからモードを変更してください。"});return;}if(payloadQueue.some(e=>e.socketId===socket.id)){socket.emit("payloadQueueStatus",payloadQueueStatus());return;}const entry=buildPayloadQueueEntry(socket,data);if(tryJoinExistingPayloadMatch(socket,entry))return;if(!payloadQueue.length){payloadQueueStartedAt=Date.now();lastPayloadQueueSecond=null;}payloadQueue.push(entry);broadcastPayloadQueueStatus();if(payloadQueue.length>=6)startPayloadMatch(false);}
+function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQueue=payloadQueue.filter(e=>e.socketId!==socketId);if(!payloadQueue.length){payloadQueueStartedAt=0;lastPayloadQueueSecond=null;}else broadcastPayloadQueueStatus();if(before!==payloadQueue.length)io.to(socketId).emit("payloadQueueCancelled");}
+function startPayloadMatch(fillWithBots){const waiting=payloadQueue.splice(0,6).filter(e=>io.sockets.sockets.has(e.socketId));payloadQueueStartedAt=0;lastPayloadQueueSecond=null;if(!waiting.length)return;const used=new Set(waiting.map(e=>e.name.toLowerCase())),names=PAYLOAD_BOT_NAMES.filter(n=>!used.has(n.toLowerCase()));for(let i=names.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const parts=waiting.map(e=>({...e,isBot:false}));while((fillWithBots||parts.length<6)&&parts.length<6)parts.push({socketId:null,name:names.shift()||("Payload BOT "+(parts.length+1)),skin:"",weapon:Math.random()<.65?"rifle":"marksman",secondaryWeapon:"shotgun",charm:"none",ultimateType:"skyfall",isBot:true});const counts={blue:0,red:0};for(const p of parts.filter(p=>!p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}for(const p of parts.filter(p=>p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}const attackingTeam=Math.random()<.5?"blue":"red",matchId="payload-"+Date.now()+"-"+(++payloadMatchSequence);const match={id:matchId,playerIds:[],humanIds:waiting.map(e=>e.socketId),attackingTeam,defendingTeam:attackingTeam==="blue"?"red":"blue",progress:0,checkpointIndex:0,startedAt:Date.now(),lastStateAt:0,finished:false,overtime:false,status:"playing"};payloadMatches.set(matchId,match);const indexes={blue:0,red:0};parts.forEach((e,i)=>{const role=e.team===attackingTeam?"attack":"defense",id=e.isBot?"bot:"+matchId+":"+i:e.socketId,spawn=getPayloadSpawnPoint({matchId,role},indexes[e.team]++),p=createPayloadPlayer({id,name:e.name,skin:e.skin,weapon:e.weapon,secondaryWeapon:e.secondaryWeapon,charm:e.charm,ultimateType:e.ultimateType,team:e.team,role,matchId,isBot:e.isBot,botSpawnIndex:indexes[e.team]-1},spawn);players.set(id,p);match.playerIds.push(id);if(!e.isBot){const c=io.sockets.sockets.get(e.socketId);if(c){c.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));c.emit("joined",{player:publicPlayer(p,true)});c.emit("payloadMatchStarted",{matchId,team:p.team,role:p.role,botCount:parts.filter(q=>q.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});}}});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 試合開始:",matchId);}
+function sendPayloadMatchState(match,force=false){if(!match||match.finished)return;const now=Date.now();if(!force&&now-match.lastStateAt<150)return;match.lastStateAt=now;const cart=getPayloadPointAtDistance(match.progress),near=match.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),attackers=near.filter(p=>p.team===match.attackingTeam).length,defenders=near.filter(p=>p.team===match.defendingTeam).length,total=getPayloadTrackLength();const state={matchId:match.id,progress:total?Math.min(100,match.progress/total*100):0,distance:match.progress,totalDistance:total,cart,attackingTeam:match.attackingTeam,defendingTeam:match.defendingTeam,attackers,defenders,timeRemainingMs:Math.max(0,PAYLOAD_ROUND_TIME_MS-(now-match.startedAt)),overtime:match.overtime,checkpointIndex:match.checkpointIndex,status:attackers&&defenders?"contested":attackers?"pushing":"stalled"};for(const id of match.humanIds)io.to(id).emit("payloadState",state);}
+function finishPayloadMatch(match,winnerTeam){if(!match||match.finished)return;match.finished=true;const winnerRole=winnerTeam===match.attackingTeam?"attack":"defense";for(const id of match.playerIds){const p=players.get(id);if(p){p.finished=true;p.input={forward:0,strafe:0,crouch:false};p.jumpQueuedUntil=0;p.respawnAt=0;}}for(const id of match.humanIds){const p=players.get(id);if(p)io.to(id).emit("payloadMatchEnd",{matchId:match.id,won:p.role===winnerRole,team:p.team,role:p.role,winnerRole,progress:Math.min(100,match.progress/getPayloadTrackLength()*100),kills:p.kills,deaths:p.deaths});}broadcastPlayers();}
+function updatePayloadMatches(dt,now){const total=getPayloadTrackLength();for(const m of payloadMatches.values()){if(m.finished)continue;const cart=getPayloadPointAtDistance(m.progress),near=m.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),a=near.filter(p=>p.team===m.attackingTeam).length,d=near.filter(p=>p.team===m.defendingTeam).length;if(a>0&&!d)m.progress=Math.min(total,m.progress+(2.6+Math.max(0,Math.min(2,a-1))*.55)*dt);const cps=payloadMap.payloadCheckpointDistances||[];while(m.checkpointIndex+1<cps.length&&m.progress>=cps[m.checkpointIndex+1]){m.checkpointIndex++;for(const id of m.playerIds){const p=players.get(id);if(p&&!p.isBot){p.ultimateCharge=Math.min(100,(p.ultimateCharge||0)+10);io.to(id).emit("payloadCheckpoint",{checkpointIndex:m.checkpointIndex});}}}if(m.progress>=total){m.progress=total;sendPayloadMatchState(m,true);finishPayloadMatch(m,m.attackingTeam);continue;}const expired=now-m.startedAt>=PAYLOAD_ROUND_TIME_MS,onCart=near.some(p=>p.team===m.attackingTeam);if(expired&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}if(expired)m.overtime=true;if(m.overtime&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}sendPayloadMatchState(m);}}
+function removePayloadPlayer(socketId){cancelPayloadQueue(socketId);const player=players.get(socketId);if(!player||player.mode!==PAYLOAD_MODE){io.to(socketId).emit("payloadReturnToModeSelect");return;}const match=payloadMatches.get(player.matchId);players.delete(socketId);if(!match){io.to(socketId).emit("payloadReturnToModeSelect");broadcastPlayers();return;}match.playerIds=match.playerIds.filter(id=>id!==socketId);match.humanIds=match.humanIds.filter(id=>id!==socketId);io.to(socketId).emit("payloadReturnToModeSelect");if(!match.humanIds.length||match.finished){for(const id of match.playerIds)players.delete(id);payloadMatches.delete(match.id);}else{const id="bot:"+match.id+":replacement:"+Date.now(),bot=createPayloadPlayer({id,name:PAYLOAD_BOT_NAMES[Math.floor(Math.random()*PAYLOAD_BOT_NAMES.length)],weapon:"rifle",secondaryWeapon:"shotgun",team:player.team,role:player.role,matchId:match.id,isBot:true},[player.x,player.y,player.z]);players.set(id,bot);match.playerIds.push(id);}broadcastPlayers();sendPayloadMatchState(match,true);}
+
 function removeTrainingBots(matchId) {
   for (const [id, player] of players) {
     if (player.isBot && player.mode === TRAINING_MODE && player.matchId === matchId) players.delete(id);
@@ -2861,6 +2909,9 @@ io.on("connection", (socket) => {
   socket.on("leaveAreaMatch", () => {
     removeAreaPlayer(socket.id);
   });
+  socket.on("joinPayloadQueue", (data = {}) => queuePayloadPlayer(socket, data));
+  socket.on("cancelPayloadQueue", () => cancelPayloadQueue(socket.id));
+  socket.on("leavePayloadMatch", () => removePayloadPlayer(socket.id));
 
 
   function emitDuelRooms(){
@@ -2900,6 +2951,7 @@ io.on("connection", (socket) => {
       removeAreaPlayer(socket.id);
       return;
     }
+    if(player?.mode===PAYLOAD_MODE){removePayloadPlayer(socket.id);return;}
 
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
@@ -3002,7 +3054,7 @@ io.on("connection", (socket) => {
     const player = players.get(socket.id);
     if (!player || player.isBot) return;
     const map = player.duelMap || player.trainingMap || player.wanderMap ||
-      (player.mode === AREA_MODE ? areaMap : activeMap);
+      (player.mode === AREA_MODE ? areaMap : player.mode === PAYLOAD_MODE ? payloadMap : activeMap);
     socket.emit("world", getWorldPayloadForMap(map, player.mode || MAP_MODE));
   });
 
@@ -3266,6 +3318,7 @@ io.on("connection", (socket) => {
       removeAreaPlayer(socket.id);
       return;
     }
+    if(player?.mode===PAYLOAD_MODE){removePayloadPlayer(socket.id);return;}
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     players.delete(socket.id);
@@ -3434,6 +3487,7 @@ setInterval(() => {
   updateSmokeProjectiles(dt, now);
   updateGrenadeProjectiles(dt, now);
   updateAreaMatches(dt, now);
+  updatePayloadMatches(dt, now);
   broadcastState();
 }, 1000 / TICK_RATE);
 
