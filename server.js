@@ -4150,7 +4150,9 @@ app.get("/{*splat}", (req, res, next) => {
 });
 
 
-let previousHumanOnlineCount = Array.from(players.values()).filter(player =>\n  !player.isBot && !player.disconnectedAt && io.sockets.sockets.has(player.id)\n).length;
+let previousHumanOnlineCount = Array.from(players.values()).filter(player =>
+  !player.isBot && !player.disconnectedAt && io.sockets.sockets.has(player.id)
+).length;
 setInterval(() => {
   const onlineCount = Array.from(players.values()).filter(player =>
     !player.isBot && !player.disconnectedAt && io.sockets.sockets.has(player.id)
