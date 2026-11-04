@@ -117,7 +117,7 @@ function updatePayloadGateColors(attackingTeam) {
 const remotePlayers = new Map();
 const tracers = [];
 const smokeProjectileMeshes = new Map();
-const grenadeProjectileMeshes = new Map();
+const grenadeProjectileMeshes = new Map();\nconst grappleTethers = new Map();
 const grenadeExplosionMeshes = new Map();
 const skyfallImpactMeshes = new Map();
 const smokeCloudMeshes = new Map();
@@ -203,6 +203,7 @@ const weaponConfig = {
   smoke: { fireInterval: 1300, automatic: false },
   grenadeLauncher: { fireInterval: 900, automatic: false },
   shockwaveLauncher: { fireInterval: 900, automatic: false },
+  grappler: { fireInterval: 1100, automatic: false },
   grappler: { fireInterval: 1100, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
@@ -1044,6 +1045,10 @@ function savePlayerName() {
 }
 
 loadPlayerName();
+document.getElementById("topStartButton")?.addEventListener("click",()=>{document.getElementById("topScreen")?.classList.add("hidden");document.getElementById("weaponScreen")?.classList.remove("hidden");});
+document.getElementById("topSettingsButton")?.addEventListener("click",()=>document.getElementById("settingsButton")?.click());
+async function refreshLobbyInfo(){const base=location.pathname.startsWith("/FPSgame/")?"/FPSgame/":"/";try{const [cr,nr]=await Promise.all([fetch(base+"api/online-count",{cache:"no-store"}),fetch(base+"api/notices",{cache:"no-store"})]);if(cr.ok){const d=await cr.json(),el=document.getElementById("onlinePlayerCount");if(el)el.textContent=Math.max(0,Number(d.count)||0)+"人";}if(nr.ok){const raw=await nr.text(),list=document.getElementById("noticeList");if(list){list.replaceChildren();const items=raw.split(/\r?\n/).map(v=>v.trim()).filter(Boolean).map(v=>v.replace(/^[-*・]\s*/,""));if(!items.length){const li=document.createElement("li");li.textContent="現在お知らせはありません。";list.appendChild(li);}else for(const item of items){const li=document.createElement("li");li.textContent=item;list.appendChild(li);}}}}catch(_){}}
+refreshLobbyInfo();setInterval(refreshLobbyInfo,15000);
 setupSettings();
 
 const topScreen = document.getElementById("topScreen");
@@ -1716,7 +1721,7 @@ function createWeaponMesh(weapon) {
     return group;
   }
 
-  if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
+  if (weapon === "grappler") { const grip=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.55,10),new THREE.MeshStandardMaterial({color:0x394653,metalness:.6}));grip.rotation.x=Math.PI/2;group.add(grip);const cup=new THREE.Mesh(new THREE.CylinderGeometry(.19,.13,.16,16),new THREE.MeshStandardMaterial({color:0xe04d43}));cup.rotation.x=Math.PI/2;cup.position.z=-.35;group.add(cup);group.position.set(.34,1.02,-.22);group.rotation.x=-.08;return group; }\n  if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
     const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "shockwaveLauncher" ? 0x39b9d8 : weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18, emissive: weapon === "shockwaveLauncher" ? 0x123d4b : 0x000000, emissiveIntensity: weapon === "shockwaveLauncher" ? 0.6 : 0 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
     group.add(body);
@@ -1774,7 +1779,7 @@ function createWeaponMesh(weapon) {
 }
 
 function refreshLocalWeaponViewModel() {
-  const shouldShow = joined && ["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher"].includes(selectedWeapon);
+  const shouldShow = joined && ["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
   if (!shouldShow) {
     if (localWeaponViewModel) camera.remove(localWeaponViewModel);
     localWeaponViewModel = null;
@@ -1847,7 +1852,7 @@ function createGrenadeProjectileVisual(data) {
   let mesh = grenadeProjectileMeshes.get(data.id);
   const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
   if (!mesh) {
-    const isShockwave = data.type === "shockwave";
+    const isShockwave = data.type === "shockwave";\n    const isGrappler = data.type === "grappler";
     const isGrapple = data.type === "grapple";
     const material = new THREE.MeshStandardMaterial({
       color: isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : 0x8b7a43, roughness: 0.5, metalness: 0.25,
@@ -2094,7 +2099,7 @@ function updateSmokeVisuals(now, dt) {
       const angle = pickaxeSwingAngle(actionElapsed);
       if (weaponMesh) weaponMesh.rotation.set(-0.08 + angle * 0.55, 0, angle * 0.62);
       if (rightArm) rightArm.rotation.set(angle * 0.48, 0, 0.08 - angle * 0.24);
-    } else if (["smoke", "grenadeLauncher", "shockwaveLauncher"].includes(obj.userData.weaponActionType) && obj.userData.weaponType === obj.userData.weaponActionType && actionElapsed >= 0 && actionElapsed < 0.26) {
+    } else if (["smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(obj.userData.weaponActionType) && obj.userData.weaponType === obj.userData.weaponActionType && actionElapsed >= 0 && actionElapsed < 0.26) {
       const progress = actionElapsed / 0.26;
       if (weaponMesh) {
         weaponMesh.position.set(0.34 + 0.1 * progress, 1.02 + 0.05 * Math.sin(progress * Math.PI), -0.22 - 0.1 * progress);
@@ -2738,7 +2743,7 @@ function fire() {
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (!["pickaxe", "smoke", "shockwaveLauncher"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
+  if (!["pickaxe", "smoke", "shockwaveLauncher", "grappler"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
     // 弾切れによる自動リロードでは射撃ボタンの長押し状態を維持する。
     reload(true);
     return;
@@ -2760,7 +2765,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -2772,7 +2777,7 @@ function updateWeaponReticle() {
     pickaxe: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
-    shockwaveLauncher: ["weapon-grenade", "◉"],
+    shockwaveLauncher: ["weapon-grenade", "◉"], grappler: ["weapon-grenade", "⊂"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
     rifle: ["weapon-rifle", "┼"],
@@ -3755,7 +3760,7 @@ socket.on("shot", createTracer);
 socket.on("smokeProjectileSpawn", createSmokeProjectileVisual);
 socket.on("smokeProjectileUpdate", (data) => createSmokeProjectileVisual(data));
 socket.on("smokeProjectileRemove", ({ id }) => removeSmokeProjectileVisual(id));
-socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
+socket.on("grappleProjectileSpawn", data => createGrenadeProjectileVisual({ ...data, type: "grappler" }));\nsocket.on("grappleProjectileUpdate", data => createGrenadeProjectileVisual({ ...data, type: "grappler" }));\nsocket.on("grappleProjectileRemove", ({id}) => removeGrenadeProjectileVisual(id));\nsocket.on("grappleAttach", data => { const old=grappleTethers.get(data.ownerId);if(old){scene.remove(old);old.geometry.dispose();old.material.dispose();}const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(data.x,data.y,data.z)]),new THREE.LineBasicMaterial({color:0xe7e7e7}));line.userData.anchor=new THREE.Vector3(data.x,data.y,data.z);scene.add(line);grappleTethers.set(data.ownerId,line); });\nsocket.on("grappleEnd", ({ownerId}) => {const line=grappleTethers.get(ownerId);if(line){scene.remove(line);line.geometry.dispose();line.material.dispose();grappleTethers.delete(ownerId);}});\nsocket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
 socket.on("grenadeExplosion", createGrenadeExplosionVisual);
@@ -4844,7 +4849,7 @@ function animate(now) {
     }
   }
 
-  renderer.render(scene, camera);
+  for (const [ownerId,line] of grappleTethers) { let origin=null;if(ownerId===myId&&myState)origin=new THREE.Vector3(myState.x,(myState.y||0)+1.25,myState.z);else{const remote=remotePlayers.get(ownerId);if(remote)origin=remote.position.clone().add(new THREE.Vector3(0,1.25,0));}if(origin)line.geometry.setFromPoints([origin,line.userData.anchor]);}\n  renderer.render(scene, camera);
 }
 
 requestAnimationFrame(animate);
