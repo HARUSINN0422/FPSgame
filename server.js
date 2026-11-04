@@ -474,7 +474,7 @@ app.post("/api/admin/logout", (req, res) => {
   res.setHeader("Set-Cookie", "fps_admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + ((req.secure || req.headers["x-forwarded-proto"] === "https") ? "; Secure" : ""));
   res.json({ ok: true });
 });
-const NOTICE_FILE = path.join(__dirname, "updates.txt");
+const NOTICE_FILE = path.join(__dirname, "notices.txt");
 app.get("/api/lobby-info", (_req, res) => {
   let notice = "";
   try { notice = fs.readFileSync(NOTICE_FILE, "utf8"); } catch (_) {}
