@@ -194,7 +194,7 @@ const WEAPONS = {
     spread: 0.032,
     falloffStart: 24,
     minDamageMultiplier: 0.55,
-    magazineSize: 30,
+    magazineSize: 20,
     reloadTime: 1500,
     automatic: true
   },
@@ -234,7 +234,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
   smoke: "投擲 / リロード不要 / 1300ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
   pistol: "単発 / 胴体50ダメージ / 装弾数6発・距離減衰はやや大きめ",
-  smg: "連射可能 / 胴体9ダメージ / 装弾数30発",
+  smg: "連射可能 / 胴体9ダメージ / 装弾数20発",
   rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
   shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
@@ -265,8 +265,8 @@ try {
 
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
 WEAPONS.smg.fireInterval = 107 / 5;
-WEAPONS.smg.magazineSize = 30;
-WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数30発";
+WEAPONS.smg.magazineSize = 20;
+WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数20発";
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
 WEAPONS.marksman.fireInterval = 225 * 1.25;
