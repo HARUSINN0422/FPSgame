@@ -1688,7 +1688,7 @@ body.controller-mode #settingsButton {
   font-size: 14px; letter-spacing: .04em; background:
     radial-gradient(circle, rgba(17,28,43,.96) 58%, transparent 60%),
     conic-gradient(#55d9ff var(--ultimate-progress, 0%), rgba(255,255,255,.18) 0);
-  box-shadow: 0 3px 14px rgba(0,0,0,.45); z-index: 15;
+  box-shadow: 0 3px 14px rgba(0,0,0,.45);
   touch-action: none; user-select: none; -webkit-user-select: none;
 }
 #ultimateButton:disabled { opacity: .72; filter: saturate(.55); }
