@@ -3957,6 +3957,52 @@ socket.on("connect", () => {
   }
 });
 
+// FPS_BACKGROUND_PRESENCE
+// バックグラウンドへ移ったら明示的に退出し、復帰時はロビーから接続し直す。
+let backgroundLeavePending = false;
+let backgroundDisconnectTimer = null;
+function leaveGameForBackground() {
+  if (backgroundLeavePending) return;
+  backgroundLeavePending = true;
+  joined = false;
+  wasJoinedBeforeDisconnect = false;
+  stopAllControls();
+  if (backgroundDisconnectTimer) clearTimeout(backgroundDisconnectTimer);
+  backgroundDisconnectTimer = setTimeout(() => {
+    if (socket.connected) socket.disconnect();
+    backgroundLeavePending = false;
+  }, 1200);
+  if (socket.connected) {
+    socket.timeout(900).emit("leaveMatch", () => {
+      if (backgroundDisconnectTimer) clearTimeout(backgroundDisconnectTimer);
+      backgroundDisconnectTimer = null;
+      if (socket.connected) socket.disconnect();
+      backgroundLeavePending = false;
+    });
+  } else {
+    if (backgroundDisconnectTimer) clearTimeout(backgroundDisconnectTimer);
+    backgroundDisconnectTimer = null;
+    backgroundLeavePending = false;
+    socket.disconnect();
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    leaveGameForBackground();
+  } else if (document.visibilityState === "visible" && !socket.connected) {
+    socket.connect();
+  }
+});
+window.addEventListener("pagehide", leaveGameForBackground);
+window.addEventListener("pageshow", () => {
+  if (document.visibilityState === "visible" && !socket.connected) socket.connect();
+});
+setInterval(() => {
+  if (document.visibilityState === "visible" && socket.connected && joined) {
+    socket.emit("presence");
+  }
+}, 10000);
+
 socket.on("disconnect", () => {
   setConnectionStatus("接続中…", false);
 
