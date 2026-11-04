@@ -485,7 +485,7 @@ app.post("/api/push/unsubscribe", (req, res) => {
 async function sendOnlinePushNotification() {
   const payload = JSON.stringify({
     title: "FPSgame",
-    body: "プレイヤーがオンラインになりました。",
+    body: "プレイヤーが参加しました",
     url: "./"
   });
   const subscriptions = [...pushSubscriptions];
@@ -3839,7 +3839,8 @@ io.on("connection", (socket) => {
   socket.on("minigunRelease", () => {
     const p = players.get(socket.id);
     const now = Date.now();
-    if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" || !p.minigunChargeStartedAt) return;
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" ||
+        p.invulnerableUntil > now || !p.minigunChargeStartedAt) return;
     const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 3000);
     p.minigunChargeStartedAt = 0;
     const shotCount = Math.floor(chargedMs / WEAPONS.minigun.fireInterval);
@@ -3909,6 +3910,10 @@ io.on("connection", (socket) => {
     if (Array.isArray(p.weaponAmmo)) p.weaponAmmo[p.activeWeaponSlot || 0] = p.ammo;
     p.reloadingUntil = 0;
     p.lastFire = 0;
+    p.minigunChargeStartedAt = 0;
+    p.minigunBurstId = (p.minigunBurstId || 0) + 1;
+    if (p.minigunFireTimer) clearTimeout(p.minigunFireTimer);
+    p.minigunFireTimer = null;
     p.input.crouch = false;
     p.crouched = false;
     p.respawnAt = 0;
@@ -4209,7 +4214,7 @@ setInterval(() => {
   }
   const previous = previousHumanOnlineCount;
   previousHumanOnlineCount = onlineCount;
-  if (previous === 0 && onlineCount === 1 && pushSubscriptions.length > 0) {
+  if (onlineCount > previous && pushSubscriptions.length > 0) {
     const japanTime = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
     }).formatToParts(new Date());
