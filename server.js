@@ -549,6 +549,7 @@ app.get("/health", (_req, res) => {
 });
 
 const players = new Map();
+const riftDuels = new Map();
 const duelRooms = new Map();
 let duelRoomSequence = 0;
 
@@ -680,7 +681,39 @@ function getMapInfo(map, mode = MAP_MODE) {
   return { mode, id: map.id, name: map.name, description: map.description || "" };
 }
 
+function createRiftArenaMap() {
+  return { id:"rift-duel-arena", name:"鏡界", description:"中央の壁を挟んで戦う異空間",
+    world:{minX:-8,maxX:8,minZ:-8,maxZ:8},
+    obstacles:[{x:0,z:0,w:0.8,d:5.2,h:2.8}],
+    ramps:[],elevatedPlatforms:[],floorTiles:[],bridges:[],bridgeSupports:[] };
+}
+function finishRiftDuel(loser) {
+  if(!loser?.riftDuelId)return false;
+  const duel=riftDuels.get(loser.riftDuelId);
+  if(!duel||duel.resolved)return false;
+  duel.resolved=true;
+  const winner=players.get(duel.playerIds.find(id=>id!==loser.id));
+  if(winner&&winner.health>0){
+    const o=winner.riftOrigin;
+    if(o){winner.x=o.x;winner.y=o.y;winner.z=o.z;winner.yaw=o.yaw;winner.pitch=o.pitch;}
+    winner.velocityY=0;winner.grounded=true;winner.invulnerableUntil=Date.now()+3000;winner.invisibleUntil=0;
+  }
+  for(const id of duel.playerIds){
+    const p=players.get(id);if(!p)continue;
+    const returnMap=p.riftReturnMap||getMapForPlayer(p);
+    p.riftDuelId=null;p.riftMap=null;p.riftReturnMap=null;p.riftOrigin=null;
+    p.input={forward:0,strafe:0,crouch:false};
+    const client=io.sockets.sockets.get(id);
+    if(client)client.emit("world",getWorldPayloadForMap(returnMap,p.mode||MAP_MODE));
+  }
+  riftDuels.delete(duel.id);broadcastPlayers();
+  if(winner)io.to(winner.id).emit("riftDuelResult",{won:true,invulnerableUntil:winner.invulnerableUntil});
+  const loserClient=io.sockets.sockets.get(loser.id);
+  if(loserClient)loserClient.emit("riftDuelResult",{won:false});
+  return true;
+}
 function getMapForPlayer(player) {
+  if (player?.riftMap) return player.riftMap;
   if (player?.mode === AREA_MODE) return areaMap;
   if (player?.mode === PAYLOAD_MODE) return payloadMap;
   if (player?.mode === "Duel") return player.duelMap || activeMap;
@@ -942,6 +975,7 @@ function pickSpawnForPlayer(player, index = 0) {
 
 function isSameGame(a, b) {
   if (!a || !b) return false;
+  if (a.riftDuelId || b.riftDuelId) return Boolean(a.riftDuelId && a.riftDuelId === b.riftDuelId);
   const modeA = a.mode || MAP_MODE;
   const modeB = b.mode || MAP_MODE;
   if (modeA !== modeB) return false;
@@ -1242,6 +1276,8 @@ function explodeGrenade(projectile, position, now = Date.now()) {
       target.kills = target.kills || 0;
       target.deaths += 1;
       if(target.mode==="Duel"){const winner=selfElimination?gamePlayersFor(target).find(p=>p.id!==target.id):projectile.owner;resolveDuelRound(winner,target);}
+      if (target.riftDuelId) finishRiftDuel(target);
+      if (!selfElimination && projectile.owner.invisibleUntil > Date.now()) projectile.owner.invisibleUntil = 0;
       broadcastGameEvent(projectile.owner, "elimination", {
         killerId: selfElimination ? null : projectile.owner.id,
         killerName: selfElimination ? "自爆" : projectile.owner.name,
@@ -2692,6 +2728,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       result.target.deaths += 1;
       if(result.target.mode==="Duel")resolveDuelRound(shooter,result.target);
 
+      if (result.target.riftDuelId) finishRiftDuel(result.target);
+      if (shooter.invisibleUntil > Date.now()) shooter.invisibleUntil = 0;
       broadcastGameEvent(shooter, "elimination", {
         killerId: shooter.id,
         killerName: shooter.name,
@@ -2769,6 +2807,7 @@ function applyIncomingDamage(target, amount) {
   if (damage > 0) target.health = Math.max(0, healthBefore - damage);
   const healthDamage = Math.min(healthBefore, damage);
   if (target.health <= 0) {
+    finishRiftDuel(target);
     // 死亡時はミニガンのチャージ・予約射撃を破棄し、リスポーンへの持ち越しを防ぐ。
     target.minigunChargeStartedAt = 0;
     target.minigunBurstId = (target.minigunBurstId || 0) + 1;
@@ -2798,10 +2837,11 @@ function publicPlayer(p, includeSkin = false) {
     pitch: p.pitch,
     crouched: Boolean(p.crouched),
     name: p.name,
+    invisible: Number(p.invisibleUntil) > Date.now(),
     health: p.health,
     maxHealth: Number(p.maxHealth) || 100,
     ultimateCharge: Math.min(100, Number(p.ultimateCharge) || 0),
-    ultimateType: ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
+    ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
     shield: Math.max(0, Number(p.shield) || 0),
     ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
     charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(p.charm) ? p.charm : "none",
@@ -2851,7 +2891,7 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
     health: maxHealth,
     maxHealth,
     ultimateCharge: 0,
-    ultimateType: !isBot && ["skyfall", "teleport", "aegis"].includes(ultimateType) ? ultimateType : "skyfall",
+    ultimateType: !isBot && ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(ultimateType) ? ultimateType : "skyfall",
     shield: 0,
     ultimateActiveUntil: 0,
     ultimateAnchor: null,
@@ -2965,7 +3005,7 @@ function queueAreaPlayer(socket, data = {}) {
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
     charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(data.charm) ? data.charm : "none",
-    ultimateType: ["skyfall", "teleport", "aegis"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
+    ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
   };
   if (entry.secondaryWeapon === entry.weapon) {
@@ -3512,7 +3552,7 @@ io.on("connection", (socket) => {
       health: maxHealth,
       maxHealth,
       ultimateCharge: 0,
-      ultimateType: ["skyfall", "teleport", "aegis"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
+      ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
       shield: 0,
       ultimateActiveUntil: 0,
       ultimateAnchor: null,
@@ -3596,7 +3636,7 @@ io.on("connection", (socket) => {
       reply({ ok: false, message: "現在はアルティメットを使用できません。" });
       return;
     }
-    const type = ["skyfall", "teleport", "aegis"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
+    const type = ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(p.ultimateType) ? p.ultimateType : "skyfall";
     const now = Date.now();
     // 天墜開始から1秒経過後は、アルティメット再入力で任意に降下できる。
     if (type === "skyfall" && p.skyfallImpactId && p.ultimateActiveUntil > now) {
@@ -3612,36 +3652,35 @@ io.on("connection", (socket) => {
       reply({ ok: false, message: "チャージが不足しています。" });
       return;
     }
-    if (type === "skyfall") {
-      if (!activateSkyfall(p, now)) {
-        reply({ ok: false, message: "天墜を発動できませんでした。" });
-        return;
+    if(type==="skyfall"){
+      if(!activateSkyfall(p,now)){reply({ok:false,message:"天墜を発動できませんでした。"});return;}
+    }else if(type==="aegis"){
+      p.maxHealth=p.charm==="hp"?120:100;p.shield=50;p.ultimateActiveUntil=0;
+    }else if(type==="invisible"){
+      p.invisibleUntil=now+10000;p.ultimateActiveUntil=p.invisibleUntil;
+    }else if(type==="rift"){
+      const opponent=gamePlayersFor(p).filter(q=>q.id!==p.id&&q.health>0&&!q.finished&&!q.riftDuelId&&!(isTeamMatchMode(p.mode)&&q.team===p.team))
+        .sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];
+      if(!opponent){reply({ok:false,message:"異空間へ呼び出せる敵がいません。"});return;}
+      const duelId="rift:"+p.id+":"+now,arena=createRiftArenaMap();
+      for(const q of [p,opponent]){
+        q.riftReturnMap=getMapForPlayer(q);q.riftMap=arena;q.riftDuelId=duelId;
+        q.riftOrigin={x:q.x,y:q.y,z:q.z,yaw:q.yaw,pitch:q.pitch};
+        q.velocityY=0;q.grounded=true;q.input={forward:0,strafe:0,crouch:false};q.crouched=false;q.ultimateActiveUntil=0;
       }
-    } else if (type === "aegis") {
-      p.maxHealth = p.charm === "hp" ? 120 : 100;
-      p.shield = 50;
-      p.ultimateActiveUntil = 0;
-    } else {
-      const map = getMapForPlayer(p);
-      const x = Number(payload.x), z = Number(payload.z);
-      if (!Number.isFinite(x) || !Number.isFinite(z) ||
-          x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS ||
-          z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) {
-        reply({ ok: false, message: "マップ内の地点を選択してください。" });
-        return;
-      }
-      const y = getGroundHeight(x, z, p.y, p);
-      if (collides(x, z, y, PLAYER_HEIGHT, p)) {
-        reply({ ok: false, message: "その地点にはテレポートできません。" });
-        return;
-      }
-      p.x = x;
-      p.y = y;
-      p.z = z;
-      p.velocityY = 0;
-      p.grounded = true;
+      p.health=Number(p.maxHealth)||100;
+      p.x=-4.2;p.y=0;p.z=0;p.yaw=-Math.PI/2;p.pitch=0;
+      opponent.x=4.2;opponent.y=0;opponent.z=0;opponent.yaw=Math.PI/2;opponent.pitch=0;
+      riftDuels.set(duelId,{id:duelId,playerIds:[p.id,opponent.id],resolved:false});
+      for(const q of [p,opponent]){const client=io.sockets.sockets.get(q.id);if(client)client.emit("world",getWorldPayloadForMap(arena,q.mode||MAP_MODE));}
+    }else{
+      const map=getMapForPlayer(p),x=Number(payload.x),z=Number(payload.z);
+      if(!Number.isFinite(x)||!Number.isFinite(z)||x<map.world.minX+PLAYER_RADIUS||x>map.world.maxX-PLAYER_RADIUS||z<map.world.minZ+PLAYER_RADIUS||z>map.world.maxZ-PLAYER_RADIUS){reply({ok:false,message:"マップ内の地点を選択してください。"});return;}
+      const y=getGroundHeight(x,z,p.y,p);
+      if(collides(x,z,y,PLAYER_HEIGHT,p)){reply({ok:false,message:"その地点にはテレポートできません。"});return;}
+      p.x=x;p.y=y;p.z=z;p.velocityY=0;p.grounded=true;
     }
-    p.ultimateCharge = 0;
+    p.ultimateCharge=0;
     broadcastPlayers();
     reply({ ok: true, type });
   });
@@ -4015,6 +4054,7 @@ setInterval(() => {
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
+          if (p.riftDuelId) finishRiftDuel(p);
           broadcastGameEvent(p, "elimination", {
             killerId: null,
             killerName: "燃える床",
