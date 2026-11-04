@@ -3031,7 +3031,92 @@ function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQu
 function startPayloadMatch(fillWithBots){const waiting=payloadQueue.splice(0,6).filter(e=>io.sockets.sockets.has(e.socketId));payloadQueueStartedAt=0;lastPayloadQueueSecond=null;if(!waiting.length)return;const used=new Set(waiting.map(e=>e.name.toLowerCase())),names=PAYLOAD_BOT_NAMES.filter(n=>!used.has(n.toLowerCase()));for(let i=names.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const parts=waiting.map(e=>({...e,isBot:false}));while((fillWithBots||parts.length<6)&&parts.length<6)parts.push({socketId:null,name:names.shift()||("Payload BOT "+(parts.length+1)),skin:"",weapon:Math.random()<.65?"rifle":"marksman",secondaryWeapon:"shotgun",charm:"none",ultimateType:"skyfall",isBot:true});const counts={blue:0,red:0};for(const p of parts.filter(p=>!p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}for(const p of parts.filter(p=>p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}const attackingTeam=Math.random()<.5?"blue":"red",matchId="payload-"+Date.now()+"-"+(++payloadMatchSequence);const match={id:matchId,playerIds:[],humanIds:waiting.map(e=>e.socketId),attackingTeam,defendingTeam:attackingTeam==="blue"?"red":"blue",progress:0,checkpointIndex:0,startedAt:Date.now(),lastStateAt:0,finished:false,overtime:false,status:"playing"};payloadMatches.set(matchId,match);const indexes={blue:0,red:0};parts.forEach((e,i)=>{const role=e.team===attackingTeam?"attack":"defense",id=e.isBot?"bot:"+matchId+":"+i:e.socketId,spawn=getPayloadSpawnPoint({matchId,role},indexes[e.team]++),p=createPayloadPlayer({id,name:e.name,skin:e.skin,weapon:e.weapon,secondaryWeapon:e.secondaryWeapon,charm:e.charm,ultimateType:e.ultimateType,team:e.team,role,matchId,isBot:e.isBot,botSpawnIndex:indexes[e.team]-1},spawn);p.reconnectToken=e.reconnectToken||"";players.set(id,p);match.playerIds.push(id);if(!e.isBot){const c=io.sockets.sockets.get(e.socketId);if(c){c.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));c.emit("joined",{player:publicPlayer(p,true)});c.emit("payloadMatchStarted",{matchId,team:p.team,role:p.role,botCount:parts.filter(q=>q.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});}}});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 試合開始:",matchId);}
 function sendPayloadMatchState(match,force=false){if(!match||match.finished)return;const now=Date.now();if(!force&&now-match.lastStateAt<150)return;match.lastStateAt=now;const cart=getPayloadPointAtDistance(match.progress),near=match.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&!p.disconnectedAt&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),attackers=near.filter(p=>p.team===match.attackingTeam).length,defenders=near.filter(p=>p.team===match.defendingTeam).length,total=getPayloadTrackLength();const state={matchId:match.id,progress:total?Math.min(100,match.progress/total*100):0,distance:match.progress,totalDistance:total,cart,attackingTeam:match.attackingTeam,defendingTeam:match.defendingTeam,attackers,defenders,timeRemainingMs:Math.max(0,PAYLOAD_ROUND_TIME_MS-(now-match.startedAt)),overtime:match.overtime,checkpointIndex:match.checkpointIndex,status:attackers&&defenders?"contested":attackers?"pushing":"stalled"};for(const id of match.humanIds)io.to(id).emit("payloadState",state);}
 function finishPayloadMatch(match,winnerTeam){if(!match||match.finished)return;match.finished=true;const winnerRole=winnerTeam===match.attackingTeam?"attack":"defense";for(const id of match.playerIds){const p=players.get(id);if(p){p.finished=true;p.input={forward:0,strafe:0,crouch:false};p.jumpQueuedUntil=0;p.respawnAt=0;}}for(const id of match.humanIds){const p=players.get(id);if(p)io.to(id).emit("payloadMatchEnd",{matchId:match.id,won:p.role===winnerRole,team:p.team,role:p.role,winnerRole,progress:Math.min(100,match.progress/getPayloadTrackLength()*100),kills:p.kills,deaths:p.deaths});}broadcastPlayers();}
-function updatePayloadMatches(dt,now){const total=getPayloadTrackLength();for(const m of payloadMatches.values()){if(m.finished)continue;m.payloadUpdateTick=(m.payloadUpdateTick||0)+1;if(m.payloadUpdateTick%2!==0)continue;const stepDt=dt*2,cart=getPayloadPointAtDistance(m.progress),near=m.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&!p.disconnectedAt&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),a=near.filter(p=>p.team===m.attackingTeam).length,d=near.filter(p=>p.team===m.defendingTeam).length;if(a>0&&!d)m.progress=Math.min(total,m.progress+(1.68+Math.max(0,Math.min(2,a-1))*0.336)*stepDt);else if(d>a)m.progress=Math.max(0,m.progress-(1.68+Math.max(0,Math.min(2,d-1))*0.336)/6*stepDt);const cps=payloadMap.payloadCheckpointDistances||[];while(m.checkpointIndex+1<cps.length&&m.progress>=cps[m.checkpointIndex+1]){m.checkpointIndex++;for(const id of m.playerIds){const p=players.get(id);if(p&&!p.isBot){p.ultimateCharge=Math.min(100,(p.ultimateCharge||0)+10);io.to(id).emit("payloadCheckpoint",{checkpointIndex:m.checkpointIndex});}}}if(m.progress>=total){m.progress=total;sendPayloadMatchState(m,true);finishPayloadMatch(m,m.attackingTeam);continue;}const expired=now-m.startedAt>=PAYLOAD_ROUND_TIME_MS,onCart=near.some(p=>p.team===m.attackingTeam);if(expired&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}if(expired)m.overtime=true;if(m.overtime&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}sendPayloadMatchState(m);}}
+function updatePayloadMatches(dt, now) {
+  const total = getPayloadTrackLength();
+  for (const m of payloadMatches.values()) {
+    if (m.finished) continue;
+    m.payloadUpdateTick = (m.payloadUpdateTick || 0) + 1;
+    if (m.payloadUpdateTick % 2 !== 0) continue;
+
+    const stepDt = dt * 2;
+    const cart = getPayloadPointAtDistance(m.progress);
+    const near = m.playerIds
+      .map((id) => players.get(id))
+      .filter((p) => p && p.health > 0 && !p.finished && !p.disconnectedAt &&
+        Math.hypot(p.x - cart.x, p.z - cart.z) <= PAYLOAD_CAPTURE_RADIUS);
+    const a = near.filter((p) => p.team === m.attackingTeam).length;
+    const d = near.filter((p) => p.team === m.defendingTeam).length;
+
+    if (a > 0 && !d) {
+      m.progress = Math.min(total, m.progress + (1.68 + Math.max(0, Math.min(2, a - 1)) * 0.336) * stepDt);
+    } else if (d > a) {
+      m.progress = Math.max(0, m.progress - (1.68 + Math.max(0, Math.min(2, d - 1)) * 0.336) / 6 * stepDt);
+    }
+
+    // 経過時間の割合とペイロード進行率を比較し、遅れている側に逆転用チャージを付与。
+    const elapsedPercent = clamp((now - m.startedAt) / PAYLOAD_ROUND_TIME_MS * 100, 0, 100);
+    const progressPercent = total > 0 ? clamp(m.progress / total * 100, 0, 100) : 0;
+    const losingTeam = progressPercent < elapsedPercent
+      ? m.attackingTeam
+      : progressPercent > elapsedPercent
+        ? m.defendingTeam
+        : null;
+
+    if (losingTeam) {
+      if (m.comebackChargeTeam !== losingTeam) {
+        m.comebackChargeTeam = losingTeam;
+        m.comebackChargeElapsedMs = 0;
+      }
+      m.comebackChargeElapsedMs = (m.comebackChargeElapsedMs || 0) + stepDt * 1000;
+      while (m.comebackChargeElapsedMs >= 2000) {
+        m.comebackChargeElapsedMs -= 2000;
+        for (const id of m.playerIds) {
+          const p = players.get(id);
+          if (p && p.team === losingTeam && p.health > 0 && !p.finished) {
+            p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + 7);
+          }
+        }
+      }
+    } else {
+      m.comebackChargeTeam = null;
+      m.comebackChargeElapsedMs = 0;
+    }
+
+    const cps = payloadMap.payloadCheckpointDistances || [];
+    while (m.checkpointIndex + 1 < cps.length && m.progress >= cps[m.checkpointIndex + 1]) {
+      m.checkpointIndex++;
+      for (const id of m.playerIds) {
+        const p = players.get(id);
+        if (p && !p.isBot) {
+          p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + 10);
+          io.to(id).emit("payloadCheckpoint", { checkpointIndex: m.checkpointIndex });
+        }
+      }
+    }
+
+    if (m.progress >= total) {
+      m.progress = total;
+      sendPayloadMatchState(m, true);
+      finishPayloadMatch(m, m.attackingTeam);
+      continue;
+    }
+
+    const expired = now - m.startedAt >= PAYLOAD_ROUND_TIME_MS;
+    const onCart = near.some((p) => p.team === m.attackingTeam);
+    if (expired && !onCart) {
+      sendPayloadMatchState(m, true);
+      finishPayloadMatch(m, m.defendingTeam);
+      continue;
+    }
+    if (expired) m.overtime = true;
+    if (m.overtime && !onCart) {
+      sendPayloadMatchState(m, true);
+      finishPayloadMatch(m, m.defendingTeam);
+      continue;
+    }
+    sendPayloadMatchState(m);
+  }
+}
 function removePayloadPlayer(socketId){cancelPayloadQueue(socketId);const player=players.get(socketId);if(!player||player.mode!==PAYLOAD_MODE){io.to(socketId).emit("payloadReturnToModeSelect");return;}const match=payloadMatches.get(player.matchId);players.delete(socketId);if(!match){io.to(socketId).emit("payloadReturnToModeSelect");broadcastPlayers();return;}match.playerIds=match.playerIds.filter(id=>id!==socketId);match.humanIds=match.humanIds.filter(id=>id!==socketId);io.to(socketId).emit("payloadReturnToModeSelect");if(!match.humanIds.length){for(const id of match.playerIds)players.delete(id);payloadMatches.delete(match.id);}else if(!match.finished){const id="bot:"+match.id+":replacement:"+Date.now(),bot=createPayloadPlayer({id,name:PAYLOAD_BOT_NAMES[Math.floor(Math.random()*PAYLOAD_BOT_NAMES.length)],weapon:"rifle",secondaryWeapon:"shotgun",team:player.team,role:player.role,matchId:match.id,isBot:true},[player.x,player.y,player.z]);players.set(id,bot);match.playerIds.push(id);}broadcastPlayers();sendPayloadMatchState(match,true);}
 
 function removeTrainingBots(matchId) {
