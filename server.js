@@ -1568,7 +1568,7 @@ function updateBot(p, now) {
     return wallDistance === null || wallDistance >= distance - 0.7;
   }) : [];
 
-  // 視認中の敵との交戦は優先し、それ以外の時間は制圧地点へ向かう。
+  // ペイロードBOTは敵がカートより近ければ交戦し、それ以外はカートへ向かう。
   const cart=isPayloadBot?getPayloadPointAtDistance(match?.progress||0):null;
   const zone=isAreaBot?areaMap.areaZone:isPayloadBot?{x:cart.x,z:cart.z,radius:9}:null;
   const livingTeamMembersInZone = zone ? Array.from(players.values()).filter((other) =>
@@ -1583,7 +1583,10 @@ function updateBot(p, now) {
   // 自チーム所有中は、エリア内の味方が2人未満なら守備要員として向かう。
   const needsObjectiveSupport=isPayloadBot?(p.role === "defense" ? true : livingTeamMembersInZone<2):livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
   const visibleCloseEnemy = visibleTargets.some((target) => Math.hypot(target.x - p.x, target.z - p.z) <= 8);
-  const moveToObjective = Boolean(zone && !botInsideZone && needsObjectiveSupport && (isPayloadBot || !visibleTargets.length || !visibleCloseEnemy));
+  const nearestEnemyDistance = targets.length ? Math.min(...targets.map((target) => Math.hypot(target.x - p.x, target.z - p.z))) : Infinity;
+  const cartDistance = isPayloadBot && cart ? Math.hypot(cart.x - p.x, cart.z - p.z) : Infinity;
+  const enemyCloserThanCart = isPayloadBot && nearestEnemyDistance < cartDistance;
+  const moveToObjective = Boolean(zone && !botInsideZone && needsObjectiveSupport && (isPayloadBot ? !enemyCloserThanCart : (!visibleTargets.length || !visibleCloseEnemy)));
   // ペイロードBOTは交戦中もカート周辺に残り、護送・停止判定に参加する。
   const holdObjective = Boolean(zone && botInsideZone && (isPayloadBot || visibleTargets.length === 0));
 
@@ -1743,7 +1746,7 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
     // リスポーン区画のゲートは、該当ロールのプレイヤーだけ通過できる。
     if (o.teamOnlyRole && player?.role === o.teamOnlyRole) return false;
     if (o.teamOnly && player?.team === o.teamOnly) return false;
-    if (bodyTop <= 0 || bodyBottom >= o.h) return false;
+    if (o.ceiling ? (bodyTop <= o.y || bodyBottom >= o.y + o.h) : (bodyTop <= 0 || bodyBottom >= o.h)) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
       z > o.z - o.d / 2 - PLAYER_RADIUS &&
@@ -1798,6 +1801,7 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
   }
   // 高い位置から降下中なら、壁・障害物の上面も着地面として扱う。
   for (const obstacle of map.obstacles || []) {
+    if (obstacle.ceiling) continue;
     const insideX = Math.abs(x - obstacle.x) <= obstacle.w / 2 + PLAYER_RADIUS;
     const insideZ = Math.abs(z - obstacle.z) <= obstacle.d / 2 + PLAYER_RADIUS;
     if (insideX && insideZ && playerY >= obstacle.h - 0.2) height = Math.max(height, obstacle.h);
@@ -2096,8 +2100,8 @@ function rayHitsObstacle(origin, direction, maxDistance, player = null) {
     // 壁を少し厚くして、弾が境界をすり抜けるのを防ぐ。
     const minX = o.x - o.w / 2;
     const maxX = o.x + o.w / 2;
-    const minY = 0;
-    const maxY = o.h;
+    const minY = o.ceiling ? o.y : 0;
+    const maxY = o.ceiling ? o.y + o.h : o.h;
     const minZ = o.z - o.d / 2;
     const maxZ = o.z + o.d / 2;
 
