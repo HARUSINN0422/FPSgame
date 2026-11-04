@@ -401,6 +401,21 @@ const io = new Server(server, {
   }
 });
 
+// iOSのホーム画面アプリがバックグラウンドで停止し、接続が残る場合の検知。
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, player] of players) {
+    if (player.isBot) continue;
+    if (!player.lastPresenceAt) player.lastPresenceAt = now;
+    if (now - player.lastPresenceAt <= 45000) continue;
+    const client = io.sockets.sockets.get(id);
+    appendServerLog("STALE-PRESENCE", ["45秒間応答なしのプレイヤーを切断:", id, player.name]);
+    if (client) client.disconnect(true);
+    else players.delete(id);
+  }
+}, 15000);
+
+
 server.on("error", (error) => {
   saveLatestError(error, "http.Server");
   safeConsoleWrite(originalConsoleError, "ERROR", ["[Server Error]", error]);
@@ -3041,6 +3056,7 @@ function tryJoinExistingAreaMatch(socket, entry) {
       team: bot.team,
       matchId: match.id,
       isBot: false,
+      lastPresenceAt: Date.now(),
       botSpawnIndex: 0
     }, spawn);
     players.delete(botId);
@@ -3707,9 +3723,15 @@ io.on("connection", (socket) => {
     reply({ ok: true });
   });
 
+  socket.on("presence", () => {
+    const p = players.get(socket.id);
+    if (p && !p.isBot) p.lastPresenceAt = Date.now();
+  });
+
   socket.on("input", (input = {}) => {
     const p = players.get(socket.id);
     if (!p || p.finished) return;
+    p.lastPresenceAt = Date.now();
 
     p.input.forward = clamp(Number(input.forward) || 0, -1, 1);
     p.input.strafe = clamp(Number(input.strafe) || 0, -1, 1);
