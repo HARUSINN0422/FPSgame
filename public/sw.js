@@ -3,8 +3,6 @@ self.addEventListener("push", event => {
   try { data = event.data ? event.data.json() : {}; } catch (_) {}
   event.waitUntil(self.registration.showNotification(data.title || "FPSgame", {
     body: data.body || "プレイヤーがオンラインになりました。",
-    icon: "./icon-192.png",
-    badge: "./icon-192.png",
     data: { url: data.url || "./" }
   }));
 });
