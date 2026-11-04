@@ -204,7 +204,6 @@ const weaponConfig = {
   grenadeLauncher: { fireInterval: 900, automatic: false },
   shockwaveLauncher: { fireInterval: 900, automatic: false },
   grappler: { fireInterval: 1100, automatic: false },
-  grappler: { fireInterval: 1100, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
