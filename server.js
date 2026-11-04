@@ -1145,9 +1145,15 @@ function applyGrapplePull(projectile, position) {
   const directionX = horizontal > 0.001 ? dx / horizontal : 0;
   const directionZ = horizontal > 0.001 ? dz / horizontal : 0;
   const pullSpeed = clamp(24 + horizontal * 0.12, 24, 34);
-  owner.knockbackVelocityX = (Number(owner.knockbackVelocityX) || 0) + directionX * pullSpeed;
-  owner.knockbackVelocityZ = (Number(owner.knockbackVelocityZ) || 0) + directionZ * pullSpeed;
-  owner.velocityY = Math.max(Number(owner.velocityY) || 0, clamp(5 + dy * 1.5, 3, 13));
+  owner.grapplePullTarget = {
+    x: position.x,
+    y: position.y - (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65,
+    z: position.z,
+    expiresAt: Date.now() + 3200
+  };
+  owner.knockbackVelocityX = directionX * pullSpeed;
+  owner.knockbackVelocityZ = directionZ * pullSpeed;
+  owner.velocityY = clamp(5 + dy * 1.5, 3, 13);
   owner.grounded = false;
   owner.lastGroundedAt = 0;
   broadcastGameEvent(owner, "grappleImpact", { id: projectile.id, ownerId: owner.id, x: position.x, y: position.y, z: position.z });
@@ -1459,7 +1465,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     projectile.x = nextX;
     projectile.y = nextY;
     projectile.z = nextZ;
-    projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
+    if (projectile.type !== "grapple") projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
     broadcastGameEvent(projectile.owner, "grenadeProjectileUpdate", {
       id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z
     });
@@ -2143,6 +2149,26 @@ function movePlayer(p, dt) {
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
   const charmMoveMultiplier = p.charm === "speed" ? 1.8 : 1;
   let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
+  if (p.grapplePullTarget) {
+    const target = p.grapplePullTarget;
+    const pullX = target.x - p.x;
+    const pullY = target.y - p.y;
+    const pullZ = target.z - p.z;
+    const pullHorizontal = Math.hypot(pullX, pullZ);
+    if (now >= target.expiresAt || (pullHorizontal < 0.65 && Math.abs(pullY) < 0.8)) {
+      p.grapplePullTarget = null;
+      p.knockbackVelocityX = 0;
+      p.knockbackVelocityZ = 0;
+      if (pullHorizontal < 0.65) p.velocityY = Math.min(Number(p.velocityY) || 0, 0);
+    } else {
+      const pullSpeed = clamp(24 + pullHorizontal * 0.12, 24, 34);
+      p.knockbackVelocityX = pullHorizontal > 0.001 ? pullX / pullHorizontal * pullSpeed : 0;
+      p.knockbackVelocityZ = pullHorizontal > 0.001 ? pullZ / pullHorizontal * pullSpeed : 0;
+      p.velocityY = clamp(pullY * 2.4 + GRAVITY * 0.05, -16, 16);
+      p.grounded = false;
+      p.lastGroundedAt = 0;
+    }
+  }
   const knockbackX = Number(p.knockbackVelocityX) || 0;
   const knockbackZ = Number(p.knockbackVelocityZ) || 0;
   let dx = (-sin * forward + cos * strafe) * moveSpeed * dt + knockbackX * dt;
