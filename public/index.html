@@ -8,6 +8,8 @@
   <meta name="apple-mobile-web-app-title" content="FPSgame">
   <meta name="screen-orientation" content="landscape">
   <title>FPSgame</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="FPSgame">
   <link rel="stylesheet" href="style.css?v=grappler-home-screen-1">
 </head>
 <body>
@@ -616,7 +618,7 @@
     }
   }
   </script>
-  <script type="module" src="skin-editor.js?v=minecraft-skin-import-1"></script>
+  <script>\n    if ("serviceWorker" in navigator) { const base = location.pathname.endsWith("/") ? location.pathname : location.pathname.replace(/[^/]*$/, ""); navigator.serviceWorker.register(base + "sw.js", { scope: base }).catch(error => console.warn("Service Worker registration failed:", error)); }\n  </script>\n  <script type="module" src="skin-editor.js?v=minecraft-skin-import-1"></script>
   <script type="module" src="game.js?v=grappler-home-screen-1"></script>
 </body>
 </html>
