@@ -1067,15 +1067,15 @@ function applyShockwave(projectile, position, now = Date.now()) {
     if (projectile.owner.mode === TRAINING_MODE && target.id !== projectile.ownerId && !target.isBot) continue;
     if (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
     if (target.invulnerableUntil > now) continue;
-    if (target.id !== projectile.ownerId) {
-      target.ultimateCharge = Math.min(100, (Number(target.ultimateCharge) || 0) + 20);
-    }
     const dx = target.x - position.x;
     const dz = target.z - position.z;
     const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
     const dy = target.y + targetHeight * 0.5 - position.y;
     const distance = Math.hypot(dx, dy, dz);
     if (distance > radius) continue;
+    if (target.id !== projectile.ownerId) {
+      target.ultimateCharge = Math.min(100, (Number(target.ultimateCharge) || 0) + 20);
+    }
     const proximity = 1 - clamp(distance / radius, 0, 1);
     let dirX, dirY, dirZ;
     if (distance > 0.001) {
