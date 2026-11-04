@@ -3968,6 +3968,33 @@ socket.on("disconnect", () => {
   }
 });
 
+// iPad/iPhoneのホーム画面アプリがバックグラウンドへ移動したら、プレイヤー枠を明示的に解放する。
+// 復帰時はページを再読み込みし、古い試合画面への自動再参加を防ぐ。
+let leftMatchForBackground = false;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    const inQueue = (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden")) ||
+      (selectedGameMode === "Payload" && payloadQueuePanel && !payloadQueuePanel.classList.contains("hidden"));
+    if (!joined && !inQueue) return;
+    leftMatchForBackground = true;
+    if (selectedGameMode === "Area") socket.emit("cancelAreaQueue");
+    if (selectedGameMode === "Payload") socket.emit("cancelPayloadQueue");
+    if (joined) {
+      wasJoinedBeforeDisconnect = false;
+      joined = false;
+      stopAllControls();
+      socket.timeout(1200).emit("leaveMatch", () => socket.disconnect());
+      setTimeout(() => { if (socket.connected) socket.disconnect(); }, 1500);
+    } else {
+      socket.disconnect();
+    }
+    return;
+  }
+  if (document.visibilityState === "visible" && leftMatchForBackground) {
+    window.location.reload();
+  }
+});
+
 socket.io.on("reconnect_attempt", () => {
   setConnectionStatus("接続中…", false);
 });
