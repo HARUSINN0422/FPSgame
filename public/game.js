@@ -3978,6 +3978,7 @@ function leaveGameForBackground() {
       backgroundDisconnectTimer = null;
       if (socket.connected) socket.disconnect();
       backgroundLeavePending = false;
+      if (document.visibilityState === "visible" && !socket.connected) socket.connect();
     });
   } else {
     if (backgroundDisconnectTimer) clearTimeout(backgroundDisconnectTimer);
