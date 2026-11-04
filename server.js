@@ -1575,7 +1575,7 @@ function updateBot(p, now) {
     isSameGame(p, other) && other.health > 0 && !other.disconnectedAt && other.team === p.team &&
     Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius
   ).length : 0;
-  const objectiveHoldRadius = isPayloadBot && p.role === "defense" ? zone.radius * 0.32 : zone.radius * 0.9;
+  const objectiveHoldRadius = zone ? (isPayloadBot && p.role === "defense" ? zone.radius * 0.32 : zone.radius * 0.9) : 0;
   const botInsideZone = Boolean(zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= objectiveHoldRadius);
   const enemyOwnsOrUnclaimedZone=isAreaBot&&Boolean(zone&&(!match?.ownerTeam||match.ownerTeam!==p.team));
   const enemyIsTakingZone=isAreaBot&&Boolean(match?.captureTeam&&match.captureTeam!==p.team);
