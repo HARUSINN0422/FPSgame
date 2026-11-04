@@ -4460,7 +4460,7 @@ const ultimateButtonElement = document.getElementById("ultimateButton");
 // 移動操作と同時に押せるよう、pointerdownの時点で発動する。
 // Pointer Captureや移動量によるキャンセルは、マルチタッチ中の入力競合を起こすため使わない。
 ultimateButtonElement?.addEventListener("pointerdown", event => {
-  if (layoutEditing || ultimateButtonElement.disabled || !event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+  if (layoutEditing || ultimateButtonElement.disabled || (event.pointerType === "mouse" && event.button !== 0)) return;
   event.preventDefault();
   ultimateButtonElement.classList.add("ultimate-pressed");
   activateUltimate();
