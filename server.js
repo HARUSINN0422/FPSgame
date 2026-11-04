@@ -3598,7 +3598,25 @@ io.on("connection", (socket) => {
       removeAreaPlayer(socket.id);
       return;
     }
-    if(player?.mode===PAYLOAD_MODE){removePayloadPlayer(socket.id);return;}
+    if (player?.mode === PAYLOAD_MODE) {
+      player.input = { forward: 0, strafe: 0, crouch: false };
+      const token = typeof player.reconnectToken === "string" ? player.reconnectToken : "";
+      if (token) {
+        const timer = setTimeout(() => {
+          const pending = pendingPayloadDisconnects.get(token);
+          if (pending?.playerId === socket.id) {
+            pendingPayloadDisconnects.delete(token);
+            removePayloadPlayer(socket.id);
+          }
+        }, PAYLOAD_RECONNECT_GRACE_MS);
+        timer.unref?.();
+        player.disconnectedAt = Date.now();
+        pendingPayloadDisconnects.set(token, { playerId: socket.id, timer });
+      } else {
+        removePayloadPlayer(socket.id);
+      }
+      return;
+    }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     players.delete(socket.id);
