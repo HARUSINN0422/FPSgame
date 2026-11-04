@@ -4855,7 +4855,6 @@ function animate(now) {
     }
   }
 
-  for (const [ownerId,line] of grappleTethers) { let origin=null;if(ownerId===myId&&myState)origin=new THREE.Vector3(myState.x,(myState.y||0)+1.25,myState.z);else{const remote=remotePlayers.get(ownerId);if(remote)origin=remote.position.clone().add(new THREE.Vector3(0,1.25,0));}if(origin)line.geometry.setFromPoints([origin,line.userData.anchor]);}
   for (const [ownerId, line] of grappleTethers) { let origin = null; if (ownerId === myId && myState) origin = new THREE.Vector3(myState.x, (myState.y || 0) + 1.25, myState.z); else { const remote = remotePlayers.get(ownerId); if (remote) origin = remote.position.clone().add(new THREE.Vector3(0, 1.25, 0)); } if (origin) line.geometry.setFromPoints([origin, line.userData.anchor]); }
   renderer.render(scene, camera);
 }
