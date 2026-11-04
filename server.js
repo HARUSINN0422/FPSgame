@@ -223,12 +223,13 @@ const WEAPONS = {
   },
   bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
   minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
-  shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false }
+  shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
+  grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false }
 };
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -239,6 +240,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
+  grappler: "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
   bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
@@ -267,6 +269,8 @@ try {
 WEAPONS.smg.fireInterval = 107 / 5;
 WEAPONS.smg.magazineSize = 20;
 WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数20発";
+WEAPONS.grappler.magazineSize = 0;
+WEAPONS.grappler.description = "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要";
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
 WEAPONS.marksman.fireInterval = 225 * 1.25;
@@ -470,6 +474,15 @@ app.post("/api/admin/logout", (req, res) => {
   res.setHeader("Set-Cookie", "fps_admin_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0" + ((req.secure || req.headers["x-forwarded-proto"] === "https") ? "; Secure" : ""));
   res.json({ ok: true });
 });
+const NOTICE_FILE = path.join(__dirname, "updates.txt");
+app.get("/api/lobby-info", (_req, res) => {
+  let notice = "";
+  try { notice = fs.readFileSync(NOTICE_FILE, "utf8"); } catch (_) {}
+  const onlinePlayers = Array.from(players.values()).filter(player => !player.isBot && io.sockets.sockets.has(player.id)).length;
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ onlinePlayers, notice });
+});
+
 app.get("/api/weapons", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { description: weapon.description || DEFAULT_WEAPON_DESCRIPTIONS[id] || "", fireInterval: weapon.fireInterval, automatic: weapon.automatic }])) });
@@ -1091,6 +1104,43 @@ function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
   });
 }
 
+function spawnGrappleProjectile(shooter, now = Date.now()) {
+  const direction = directionFromAngles(shooter.yaw, shooter.pitch);
+  const speed = 30;
+  const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const origin = { x: shooter.x + direction.x * 0.62, y: shooter.y + height - 0.18, z: shooter.z + direction.z * 0.62 };
+  const id = "grapple-projectile-" + (++smokeSequence);
+  const projectile = {
+    id, type: "grapple", owner: shooter, ownerId: shooter.id,
+    x: origin.x, y: origin.y, z: origin.z,
+    startX: origin.x, startY: origin.y, startZ: origin.z,
+    vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
+    expiresAt: now + 2200
+  };
+  grenadeProjectiles.set(id, projectile);
+  broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
+  broadcastGameEvent(shooter, "shot", { id: shooter.id, x: origin.x, y: origin.y, z: origin.z, yaw: shooter.yaw, pitch: shooter.pitch, weapon: "grappler", hit: null, tracers: [] });
+}
+
+function applyGrapplePull(projectile, position) {
+  const owner = projectile.owner;
+  if (!owner || players.get(owner.id) !== owner || owner.health <= 0 || owner.finished) return;
+  const dx = position.x - owner.x;
+  const dy = position.y - (owner.y + (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65);
+  const dz = position.z - owner.z;
+  const horizontal = Math.hypot(dx, dz);
+  if (horizontal < 1.2 && Math.abs(dy) < 1.5) return;
+  const directionX = horizontal > 0.001 ? dx / horizontal : 0;
+  const directionZ = horizontal > 0.001 ? dz / horizontal : 0;
+  const pullSpeed = clamp(24 + horizontal * 0.12, 24, 34);
+  owner.knockbackVelocityX = (Number(owner.knockbackVelocityX) || 0) + directionX * pullSpeed;
+  owner.knockbackVelocityZ = (Number(owner.knockbackVelocityZ) || 0) + directionZ * pullSpeed;
+  owner.velocityY = Math.max(Number(owner.velocityY) || 0, clamp(5 + dy * 1.5, 3, 13));
+  owner.grounded = false;
+  owner.lastGroundedAt = 0;
+  broadcastGameEvent(owner, "grappleImpact", { id: projectile.id, x: position.x, y: position.y, z: position.z });
+}
+
 function applyShockwave(projectile, position, now = Date.now()) {
   const radius = 7.8;
   const id = "shockwave-burst-" + (++smokeSequence);
@@ -1346,7 +1396,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       }
 
       for (const target of players.values()) {
-        if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+        if (projectile.type === "grapple" || target.id === projectile.ownerId || target.health <= 0 || target.finished ||
             !isSameGame(projectile.owner, target)) continue;
         const hit = rayHitsPlayer(from, direction, target);
         if (hit && hit.t >= 0 && hit.t <= distance && (!nearestHit || hit.t < nearestHit.distance)) {
@@ -1378,7 +1428,11 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     }
 
     if (impact) {
-      if (projectile.type === "shockwave") {
+      if (projectile.type === "grapple") {
+        applyGrapplePull(projectile, impact);
+        grenadeProjectiles.delete(projectile.id);
+        broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      } else if (projectile.type === "shockwave") {
         projectile.pendingShockwaveAt = now + 300;
         projectile.pendingShockwavePosition = impact;
         broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
@@ -2422,6 +2476,11 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   if (shooter.weapon === "shockwaveLauncher") {
     shooter.lastFire = now;
     spawnGrenadeProjectile(shooter, now, "shockwave");
+    return;
+  }
+  if (shooter.weapon === "grappler") {
+    shooter.lastFire = now;
+    spawnGrappleProjectile(shooter, now);
     return;
   }
 
