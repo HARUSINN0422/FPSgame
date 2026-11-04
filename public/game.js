@@ -3765,7 +3765,8 @@ socket.on("grappleImpact", data => {
   line.userData.anchor = new THREE.Vector3(data.x, data.y, data.z);
   scene.add(line); grappleTethers.set(ownerId, line);
   setTimeout(() => { if (grappleTethers.get(ownerId) === line) { scene.remove(line); line.geometry.dispose(); line.material.dispose(); grappleTethers.delete(ownerId); } }, 900);
-});\nsocket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
+});
+socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
 socket.on("grenadeExplosion", createGrenadeExplosionVisual);
@@ -4854,7 +4855,8 @@ function animate(now) {
     }
   }
 
-  for (const [ownerId,line] of grappleTethers) { let origin=null;if(ownerId===myId&&myState)origin=new THREE.Vector3(myState.x,(myState.y||0)+1.25,myState.z);else{const remote=remotePlayers.get(ownerId);if(remote)origin=remote.position.clone().add(new THREE.Vector3(0,1.25,0));}if(origin)line.geometry.setFromPoints([origin,line.userData.anchor]);}\n  for (const [ownerId, line] of grappleTethers) { let origin = null; if (ownerId === myId && myState) origin = new THREE.Vector3(myState.x, (myState.y || 0) + 1.25, myState.z); else { const remote = remotePlayers.get(ownerId); if (remote) origin = remote.position.clone().add(new THREE.Vector3(0, 1.25, 0)); } if (origin) line.geometry.setFromPoints([origin, line.userData.anchor]); }
+  for (const [ownerId,line] of grappleTethers) { let origin=null;if(ownerId===myId&&myState)origin=new THREE.Vector3(myState.x,(myState.y||0)+1.25,myState.z);else{const remote=remotePlayers.get(ownerId);if(remote)origin=remote.position.clone().add(new THREE.Vector3(0,1.25,0));}if(origin)line.geometry.setFromPoints([origin,line.userData.anchor]);}
+  for (const [ownerId, line] of grappleTethers) { let origin = null; if (ownerId === myId && myState) origin = new THREE.Vector3(myState.x, (myState.y || 0) + 1.25, myState.z); else { const remote = remotePlayers.get(ownerId); if (remote) origin = remote.position.clone().add(new THREE.Vector3(0, 1.25, 0)); } if (origin) line.geometry.setFromPoints([origin, line.userData.anchor]); }
   renderer.render(scene, camera);
 }
 
