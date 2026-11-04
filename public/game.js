@@ -2455,6 +2455,10 @@ function updateRemotePlayers(players) {
       }
     }
     obj.userData.playerState = p;
+    for (const mesh of Object.values(obj.userData.skinMeshes?.base || {})) mesh.visible = !p.invisible;
+    for (const mesh of Object.values(obj.userData.skinMeshes?.overlay || {})) mesh.visible = !p.invisible;
+    if (obj.userData.nameSprite) obj.userData.nameSprite.visible = !p.invisible;
+    if (obj.userData.weaponMesh) obj.userData.weaponMesh.visible = true;
     const nameSprite = obj.userData.nameSprite;
     const teamColor = ["Area", "Payload"].includes(p.mode)
       ? (p.team === "blue" ? "#54b7ff" : "#ff6565")
@@ -3286,6 +3290,7 @@ document.getElementById("respawnButton")?.addEventListener("click", () => {
 });
 
 socket.on("world", buildWorld);
+socket.on("riftDuelResult", data => showMessage(data?.won ? "鏡界の勝者！元の場所へ戻りました。3秒間無敵です。" : "鏡界で敗北しました。通常のデスとして処理されます。"));
 
 const mapChangeCountdownElement = document.getElementById("mapChangeCountdown");
 let mapChangeNoticeTimeout = null;
@@ -3650,7 +3655,7 @@ socket.on("joined", ({ player }) => {
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
   selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(player.charm) ? player.charm : "none";
-  selectedUltimate = ["skyfall", "teleport", "aegis"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
+  selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
   myId = player.id;
@@ -3886,7 +3891,7 @@ function updateLoadoutSelectionUi() {
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
   const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り" };
-  const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁" };
+  const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁", invisible: "幽影", rift: "鏡界" };
   document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const charmName = charmNames[selectedCharm] || "未選択";
@@ -3899,7 +3904,7 @@ document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEve
 }));
 document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedUltimate = ["skyfall", "teleport", "aegis"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
+  selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
   updateLoadoutSelectionUi();
 }));
 document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
@@ -4639,7 +4644,7 @@ function sendUltimateRequest(payload = {}, onSuccess) {
     const progressButton = document.getElementById("ultimateButton");
     if (progressButton) progressButton.style.setProperty("--ultimate-progress", "0%");
     if (typeof onSuccess === "function") onSuccess(result);
-    showMessage(result.type === "aegis" ? "蒼天障壁を展開！" : result.type === "teleport" ? "空間跳躍！" : "天墜！");
+    showMessage(({aegis:"蒼天障壁を展開！",teleport:"空間跳躍！",invisible:"幽影を発動！",rift:"鏡界へ移動！",skyfall:"天墜！"})[result.type]||"アルティメット発動！");
   });
 }
 
