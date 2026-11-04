@@ -1836,10 +1836,11 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
   let height = 0;
   const map = getMapForPlayer(player);
 
-  for (const ramp of map.ramps || []) {
-    const rampHeight = getRampHeight(ramp, x, z);
-    // スロープ下の通路にいるプレイヤーを、上面へ吸い上げない。
-    if (rampHeight !== null && playerY >= rampHeight - 0.18) {
+  for (let i = 0; i < (map.ramps || []).length; i++) {
+    const rampHeight = getRampHeight(map.ramps[i], x, z);
+    // スロープ上に乗っている状態を維持しつつ、下の通路からは上面へ吸い上げない。
+    if (rampHeight !== null &&
+        (playerY >= rampHeight - 0.18 || player?.rampContactId === i)) {
       height = Math.max(height, rampHeight);
     }
   }
@@ -1981,6 +1982,25 @@ function movePlayer(p, dt) {
     p.skyfallImpactPending = true;
   }
   updateCrouchState(p);
+
+  // 現在の高さと一致するスロープだけを「乗っている」と記録する。
+  // 下の通路からスロープの範囲へ入っただけでは接触扱いにしない。
+  const playerMap = getMapForPlayer(p);
+  let rampContact = -1;
+  for (let i = 0; i < (playerMap.ramps || []).length; i++) {
+    const rampHeight = getRampHeight(playerMap.ramps[i], p.x, p.z);
+    if (rampHeight !== null && Math.abs(p.y - rampHeight) <= 0.28) {
+      rampContact = i;
+      break;
+    }
+  }
+  if (rampContact >= 0) {
+    p.rampContactId = rampContact;
+  } else if (p.rampContactId !== undefined) {
+    const activeRamp = playerMap.ramps?.[p.rampContactId];
+    const activeHeight = activeRamp ? getRampHeight(activeRamp, p.x, p.z) : null;
+    if (activeHeight === null || p.y < activeHeight - 0.35) p.rampContactId = undefined;
+  }
 
   // 現在位置の地面高さを基準に、接地状態を毎tick正しく更新する。
   const groundBefore = getGroundHeight(p.x, p.z, p.y, p);
