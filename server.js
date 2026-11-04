@@ -478,7 +478,7 @@ const NOTICE_FILE = path.join(__dirname, "updates.txt");
 app.get("/api/lobby-info", (_req, res) => {
   let notice = "";
   try { notice = fs.readFileSync(NOTICE_FILE, "utf8"); } catch (_) {}
-  const onlinePlayers = Array.from(players.values()).filter(player => !player.isBot && io.sockets.sockets.has(player.id)).length;
+  const onlinePlayers = io.sockets.sockets.size; // Socket.IO接続数は人間のクライアントのみ。BOTは含まれません。
   res.setHeader("Cache-Control", "no-store");
   res.json({ onlinePlayers, notice });
 });
