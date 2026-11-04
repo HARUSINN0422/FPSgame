@@ -1818,7 +1818,9 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   // 頭上に十分な空間がある下通路は通過でき、斜面の側面から内部へ侵入することはできない。
   for (const ramp of map.ramps || []) {
     const rampSurface = getRampHeight(ramp, x, z);
-    if (rampSurface !== null && bodyBottom < rampSurface - 0.04 && bodyTop > 0.05) {
+    // 斜面の低い入口では登り始められるようにし、側面の高い部分だけを塞ぐ。
+    if (rampSurface !== null && rampSurface > 0.28 &&
+        bodyBottom < rampSurface - 0.04 && bodyTop > 0.05) {
       return true;
     }
   }
