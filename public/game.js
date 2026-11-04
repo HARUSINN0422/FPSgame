@@ -1045,10 +1045,6 @@ function savePlayerName() {
 }
 
 loadPlayerName();
-document.getElementById("topStartButton")?.addEventListener("click",()=>{document.getElementById("topScreen")?.classList.add("hidden");document.getElementById("weaponScreen")?.classList.remove("hidden");});
-document.getElementById("topSettingsButton")?.addEventListener("click",()=>document.getElementById("settingsButton")?.click());
-async function refreshLobbyInfo(){const base=location.pathname.startsWith("/FPSgame/")?"/FPSgame/":"/";try{const [cr,nr]=await Promise.all([fetch(base+"api/online-count",{cache:"no-store"}),fetch(base+"api/notices",{cache:"no-store"})]);if(cr.ok){const d=await cr.json(),el=document.getElementById("onlinePlayerCount");if(el)el.textContent=Math.max(0,Number(d.count)||0)+"人";}if(nr.ok){const raw=await nr.text(),list=document.getElementById("noticeList");if(list){list.replaceChildren();const items=raw.split(/\r?\n/).map(v=>v.trim()).filter(Boolean).map(v=>v.replace(/^[-*・]\s*/,""));if(!items.length){const li=document.createElement("li");li.textContent="現在お知らせはありません。";list.appendChild(li);}else for(const item of items){const li=document.createElement("li");li.textContent=item;list.appendChild(li);}}}}catch(_){}}
-refreshLobbyInfo();setInterval(refreshLobbyInfo,15000);
 setupSettings();
 
 const topScreen = document.getElementById("topScreen");
@@ -1067,7 +1063,7 @@ async function refreshLobbyInfo() {
     if (topOnlineCount) topOnlineCount.textContent = String(Math.max(0, Number(info.onlinePlayers) || 0));
     if (topNoticeList) {
       topNoticeList.replaceChildren();
-      const lines = String(info.notice || "").split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+      const lines = String(info.notice || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
       if (!lines.length) {
         const empty = document.createElement("li");
         empty.textContent = "現在お知らせはありません。";
@@ -1075,7 +1071,7 @@ async function refreshLobbyInfo() {
       } else {
         for (const line of lines) {
           const item = document.createElement("li");
-          item.textContent = line.replace(/^[-*・]\\s*/, "");
+          item.textContent = line.replace(/^[-*・]\s*/, "");
           topNoticeList.appendChild(item);
         }
       }
@@ -1852,7 +1848,7 @@ function createGrenadeProjectileVisual(data) {
   let mesh = grenadeProjectileMeshes.get(data.id);
   const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
   if (!mesh) {
-    const isShockwave = data.type === "shockwave";\n    const isGrappler = data.type === "grappler";
+    const isShockwave = data.type === "shockwave";
     const isGrapple = data.type === "grapple";
     const material = new THREE.MeshStandardMaterial({
       color: isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : 0x8b7a43, roughness: 0.5, metalness: 0.25,
@@ -2754,12 +2750,12 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
-  if (["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher"].includes(selectedWeapon)) startLocalWeaponAction(selectedWeapon);
+  if (["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) startLocalWeaponAction(selectedWeapon);
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
 function reload(preserveFiring = false) {
-  if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher"].includes(selectedWeapon)) return;
+  if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) return;
   if (!preserveFiring) stopFiring();
   socket.emit("reload");
 }
@@ -3183,7 +3179,7 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
-  if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher") {
+  if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     return;
   }
