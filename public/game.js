@@ -1047,6 +1047,87 @@ function savePlayerName() {
 loadPlayerName();
 setupSettings();
 
+async function setupPushNotifications() {
+  const button = document.getElementById("pushNotificationToggle");
+  const status = document.getElementById("pushNotificationStatus");
+  if (!button || !status) return;
+  const base = location.hostname === "test-gamma-two-87.vercel.app"
+    ? "https://harusinn.com/FPSgame/"
+    : (location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/");
+  const api = (path, options = {}) => fetch(base + "api/push/" + path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  let busy = false;
+  const update = async () => {
+    if (!supported) {
+      button.disabled = true;
+      button.textContent = "通知非対応";
+      status.textContent = "このブラウザではプッシュ通知を利用できません。";
+      return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      const enabled = Boolean(subscription);
+      button.textContent = enabled ? "通知 ON（OFFにする）" : "通知 OFF（ONにする）";
+      button.classList.toggle("push-enabled", enabled);
+      status.textContent = enabled
+        ? "通知はONです。日本時間9:00〜17:00のオンライン開始を通知します。"
+        : (Notification.permission === "denied" ? "ブラウザの通知設定でFPSgameの通知を許可してください。" : "通知はOFFです。");
+    } catch (error) {
+      status.textContent = "通知状態を確認できませんでした。";
+    }
+  };
+  button.addEventListener("click", async () => {
+    if (busy) return;
+    busy = true;
+    button.disabled = true;
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await api("unsubscribe", { method: "POST", body: JSON.stringify({ endpoint: existing.endpoint }) });
+        await existing.unsubscribe();
+        status.textContent = "通知をOFFにしました。";
+      } else {
+        if (!isStandalone && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+          status.textContent = "先にSafariの共有メニューから「ホーム画面に追加」し、追加したFPSgameを開いてください。";
+          return;
+        }
+        if (Notification.permission === "denied") {
+          status.textContent = "端末の設定でFPSgameの通知を許可してから、もう一度押してください。";
+          return;
+        }
+        const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+        if (permission !== "granted") {
+          status.textContent = "通知の許可が必要です。";
+          return;
+        }
+        const keyResponse = await api("public-key", { method: "GET", headers: {} });
+        if (!keyResponse.ok) throw new Error("通知サーバーの設定を取得できません。");
+        const { publicKey } = await keyResponse.json();
+        const applicationServerKey = Uint8Array.from(atob(publicKey.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+        const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+        const saveResponse = await api("subscribe", { method: "POST", body: JSON.stringify({ subscription: subscription.toJSON() }) });
+        if (!saveResponse.ok) throw new Error("通知登録を保存できませんでした。");
+        status.textContent = "通知をONにしました。";
+      }
+    } catch (error) {
+      status.textContent = "通知設定に失敗しました: " + (error.message || "不明なエラー");
+    } finally {
+      busy = false;
+      button.disabled = false;
+      await update();
+    }
+  });
+  await update();
+}
+
+setupPushNotifications();
+
 const topScreen = document.getElementById("topScreen");
 const topStartButton = document.getElementById("topStartButton");
 const topSettingsButton = document.getElementById("topSettingsButton");
