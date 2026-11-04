@@ -1276,6 +1276,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
       target.kills = target.kills || 0;
       target.deaths += 1;
       if(target.mode==="Duel"){const winner=selfElimination?gamePlayersFor(target).find(p=>p.id!==target.id):projectile.owner;resolveDuelRound(winner,target);}
+      target.invisibleUntil = 0;
       if (target.riftDuelId) finishRiftDuel(target);
       if (!selfElimination && projectile.owner.invisibleUntil > Date.now()) projectile.owner.invisibleUntil = 0;
       broadcastGameEvent(projectile.owner, "elimination", {
@@ -2728,6 +2729,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       result.target.deaths += 1;
       if(result.target.mode==="Duel")resolveDuelRound(shooter,result.target);
 
+      result.target.invisibleUntil = 0;
       if (result.target.riftDuelId) finishRiftDuel(result.target);
       if (shooter.invisibleUntil > Date.now()) shooter.invisibleUntil = 0;
       broadcastGameEvent(shooter, "elimination", {
@@ -2807,6 +2809,7 @@ function applyIncomingDamage(target, amount) {
   if (damage > 0) target.health = Math.max(0, healthBefore - damage);
   const healthDamage = Math.min(healthBefore, damage);
   if (target.health <= 0) {
+    target.invisibleUntil = 0;
     finishRiftDuel(target);
     // 死亡時はミニガンのチャージ・予約射撃を破棄し、リスポーンへの持ち越しを防ぐ。
     target.minigunChargeStartedAt = 0;
@@ -3657,7 +3660,7 @@ io.on("connection", (socket) => {
     }else if(type==="aegis"){
       p.maxHealth=p.charm==="hp"?120:100;p.shield=50;p.ultimateActiveUntil=0;
     }else if(type==="invisible"){
-      p.invisibleUntil=now+10000;p.ultimateActiveUntil=p.invisibleUntil;
+      p.invisibleUntil=now+10000;
     }else if(type==="rift"){
       const opponent=gamePlayersFor(p).filter(q=>q.id!==p.id&&q.health>0&&!q.finished&&!q.riftDuelId&&!(isTeamMatchMode(p.mode)&&q.team===p.team))
         .sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];
