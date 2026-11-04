@@ -1094,8 +1094,8 @@ function makeRamp(ramp, color = 0x71808d) {
     ]);
   }
 
+  // 底面は地面と同一平面になりZ-fightingを起こすため生成しない。
   const indices = [
-    0,1,3, 0,3,2,
     0,4,5, 0,5,1,
     2,3,7, 2,7,6,
     0,2,6, 0,6,4,
@@ -1117,13 +1117,16 @@ function makeRamp(ramp, color = 0x71808d) {
   const topMaterial = new THREE.MeshStandardMaterial({
     color,
     roughness: .9,
-    metalness: .05
+    metalness: .05,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
   });
 
   const mesh = new THREE.Mesh(geometry, [sideMaterial, topMaterial]);
   mesh.position.set(ramp.x, 0, ramp.z);
   mesh.castShadow = true;
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false;
   worldGroup.add(mesh);
   return mesh;
 }
@@ -1253,11 +1256,14 @@ function buildWorld(data) {
   floor.receiveShadow = true;
   worldGroup.add(floor);
 
-  const gridSize = Math.max(worldWidth, worldDepth);
-  const gridDivisions = Math.max(1, Math.round(gridSize / (Math.max(worldWidth, worldDepth) > 150 ? 8 : 2)));
-  const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x879487, 0x6b756b);
-  grid.position.set(centerX, 0.01, centerZ);
-  worldGroup.add(grid);
+  // Payloadは横長の矩形マップなので、正方形GridHelperによるステージ外の格子線を描画しない。
+  if (data.map?.id !== "payload-fractured-district") {
+    const gridSize = Math.max(worldWidth, worldDepth);
+    const gridDivisions = Math.max(1, Math.round(gridSize / (Math.max(worldWidth, worldDepth) > 150 ? 8 : 2)));
+    const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x879487, 0x6b756b);
+    grid.position.set(centerX, 0.01, centerZ);
+    worldGroup.add(grid);
+  }
 
   if (data.areaZone && Number.isFinite(data.areaZone.radius)) {
     const zone = data.areaZone;
