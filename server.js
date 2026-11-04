@@ -425,6 +425,69 @@ app.use("/api", (req, res, next) => {
 app.use(express.static(path.join(__dirname, "public")));
 
 const crypto = require("crypto");
+const webpush = require("web-push");
+
+const PUSH_DATA_DIR = path.join(__dirname, "data");
+const PUSH_KEYS_FILE = path.join(PUSH_DATA_DIR, "push-vapid-keys.json");
+const PUSH_SUBSCRIPTIONS_FILE = path.join(PUSH_DATA_DIR, "push-subscriptions.json");
+fs.mkdirSync(PUSH_DATA_DIR, { recursive: true });
+function readJsonFile(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch (_) { return fallback; }
+}
+let pushKeys = readJsonFile(PUSH_KEYS_FILE, null);
+if (!pushKeys?.publicKey || !pushKeys?.privateKey) {
+  pushKeys = webpush.generateVAPIDKeys();
+  fs.writeFileSync(PUSH_KEYS_FILE, JSON.stringify(pushKeys, null, 2), { mode: 0o600 });
+}
+webpush.setVapidDetails("mailto:admin@harusinn.com", pushKeys.publicKey, pushKeys.privateKey);
+let pushSubscriptions = readJsonFile(PUSH_SUBSCRIPTIONS_FILE, []);
+if (!Array.isArray(pushSubscriptions)) pushSubscriptions = [];
+function savePushSubscriptions() {
+  fs.writeFileSync(PUSH_SUBSCRIPTIONS_FILE, JSON.stringify(pushSubscriptions, null, 2), { mode: 0o600 });
+}
+app.get("/api/push/public-key", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json({ publicKey: pushKeys.publicKey });
+});
+app.post("/api/push/subscribe", (req, res) => {
+  const subscription = req.body?.subscription;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({ error: "通知の登録情報が正しくありません。" });
+  }
+  pushSubscriptions = pushSubscriptions.filter(item => item.endpoint !== subscription.endpoint);
+  pushSubscriptions.push(subscription);
+  savePushSubscriptions();
+  res.json({ ok: true });
+});
+app.post("/api/push/unsubscribe", (req, res) => {
+  const endpoint = req.body?.endpoint;
+  if (typeof endpoint === "string") {
+    pushSubscriptions = pushSubscriptions.filter(item => item.endpoint !== endpoint);
+    savePushSubscriptions();
+  }
+  res.json({ ok: true });
+});
+async function sendOnlinePushNotification() {
+  const payload = JSON.stringify({
+    title: "FPSgame",
+    body: "プレイヤーがオンラインになりました。",
+    url: "./"
+  });
+  const subscriptions = [...pushSubscriptions];
+  await Promise.all(subscriptions.map(async subscription => {
+    try {
+      await webpush.sendNotification(subscription, payload);
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        pushSubscriptions = pushSubscriptions.filter(item => item.endpoint !== subscription.endpoint);
+        savePushSubscriptions();
+      } else {
+        console.error("[Push] 通知送信に失敗しました:", error.message);
+      }
+    }
+  }));
+}
+
 const ADMIN_PASSWORD = process.env.FPS_ADMIN_PASSWORD || "0422";
 const adminSessions = new Map();
 const loginAttempts = new Map();
@@ -4085,6 +4148,28 @@ app.get("/{*splat}", (req, res, next) => {
   if (req.path.startsWith("/api/")) return res.status(404).json({ error: "APIが見つかりません" });
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
+
+let previousHumanOnlineCount = null;
+setInterval(() => {
+  const onlineCount = Array.from(players.values()).filter(player =>
+    !player.isBot && !player.disconnectedAt && io.sockets.sockets.has(player.id)
+  ).length;
+  if (previousHumanOnlineCount === null) {
+    previousHumanOnlineCount = onlineCount;
+    return;
+  }
+  const previous = previousHumanOnlineCount;
+  previousHumanOnlineCount = onlineCount;
+  if (previous === 0 && onlineCount === 1 && pushSubscriptions.length > 0) {
+    const japanHour = Number(new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo", hour: "2-digit", hourCycle: "h23"
+    }).format(new Date()));
+    if (japanHour >= 9 && japanHour < 17) {
+      sendOnlinePushNotification().catch(error => console.error("[Push] 通知処理に失敗しました:", error));
+    }
+  }
+}, 3000).unref?.();
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Mobile FPS server running on http://0.0.0.0:${PORT}`);
