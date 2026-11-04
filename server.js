@@ -4167,7 +4167,7 @@ setInterval(() => {
     const japanHour = Number(new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Tokyo", hour: "2-digit", hourCycle: "h23"
     }).format(new Date()));
-    if (japanHour >= 9 && japanHour < 17) {
+    if (japanHour >= 8 && japanHour < 17) {
       sendOnlinePushNotification().catch(error => console.error("[Push] 通知処理に失敗しました:", error));
     }
   }
