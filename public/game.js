@@ -100,6 +100,18 @@ const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 let payloadCartGroup = null;
 let payloadRole = null;
+let payloadAttackingTeam = null;
+let payloadGateMeshes = [];
+function updatePayloadGateColors(attackingTeam) {
+  if (attackingTeam !== "blue" && attackingTeam !== "red") return;
+  payloadAttackingTeam = attackingTeam;
+  for (const gate of payloadGateMeshes) {
+    const team = gate.userData.role === "attack" ? attackingTeam : (attackingTeam === "blue" ? "red" : "blue");
+    const color = team === "blue" ? 0x258be8 : 0xe34b52;
+    gate.material.color.setHex(color);
+    gate.material.emissive.setHex(color);
+  }
+}
 
 const remotePlayers = new Map();
 const tracers = [];
@@ -1212,6 +1224,7 @@ function buildWorld(data) {
 
   worldData = data;
   payloadCartGroup = null;
+  payloadGateMeshes = [];
   const bounds = data.world || { minX: -48, maxX: 48, minZ: -48, maxZ: 48 };
   // マップ境界の外側に2ユニット分の床と壁を設けます。
   const worldWidth = bounds.maxX - bounds.minX + 4;
@@ -1268,7 +1281,8 @@ function buildWorld(data) {
 
   for (const o of data.obstacles || []) {
     if (o.teamOnlyRole) {
-      const gateColor = o.teamOnlyRole === "attack" ? 0x258be8 : 0xe34b52;
+      const roleTeam = payloadAttackingTeam ? (o.teamOnlyRole === "attack" ? payloadAttackingTeam : (payloadAttackingTeam === "blue" ? "red" : "blue")) : null;
+      const gateColor = roleTeam ? (roleTeam === "blue" ? 0x258be8 : 0xe34b52) : (o.teamOnlyRole === "attack" ? 0x258be8 : 0xe34b52);
       const gate = new THREE.Mesh(
         new THREE.BoxGeometry(o.w, o.h, o.d),
         new THREE.MeshStandardMaterial({
@@ -1284,6 +1298,8 @@ function buildWorld(data) {
       );
       gate.position.set(o.x, o.h / 2, o.z);
       gate.renderOrder = 3;
+      gate.userData.role = o.teamOnlyRole;
+      payloadGateMeshes.push(gate);
       worldGroup.add(gate);
     } else {
       makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
@@ -3263,6 +3279,7 @@ socket.on("payloadMatchStarted", ({ team, role, botCount, map } = {}) => {
 });
 socket.on("payloadState", state => {
   if (state.matchId !== myState?.matchId || selectedGameMode !== "Payload") return;
+  updatePayloadGateColors(state.attackingTeam);
   updatePayloadCartVisual(state.cart);
   const progress = Math.max(0, Math.min(100, Number(state.progress) || 0));
   const fill = document.getElementById("payloadProgressFill");
