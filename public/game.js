@@ -1226,7 +1226,8 @@ function buildWorld(data) {
     oldObject.traverse?.((part) => {
       part.geometry?.dispose();
       const materials = Array.isArray(part.material) ? part.material : [part.material];
-      for (const material of materials) {
+      const allMaterials = new Set([...materials, part.userData?.nearMaterial, part.userData?.farMaterial].filter(Boolean));
+      for (const material of allMaterials) {
         material?.map?.dispose();
         material?.dispose();
       }
