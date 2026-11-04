@@ -4,6 +4,7 @@ const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
 const { execFile, spawn, spawnSync } = require("child_process");
+const { monitorEventLoopDelay } = require("perf_hooks");
 
 // 自動更新で古いプロセスから直接起動された場合も、fpsというscreenセッションに戻す。
 // 通常の@reboot screen起動では標準出力がTTYなので、そのままサーバーを起動する。
@@ -383,6 +384,10 @@ function checkForUpdates() {
 const server = http.createServer(app);
 const VERCEL_FRONTEND_ORIGIN = "https://test-gamma-two-87.vercel.app";
 const io = new Server(server, {
+  // Raspberry Piや一時的なCPU負荷でheartbeat応答が遅れても即切断しない。
+  pingInterval: 20000,
+  pingTimeout: 60000,
+  upgradeTimeout: 30000,
   cors: {
     origin: [VERCEL_FRONTEND_ORIGIN],
     methods: ["GET", "POST"]
@@ -3590,7 +3595,16 @@ io.on("connection", (socket) => {
     p.lastFire = 0;
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", (reason) => {
+    const disconnectedPlayer = players.get(socket.id);
+    if (disconnectedPlayer?.mode === PAYLOAD_MODE) {
+      appendServerLog("PAYLOAD-DISCONNECT", [
+        "reason=" + String(reason),
+        "transport=" + String(socket.conn?.transport?.name || "unknown"),
+        "match=" + String(disconnectedPlayer.matchId || "unknown"),
+        "players=" + players.size
+      ]);
+    }
     cancelAreaQueue(socket.id);
     cancelPayloadQueue(socket.id);
     const player = players.get(socket.id);
@@ -3815,5 +3829,23 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`Mobile FPS server running on http://0.0.0.0:${PORT}`);
   console.log(`[AutoUpdate] GitHubの更新を${AUTO_UPDATE_INTERVAL / 1000}秒ごとに確認します。`);
   setTimeout(checkForUpdates, AUTO_UPDATE_INTERVAL);
-  setInterval(checkForUpdates, AUTO_UPDATE_INTERVAL);
+  
+// ループ遅延を記録し、Payload中の瞬断がサーバー負荷由来か判別できるようにする。
+const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+eventLoopDelay.enable();
+setInterval(() => {
+  const p95 = eventLoopDelay.percentile(95) / 1e6;
+  const max = eventLoopDelay.max / 1e6;
+  if (p95 >= 100 || max >= 300) {
+    appendServerLog("EVENT-LOOP-LAG", [
+      "p95=" + p95.toFixed(1) + "ms",
+      "max=" + max.toFixed(1) + "ms",
+      "players=" + players.size,
+      "payloadPlayers=" + Array.from(players.values()).filter((p) => p.mode === PAYLOAD_MODE).length
+    ]);
+  }
+  eventLoopDelay.reset();
+}, 30000).unref?.();
+
+setInterval(checkForUpdates, AUTO_UPDATE_INTERVAL);
 });
