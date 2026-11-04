@@ -1575,13 +1575,13 @@ function updateBot(p, now) {
     isSameGame(p, other) && other.health > 0 && !other.disconnectedAt && other.team === p.team &&
     Math.hypot(other.x - zone.x, other.z - zone.z) <= zone.radius
   ).length : 0;
-  const objectiveHoldRadius = isPayloadBot && p.role === "defense" ? zone.radius * 0.62 : zone.radius * 0.9;
+  const objectiveHoldRadius = isPayloadBot && p.role === "defense" ? zone.radius * 0.32 : zone.radius * 0.9;
   const botInsideZone = Boolean(zone && Math.hypot(p.x - zone.x, p.z - zone.z) <= objectiveHoldRadius);
   const enemyOwnsOrUnclaimedZone=isAreaBot&&Boolean(zone&&(!match?.ownerTeam||match.ownerTeam!==p.team));
   const enemyIsTakingZone=isAreaBot&&Boolean(match?.captureTeam&&match.captureTeam!==p.team);
   // 中立/敵側のエリアでは味方の人数にかかわらずBOTも制圧に参加する。
   // 自チーム所有中は、エリア内の味方が2人未満なら守備要員として向かう。
-  const needsObjectiveSupport=isPayloadBot?(p.role === "defense" ? livingTeamMembersInZone<3 : livingTeamMembersInZone<2):livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
+  const needsObjectiveSupport=isPayloadBot?(p.role === "defense" ? true : livingTeamMembersInZone<2):livingTeamMembersInZone<2||enemyOwnsOrUnclaimedZone||enemyIsTakingZone;
   const visibleCloseEnemy = visibleTargets.some((target) => Math.hypot(target.x - p.x, target.z - p.z) <= 8);
   const moveToObjective = Boolean(zone && !botInsideZone && needsObjectiveSupport && (isPayloadBot || !visibleTargets.length || !visibleCloseEnemy));
   // ペイロードBOTは交戦中もカート周辺に残り、護送・停止判定に参加する。
