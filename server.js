@@ -636,6 +636,7 @@ function createTrainingMap() {
     obstacles: [{ x: 0, z: -11, w: 12, d: 1, h: 2.8 }],
     floorTiles: [
       { id: "fire", type: "fire", x: 12, z: -3.75, w: 4, d: 13.5 },
+      { id: "speed", type: "speed", x: -7, z: -3.75, w: 4, d: 13.5 },
       { id: "slime", type: "slime", x: -12, z: -3.75, w: 4, d: 13.5 }
     ],
     ramps: [],
@@ -1953,8 +1954,10 @@ function movePlayer(p, dt) {
 
   const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
   const baseMoveSpeed = p.crouched ? CROUCH_SPEED : PLAYER_SPEED;
-  // 床と武器固有能力の速度倍率は加算せず、必ず乗算して適用する。
-  const floorMoveMultiplier = p.charm === "floor" || !isOnFloorTile(p, "slime") ? 1 : 0.5;
+  // 速度上昇床は通常床の2倍。減速床の効果とは乗算で適用する。
+  const speedFloorMultiplier = isOnFloorTile(p, "speed") ? 2 : 1;
+  const slowFloorMultiplier = p.charm === "floor" || !isOnFloorTile(p, "slime") ? 1 : 0.5;
+  const floorMoveMultiplier = speedFloorMultiplier * slowFloorMultiplier;
   const weaponMoveMultiplier =
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
