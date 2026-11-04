@@ -636,7 +636,7 @@ function createTrainingMap() {
     obstacles: [{ x: 0, z: -11, w: 12, d: 1, h: 2.8 }],
     floorTiles: [
       { id: "fire", type: "fire", x: 12, z: -3.75, w: 4, d: 13.5 },
-      { id: "speed", type: "speed", x: -7, z: -3.75, w: 4, d: 13.5 },
+      { id: "speed", type: "speed", x: -12, z: 9.75, w: 4, d: 13.5 },
       { id: "slime", type: "slime", x: -12, z: -3.75, w: 4, d: 13.5 }
     ],
     ramps: [],
