@@ -1114,19 +1114,18 @@ function makeRamp(ramp, color = 0x71808d) {
 
   // スロープ側面は照明・影の影響を受けないようにする。
   const sideMaterial = new THREE.MeshBasicMaterial({ color });
-  const topMaterial = new THREE.MeshStandardMaterial({
+  const topMaterial = new THREE.MeshBasicMaterial({
     color,
-    roughness: .9,
-    metalness: .05,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1
+    side: THREE.DoubleSide,
+    depthWrite: true
   });
 
   const mesh = new THREE.Mesh(geometry, [sideMaterial, topMaterial]);
   mesh.position.set(ramp.x, 0, ramp.z);
-  mesh.castShadow = true;
+  mesh.castShadow = false;
   mesh.receiveShadow = false;
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1;
   worldGroup.add(mesh);
   return mesh;
 }
