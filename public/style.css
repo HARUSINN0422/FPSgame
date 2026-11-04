@@ -1855,3 +1855,7 @@ body.controller-mode #settingsButton {
   .top-online-count { margin: 12px 0; }
   .top-notice ul { max-height: 24vh; }
 }
+
+/* プッシュ通知ON状態 */
+#pushNotificationToggle.push-enabled { background: #247a43; border-color: #42a96a; color: #fff; }
+#pushNotificationToggle:disabled { opacity: .6; }
