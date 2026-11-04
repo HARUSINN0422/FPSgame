@@ -4457,39 +4457,21 @@ window.addEventListener("blur", () => {
 });
 
 const ultimateButtonElement = document.getElementById("ultimateButton");
-let ultimatePointer = null;
+// 移動操作と同時に押せるよう、pointerdownの時点で発動する。
+// Pointer Captureや移動量によるキャンセルは、マルチタッチ中の入力競合を起こすため使わない。
 ultimateButtonElement?.addEventListener("pointerdown", event => {
   if (layoutEditing || ultimateButtonElement.disabled || !event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
   event.preventDefault();
-  ultimatePointer = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
-  try { ultimateButtonElement.setPointerCapture(event.pointerId); } catch (_) {}
   ultimateButtonElement.classList.add("ultimate-pressed");
+  activateUltimate();
 });
-ultimateButtonElement?.addEventListener("pointermove", event => {
-  if (!ultimatePointer || event.pointerId !== ultimatePointer.id) return;
-  if (Math.hypot(event.clientX - ultimatePointer.x, event.clientY - ultimatePointer.y) > 14) {
-    ultimatePointer.moved = true;
-    ultimateButtonElement.classList.remove("ultimate-pressed");
-  }
-});
-ultimateButtonElement?.addEventListener("pointerup", event => {
-  if (!ultimatePointer || event.pointerId !== ultimatePointer.id) return;
-  const shouldActivate = !ultimatePointer.moved && !layoutEditing && !ultimateButtonElement.disabled;
-  ultimatePointer = null;
+ultimateButtonElement?.addEventListener("pointerup", () => {
   ultimateButtonElement.classList.remove("ultimate-pressed");
-  if (shouldActivate) {
-    event.preventDefault();
-    activateUltimate();
-  }
 });
-const cancelUltimatePointer = event => {
-  if (!ultimatePointer || (event.pointerId != null && event.pointerId !== ultimatePointer.id)) return;
-  ultimatePointer = null;
-  ultimateButtonElement?.classList.remove("ultimate-pressed");
-};
-ultimateButtonElement?.addEventListener("pointercancel", cancelUltimatePointer);
-ultimateButtonElement?.addEventListener("lostpointercapture", cancelUltimatePointer);
-// キーボード操作や支援技術からの click は維持する。ポインター操作は pointerup 側で処理済み。
+ultimateButtonElement?.addEventListener("pointercancel", () => {
+  ultimateButtonElement.classList.remove("ultimate-pressed");
+});
+// キーボード操作や支援技術からの click も維持する。
 ultimateButtonElement?.addEventListener("click", event => {
   if (event.detail === 0 && !layoutEditing) activateUltimate();
 });
