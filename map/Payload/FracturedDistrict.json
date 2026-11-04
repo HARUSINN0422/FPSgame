@@ -1394,19 +1394,27 @@
   ],
   "floorTiles": [
     {
-      "id": "north-lane",
+      "id": "north-lane-safe-west",
       "type": "safe",
-      "x": 0,
+      "x": -98,
       "z": -76,
-      "w": 220,
+      "w": 24,
       "d": 12
     },
     {
-      "id": "south-lane",
+      "id": "north-lane-safe-middle",
       "type": "safe",
-      "x": 0,
-      "z": 76,
-      "w": 220,
+      "x": -48.5,
+      "z": -76,
+      "w": 43,
+      "d": 12
+    },
+    {
+      "id": "north-lane-safe-east",
+      "type": "safe",
+      "x": 50.5,
+      "z": -76,
+      "w": 119,
       "d": 12
     },
     {
@@ -1423,6 +1431,30 @@
       "x": -18,
       "z": -76,
       "w": 18,
+      "d": 12
+    },
+    {
+      "id": "south-lane-safe-west",
+      "type": "safe",
+      "x": -40,
+      "z": 76,
+      "w": 140,
+      "d": 12
+    },
+    {
+      "id": "south-lane-safe-middle",
+      "type": "safe",
+      "x": 64.5,
+      "z": 76,
+      "w": 37,
+      "d": 12
+    },
+    {
+      "id": "south-lane-safe-east",
+      "type": "safe",
+      "x": 105.5,
+      "z": 76,
+      "w": 9,
       "d": 12
     },
     {
