@@ -1468,6 +1468,13 @@ function updateBot(p, now) {
   const botSkyfallActive = Boolean(p.skyfallImpactId && p.ultimateActiveUntil > now);
   if (p.ultimateActiveUntil > now && !botSkyfallActive) return;
   p.botThinkAt = now + (botSkyfallActive ? 80 : 100 + Math.random() * 80);
+  if (!botSkyfallActive && (!p.botTacticUntil || now >= p.botTacticUntil)) {
+    const tactics = ["push", "flank", "circle", "cautious", "aggressive", "reposition"];
+    p.botTactic = tactics[Math.floor(Math.random() * tactics.length)];
+    p.botStrafeSign = Math.random() < 0.5 ? -1 : 1;
+    p.botAggression = 0.55 + Math.random() * 0.9;
+    p.botTacticUntil = now + 900 + Math.random() * 2300;
+  }
 
   const isAreaBot=p.mode===AREA_MODE;
   const isPayloadBot=p.mode===PAYLOAD_MODE;
@@ -1652,20 +1659,21 @@ function updateBot(p, now) {
     const distance = Math.max(0.001, Math.hypot(dx, dz));
     const targetYaw = Math.atan2(-dx, -dz);
     const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
-    p.yaw += clamp(yawDelta, -0.18, 0.18);
+    p.yaw += clamp(yawDelta, -0.14 - p.botAggression * 0.06, 0.14 + p.botAggression * 0.06);
     p.pitch = 0;
     const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
     const dir = directionFromAngles(p.yaw, 0);
     const wallDistance = rayHitsObstacle(origin, dir, 3.8, p);
     if (wallDistance !== null && wallDistance < 2.4) {
       // 直進路が塞がれている場合は斜めに回り込み、壁の前で停滞しにくくする。
-      const turnDirection = Math.sin(now / 1700 + (p.botOffset || 0)) >= 0 ? 1 : -1;
-      p.yaw += turnDirection * 0.48;
-      p.input.forward = 0.34;
-      p.input.strafe = turnDirection * 0.72;
+      const turnDirection = p.botStrafeSign || 1;
+      p.yaw += turnDirection * (0.32 + Math.random() * 0.28);
+      p.input.forward = 0.28 + Math.random() * 0.28;
+      p.input.strafe = turnDirection * (0.55 + Math.random() * 0.3);
     } else {
-      p.input.forward = 1;
-      p.input.strafe = Math.sin(now / 1100 + (p.botOffset || 0)) * 0.12;
+      p.input.forward = p.botTactic === "cautious" ? 0.62 : p.botTactic === "aggressive" ? 1 : 0.78 + Math.random() * 0.22;
+      const strafeBase = p.botTactic === "flank" ? 0.42 : p.botTactic === "circle" ? 0.28 : 0.12;
+      p.input.strafe = (p.botStrafeSign || 1) * (strafeBase + Math.random() * 0.12);
     }
     p.input.crouch = false;
     return;
@@ -1728,16 +1736,28 @@ function updateBot(p, now) {
     p.input.forward = 0;
     p.input.strafe = 0;
   } else if (!visible) {
-    // 射線が通らず撃ち合っていない間は、壁を避けながら最大速度で索敵する。
-    if (wallDistance !== null && wallDistance < 2.4) p.yaw += Math.sin(now / 900) >= 0 ? 0.42 : -0.42;
-    p.input.forward = 1;
-    p.input.strafe = Math.sin(now / 850) * 0.2;
+    // 射線が通らない場合は、BOTごとに異なる方向へ回り込みながら索敵する。
+    if (wallDistance !== null && wallDistance < 2.4) p.yaw += (p.botStrafeSign || 1) * (0.3 + Math.random() * 0.25);
+    p.input.forward = 0.65 + Math.random() * 0.35;
+    p.input.strafe = (p.botStrafeSign || 1) * (0.12 + Math.random() * 0.3);
   } else if (distance > 5) {
-    p.input.forward = 1;
-    p.input.strafe = Math.sin(now / 850) * 0.35;
+    const tactic = p.botTactic || "push";
+    if (tactic === "cautious") {
+      p.input.forward = 0.35 + Math.random() * 0.25;
+      p.input.strafe = (p.botStrafeSign || 1) * (0.35 + Math.random() * 0.25);
+    } else if (tactic === "circle" || tactic === "flank") {
+      p.input.forward = tactic === "flank" ? 0.45 + Math.random() * 0.35 : 0.05 + Math.random() * 0.2;
+      p.input.strafe = (p.botStrafeSign || 1) * (0.65 + Math.random() * 0.3);
+    } else if (tactic === "reposition") {
+      p.input.forward = Math.random() < 0.35 ? -0.25 : 0.35;
+      p.input.strafe = (p.botStrafeSign || 1) * (0.45 + Math.random() * 0.35);
+    } else {
+      p.input.forward = 0.7 + Math.random() * 0.3;
+      p.input.strafe = (p.botStrafeSign || 1) * (0.08 + Math.random() * 0.28);
+    }
   } else {
-    p.input.forward = -0.2;
-    p.input.strafe = Math.sin(now / 500) * 0.5;
+    p.input.forward = p.botTactic === "aggressive" ? 0.15 : -0.15 - Math.random() * 0.25;
+    p.input.strafe = (p.botStrafeSign || 1) * (0.25 + Math.random() * 0.45);
   }
   p.input.crouch = false;
   // ペイロードBOTは交戦の手数を少し増やし、目標周辺の攻防を維持する。
@@ -1773,6 +1793,10 @@ function respawnBot(p, now) {
   p.ammo = WEAPONS[p.weapon].magazineSize;
   p.reloadingUntil = 0; p.lastFire = 0;
   p.input = { forward: 0, strafe: 0, crouch: false };
+  p.botTacticUntil = 0;
+  p.botTactic = ["push", "flank", "circle", "cautious", "aggressive"][Math.floor(Math.random() * 5)];
+  p.botStrafeSign = Math.random() < 0.5 ? -1 : 1;
+  p.botAggression = 0.55 + Math.random() * 0.9;
   p.crouched = false; p.respawnAt = 0;
   p.invulnerableUntil = now + (p.mode === PAYLOAD_MODE ? 2500 : 1500);
   p.damageHitstopUntil = 0; p.damageSlowUntil = 0;
@@ -1789,6 +1813,15 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
 
   const bodyBottom = y;
   const bodyTop = y + height;
+
+  // スロープは上面だけでなく内部・側面も立体として扱う。
+  // 頭上に十分な空間がある下通路は通過でき、斜面の側面から内部へ侵入することはできない。
+  for (const ramp of map.ramps || []) {
+    const rampSurface = getRampHeight(ramp, x, z);
+    if (rampSurface !== null && bodyBottom < rampSurface - 0.04 && bodyTop > 0.05) {
+      return true;
+    }
+  }
 
   const cartInfo = getPayloadCartCollisionInfo(player, x, z);
   if (cartInfo) {
@@ -2704,6 +2737,10 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
     botSpawnIndex,
     botThinkAt: 0,
     botOffset: Math.random() * 1000,
+    botTactic: ["push", "flank", "circle", "cautious", "aggressive"][Math.floor(Math.random() * 5)],
+    botTacticUntil: 0,
+    botStrafeSign: Math.random() < 0.5 ? -1 : 1,
+    botAggression: 0.65 + Math.random() * 0.7,
     x: spawn[0],
     y: spawn[1] || 0,
     z: spawn[2],
