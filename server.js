@@ -240,6 +240,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
+  grappler: "吸盤付きワイヤーを発射 / 着弾地点に自分を引き寄せる / リロード不要",
   grappler: "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
@@ -483,6 +484,17 @@ app.get("/api/lobby-info", (_req, res) => {
   res.json({ onlinePlayers, notice });
 });
 
+app.get("/api/online-count", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const count = Array.from(io.sockets.sockets.keys()).filter(id => { const p = players.get(id); return p && !p.isBot; }).length;
+  res.json({ count });
+});
+app.get("/api/notices", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  let notices = "";
+  try { notices = fs.readFileSync(path.join(__dirname, "notices.txt"), "utf8"); } catch (_) {}
+  res.type("text/plain; charset=utf-8").send(notices);
+});
 app.get("/api/weapons", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json({ weapons: Object.fromEntries(Object.entries(WEAPONS).map(([id, weapon]) => [id, { description: weapon.description || DEFAULT_WEAPON_DESCRIPTIONS[id] || "", fireInterval: weapon.fireInterval, automatic: weapon.automatic }])) });
@@ -502,7 +514,7 @@ app.post("/api/admin/weapons", adminAuth, (req, res) => {
     for (const key of numericKeys) {
       if (source[key] === undefined || source[key] === "") { if (key === "pellets") delete item[key]; continue; }
       const value = Number(source[key]);
-      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (["smoke", "bow", "shockwaveLauncher"].includes(id) ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
+      if (!Number.isFinite(value) || value < 0 || (key === "fireInterval" && value < 1) || (key === "magazineSize" && value < (["smoke", "bow", "shockwaveLauncher", "grappler"].includes(id) ? 0 : 1)) || (key === "minDamageMultiplier" && value > 1) || (key === "pellets" && (!Number.isInteger(value) || value < 1))) {
         return res.status(400).json({ error: id + " の " + key + " が不正です" });
       }
       item[key] = value;
@@ -1013,6 +1025,7 @@ const SMOKE_DURATION_MS = 8500;
 const SMOKE_PROJECTILE_GRAVITY = 18;
 const smokeProjectiles = new Map();
 const grenadeProjectiles = new Map();
+const grapplerProjectiles = new Map();
 const smokeClouds = new Map();
 let smokeSequence = 0;
 
@@ -1337,6 +1350,67 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
     if (now < cloud.expiresAt) continue;
     smokeClouds.delete(cloud.id);
     broadcastGameEvent(cloud.owner, "smokeCloudRemove", { id: cloud.id });
+  }
+}
+
+function spawnGrapplerProjectile(shooter, now = Date.now()) {
+  if (shooter.grappleTarget) { shooter.grappleTarget = null; broadcastGameEvent(shooter, "grappleEnd", { ownerId: shooter.id }); }
+  const dir = directionFromAngles(shooter.yaw, shooter.pitch), height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const origin = { x: shooter.x + dir.x * 0.62, y: shooter.y + height - 0.18, z: shooter.z + dir.z * 0.62 };
+  const id = "grappler-projectile-" + (++smokeSequence), speed = 42;
+  const p = { id, owner: shooter, ownerId: shooter.id, x: origin.x, y: origin.y, z: origin.z,
+    vx: dir.x * speed, vy: dir.y * speed, vz: dir.z * speed, expiresAt: now + 1600 };
+  grapplerProjectiles.set(id, p);
+  broadcastGameEvent(shooter, "grappleProjectileSpawn", { id, x: p.x, y: p.y, z: p.z, expiresAt: p.expiresAt });
+}
+function updateGrapplerProjectiles(dt, now = Date.now()) {
+  for (const p of [...grapplerProjectiles.values()]) {
+    const owner = players.get(p.ownerId);
+    if (!owner || owner.health <= 0 || now >= p.expiresAt) {
+      grapplerProjectiles.delete(p.id); broadcastGameEvent(p.owner, "grappleProjectileRemove", { id: p.id }); continue;
+    }
+    const from = { x: p.x, y: p.y, z: p.z };
+    const next = { x: p.x + p.vx * dt, y: p.y + p.vy * dt, z: p.z + p.vz * dt };
+    const delta = { x: next.x-from.x, y: next.y-from.y, z: next.z-from.z };
+    const distance = Math.hypot(delta.x, delta.y, delta.z);
+    let hitDistance = Infinity;
+    if (distance > 1e-5) {
+      const dir = { x: delta.x/distance, y: delta.y/distance, z: delta.z/distance };
+      const wall = rayHitsObstacle(from, dir, distance, owner);
+      if (wall !== null) hitDistance = Math.min(hitDistance, wall);
+      for (const target of players.values()) {
+        if (target.id === owner.id || target.health <= 0 || target.finished || !isSameGame(owner,target)) continue;
+        const hit = rayHitsPlayer(from, dir, target);
+        if (hit && hit.t >= 0 && hit.t <= distance) hitDistance = Math.min(hitDistance, hit.t);
+      }
+      const ground = getGroundHeight(next.x,next.z,from.y,owner);
+      if (p.vy <= 0 && next.y <= ground + 0.08 && from.y >= ground - 0.05) {
+        const f = clamp((from.y-(ground+0.08))/Math.max(1e-5,from.y-next.y),0,1);
+        hitDistance = Math.min(hitDistance,f*distance);
+      }
+      const bounds = getMapForPlayer(owner).world || WORLD;
+      for (const axis of ["x","z"]) if (next[axis] < bounds["min"+axis.toUpperCase()] || next[axis] > bounds["max"+axis.toUpperCase()]) {
+        const plane = next[axis] < bounds["min"+axis.toUpperCase()] ? bounds["min"+axis.toUpperCase()] : bounds["max"+axis.toUpperCase()];
+        const f=(plane-from[axis])/(next[axis]-from[axis]); if(f>=0&&f<=1)hitDistance=Math.min(hitDistance,f*distance);
+      }
+      if (hitDistance < distance) {
+        const t=clamp(hitDistance,0,distance), point={x:from.x+dir.x*t,y:from.y+dir.y*t,z:from.z+dir.z*t};
+        owner.grappleTarget=point; grapplerProjectiles.delete(p.id);
+        broadcastGameEvent(owner,"grappleProjectileRemove",{id:p.id});
+        broadcastGameEvent(owner,"grappleAttach",{ownerId:owner.id,x:point.x,y:point.y,z:point.z}); continue;
+      }
+    }
+    p.x=next.x;p.y=next.y;p.z=next.z;
+    broadcastGameEvent(owner,"grappleProjectileUpdate",{id:p.id,x:p.x,y:p.y,z:p.z});
+  }
+  for (const player of players.values()) {
+    const target=player.grappleTarget;if(!target||player.health<=0||player.finished)continue;
+    const dx=target.x-player.x,dy=target.y-(player.y+0.85),dz=target.z-player.z,dist=Math.hypot(dx,dy,dz);
+    if(dist<=1.6){player.grappleTarget=null;broadcastGameEvent(player,"grappleEnd",{ownerId:player.id});continue;}
+    const step=Math.min(dist-1.35,24*dt), nx=player.x+dx/dist*step, ny=player.y+dy/dist*step, nz=player.z+dz/dist*step;
+    if(collides(nx,nz,ny,player.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT,player)){player.grappleTarget=null;broadcastGameEvent(player,"grappleEnd",{ownerId:player.id});continue;}
+    player.x=nx;player.y=Math.max(0,ny);player.z=nz;player.velocityY=0;player.grounded=false;
+    player.input={forward:0,strafe:0,crouch:player.input?.crouch===true};
   }
 }
 
@@ -2480,19 +2554,24 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   }
   if (shooter.weapon === "grappler") {
     shooter.lastFire = now;
+    spawnGrapplerProjectile(shooter, now);
+    return;
+  }
+  if (shooter.weapon === "grappler") {
+    shooter.lastFire = now;
     spawnGrappleProjectile(shooter, now);
     return;
   }
 
   if (shooter.weapon === "bow") {
     bowCharge = clamp(Number(bowCharge) || 0, 0, 1);
-  } else if (!["minigun", "shockwaveLauncher"].includes(shooter.weapon) && !weapon.melee && shooter.ammo <= 0) {
+  } else if (!["minigun", "shockwaveLauncher", "grappler"].includes(shooter.weapon) && !weapon.melee && shooter.ammo <= 0) {
     startReload(shooter);
     return;
   }
 
   shooter.lastFire = now;
-  if (!weapon.melee && !["bow", "minigun", "shockwaveLauncher"].includes(shooter.weapon)) {
+  if (!weapon.melee && !["bow", "minigun", "shockwaveLauncher", "grappler"].includes(shooter.weapon)) {
     shooter.ammo -= 1;
     if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
   }
@@ -3994,6 +4073,7 @@ setInterval(() => {
 
   updateSmokeProjectiles(dt, now);
   updateGrenadeProjectiles(dt, now);
+  updateGrapplerProjectiles(dt, now);
   updateAreaMatches(dt, now);
   updatePayloadMatches(dt, now);
   broadcastState();
