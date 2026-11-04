@@ -203,6 +203,7 @@ const weaponConfig = {
   smoke: { fireInterval: 1300, automatic: false },
   grenadeLauncher: { fireInterval: 900, automatic: false },
   shockwaveLauncher: { fireInterval: 900, automatic: false },
+  grappler: { fireInterval: 1100, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160, automatic: true },
@@ -1044,6 +1045,47 @@ function savePlayerName() {
 
 loadPlayerName();
 setupSettings();
+
+const topScreen = document.getElementById("topScreen");
+const topStartButton = document.getElementById("topStartButton");
+const topSettingsButton = document.getElementById("topSettingsButton");
+const topOnlineCount = document.getElementById("topOnlineCount");
+const topNoticeList = document.getElementById("topNoticeList");
+const lobbyApiBase = location.hostname === "test-gamma-two-87.vercel.app"
+  ? "https://harusinn.com/FPSgame/"
+  : (location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/");
+async function refreshLobbyInfo() {
+  try {
+    const response = await fetch(lobbyApiBase + "api/lobby-info", { cache: "no-store" });
+    if (!response.ok) return;
+    const info = await response.json();
+    if (topOnlineCount) topOnlineCount.textContent = String(Math.max(0, Number(info.onlinePlayers) || 0));
+    if (topNoticeList) {
+      topNoticeList.replaceChildren();
+      const lines = String(info.notice || "").split(/\\r?\\n/).map(line => line.trim()).filter(Boolean);
+      if (!lines.length) {
+        const empty = document.createElement("li");
+        empty.textContent = "現在お知らせはありません。";
+        topNoticeList.appendChild(empty);
+      } else {
+        for (const line of lines) {
+          const item = document.createElement("li");
+          item.textContent = line.replace(/^[-*・]\\s*/, "");
+          topNoticeList.appendChild(item);
+        }
+      }
+    }
+  } catch (_) {}
+}
+refreshLobbyInfo();
+setInterval(refreshLobbyInfo, 10000);
+topStartButton?.addEventListener("click", () => {
+  if (joined) return;
+  savePlayerName();
+  topScreen?.classList.add("hidden");
+  document.getElementById("weaponScreen")?.classList.remove("hidden");
+});
+topSettingsButton?.addEventListener("click", () => document.getElementById("settingsButton")?.click());
 updateGamepadStatus();
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
@@ -1659,6 +1701,21 @@ function createWeaponMesh(weapon) {
     return group;
   }
 
+  if (weapon === "grappler") {
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.34, 12), new THREE.MeshStandardMaterial({ color: 0x2c343d, metalness: 0.55, roughness: 0.38 }));
+    body.rotation.x = Math.PI / 2;
+    group.add(body);
+    const cup = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.045, 8, 18), new THREE.MeshStandardMaterial({ color: 0x40d9e8, metalness: 0.25, roughness: 0.28, emissive: 0x12434a }));
+    cup.position.z = -0.2;
+    group.add(cup);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.18), new THREE.MeshStandardMaterial({ color: 0x48515d, metalness: 0.4, roughness: 0.5 }));
+    grip.position.set(0, -0.25, 0.05);
+    group.add(grip);
+    group.position.set(0.34, 1.02, -0.22);
+    group.rotation.x = -0.08;
+    return group;
+  }
+
   if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
     const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "shockwaveLauncher" ? 0x39b9d8 : weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18, emissive: weapon === "shockwaveLauncher" ? 0x123d4b : 0x000000, emissiveIntensity: weapon === "shockwaveLauncher" ? 0.6 : 0 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
@@ -1735,7 +1792,7 @@ function refreshLocalWeaponViewModel() {
 }
 
 function startLocalWeaponAction(weapon) {
-  if (!["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher"].includes(weapon)) return;
+  if (!["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(weapon)) return;
   localWeaponActionType = weapon;
   localWeaponActionStartedAt = performance.now();
 }
@@ -1755,7 +1812,7 @@ function animateLocalWeaponViewModel(now) {
     localWeaponViewModel.rotation.x = 0.16 + angle * 0.64;
     localWeaponViewModel.rotation.z = -0.28 - angle * 0.46;
     localWeaponViewModel.position.y = -0.34 - Math.max(0, angle) * 0.035;
-  } else if (["smoke", "grenadeLauncher", "shockwaveLauncher"].includes(localWeaponActionType) && elapsed >= 0 && elapsed < 0.26) {
+  } else if (["smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(localWeaponActionType) && elapsed >= 0 && elapsed < 0.26) {
     const progress = elapsed / 0.26;
     localWeaponViewModel.position.set(0.38 + 0.12 * progress, -0.34 + 0.07 * Math.sin(progress * Math.PI), -0.62 - 0.1 * progress);
     localWeaponViewModel.rotation.z = -0.28 - progress * 0.48;
@@ -1791,11 +1848,25 @@ function createGrenadeProjectileVisual(data) {
   const position = new THREE.Vector3(Number(data.x) || 0, Number(data.y) || 0, Number(data.z) || 0);
   if (!mesh) {
     const isShockwave = data.type === "shockwave";
+    const isGrapple = data.type === "grapple";
     const material = new THREE.MeshStandardMaterial({
-      color: isShockwave ? 0x4bdcff : 0x8b7a43, roughness: 0.5, metalness: 0.25,
-      emissive: isShockwave ? 0x145b78 : 0x000000, emissiveIntensity: isShockwave ? 0.8 : 0
+      color: isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : 0x8b7a43, roughness: 0.5, metalness: 0.25,
+      emissive: isGrapple ? 0x12545c : isShockwave ? 0x145b78 : 0x000000, emissiveIntensity: isGrapple || isShockwave ? 0.8 : 0
     });
-    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), material);
+    mesh = new THREE.Mesh(isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(0.16, 14, 10), material);
+    if (isGrapple) {
+      mesh.rotation.x = Math.PI / 2;
+      const cup = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 7, 16), new THREE.MeshStandardMaterial({ color: 0x4ce7f0, metalness: 0.25, roughness: 0.25 }));
+      cup.position.z = -0.12;
+      mesh.add(cup);
+      const tetherGeometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const tether = new THREE.Line(tetherGeometry, new THREE.LineBasicMaterial({ color: 0x48dce8, transparent: true, opacity: 0.9 }));
+      tether.userData.ownerId = data.ownerId;
+      mesh.userData.tether = tether;
+      scene.add(tether);
+    }
+    mesh.userData.ownerId = data.ownerId;
+    mesh.userData.projectileType = data.type;
     mesh.userData.targetPosition = position.clone();
     mesh.userData.expiresAt = Number(data.expiresAt) || Date.now() + Number(data.remainingMs || 4500);
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.024, 5, 14), new THREE.MeshStandardMaterial({ color: 0x2d2b22, roughness: 0.72 }));
@@ -1810,6 +1881,11 @@ function removeGrenadeProjectileVisual(id) {
   const mesh = grenadeProjectileMeshes.get(id);
   if (!mesh) return;
   scene.remove(mesh);
+  if (mesh.userData.tether) {
+    scene.remove(mesh.userData.tether);
+    mesh.userData.tether.geometry.dispose();
+    mesh.userData.tether.material.dispose();
+  }
   mesh.traverse(part => {
     if (part.material) (Array.isArray(part.material) ? part.material : [part.material]).forEach(m => m?.dispose?.());
     if (part.geometry && part !== mesh) part.geometry.dispose();
@@ -4718,6 +4794,19 @@ function animate(now) {
     const targetYaw = obj.userData.targetYaw;
     const deltaYaw = Math.atan2(Math.sin(targetYaw - currentYaw), Math.cos(targetYaw - currentYaw));
     obj.rotation.y = currentYaw + deltaYaw * interpolation;
+  }
+
+  for (const mesh of grenadeProjectileMeshes.values()) {
+    const tether = mesh.userData.tether;
+    if (!tether) continue;
+    const ownerId = mesh.userData.ownerId;
+    let start = null;
+    if (ownerId === myId) start = camera.position.clone();
+    else {
+      const ownerObject = remotePlayers.get(ownerId);
+      if (ownerObject) start = ownerObject.position.clone().add(new THREE.Vector3(0, 1.15, 0));
+    }
+    if (start) tether.geometry.setFromPoints([start, mesh.position]);
   }
 
   updateSmokeVisuals(now, dt);
