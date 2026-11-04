@@ -858,6 +858,32 @@ function getPayloadCartCollisionInfo(player, x = player?.x, z = player?.z) {
   };
 }
 
+function getPayloadRespawnZones(map) {
+  if (!map) return [];
+  if (Array.isArray(map._payloadRespawnZones)) return map._payloadRespawnZones;
+  const ceilings = (map.obstacles || []).filter((o) => o.respawnArea && o.ceiling);
+  map._payloadRespawnZones = ceilings.map((ceiling) => {
+    const gate = (map.obstacles || [])
+      .filter((o) => o.respawnArea && o.teamOnlyRole)
+      .filter((o) => Math.hypot(o.x - ceiling.x, o.z - ceiling.z) <= 8)[0] || null;
+    let exitX = ceiling.x, exitZ = ceiling.z;
+    if (gate) {
+      if (gate.w < gate.d) exitX = gate.x + Math.sign(gate.x - ceiling.x || 1) * 1.8;
+      else exitZ = gate.z + Math.sign(gate.z - ceiling.z || 1) * 1.8;
+    }
+    return { x: ceiling.x, z: ceiling.z, halfW: (ceiling.w || 12) / 2, halfD: (ceiling.d || 12) / 2,
+      gateRole: gate?.teamOnlyRole || null, exitX, exitZ };
+  });
+  return map._payloadRespawnZones;
+}
+
+function getPayloadRespawnZoneAt(map, x, z) {
+  return getPayloadRespawnZones(map).find((zone) =>
+    Math.abs(x - zone.x) < zone.halfW - PLAYER_RADIUS &&
+    Math.abs(z - zone.z) < zone.halfD - PLAYER_RADIUS
+  ) || null;
+}
+
 function getPayloadSpawnPoint(player, index = 0) {
   const match = payloadMatches.get(player?.matchId);
   const total = getPayloadTrackLength();
@@ -1584,6 +1610,22 @@ function updateBot(p, now) {
 
   // ペイロードBOTは敵がカートより近ければ交戦し、それ以外はカートへ向かう。
   const cart=isPayloadBot?getPayloadPointAtDistance(match?.progress||0):null;
+  if (isPayloadBot && !p.botHasLeftRespawnArea) {
+    const spawnZone = getPayloadRespawnZoneAt(botMap, p.x, p.z);
+    if (spawnZone) {
+      const dx = spawnZone.exitX - p.x;
+      const dz = spawnZone.exitZ - p.z;
+      const targetYaw = Math.atan2(-dx, -dz);
+      const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
+      p.yaw += clamp(yawDelta, -0.22, 0.22);
+      p.pitch = 0;
+      p.input.forward = 1;
+      p.input.strafe = 0;
+      p.input.crouch = false;
+      return;
+    }
+    p.botHasLeftRespawnArea = true;
+  }
   const zone=isAreaBot?areaMap.areaZone:isPayloadBot?{x:cart.x,z:cart.z,radius:9}:null;
   const livingTeamMembersInZone = zone ? Array.from(players.values()).filter((other) =>
     isSameGame(p, other) && other.health > 0 && !other.disconnectedAt && other.team === p.team &&
@@ -1718,6 +1760,9 @@ function updateBot(p, now) {
 function respawnBot(p, now) {
   const spawn = pickSpawnForPlayer(p, p.botSpawnIndex || 0);
   p.x = spawn[0]; p.y = 0; p.z = spawn[2];
+  if (p.mode === PAYLOAD_MODE) {
+    p.botHasLeftRespawnArea = !getPayloadRespawnZoneAt(getMapForPlayer(p), p.x, p.z);
+  }
   p.yaw = p.mode === PAYLOAD_MODE ? -Math.PI / 2 : 0; p.pitch = 0;
   p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
   p.health = Number(p.maxHealth) || 100;
@@ -1739,6 +1784,8 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   const mapObstacles = map.obstacles || [];
   if (x < bounds.minX + PLAYER_RADIUS || x > bounds.maxX - PLAYER_RADIUS) return true;
   if (z < bounds.minZ + PLAYER_RADIUS || z > bounds.maxZ - PLAYER_RADIUS) return true;
+  if (player?.isBot && player.mode === PAYLOAD_MODE && player.botHasLeftRespawnArea &&
+      getPayloadRespawnZoneAt(map, x, z)) return true;
 
   const bodyBottom = y;
   const bodyTop = y + height;
@@ -1791,11 +1838,15 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
 
   for (const ramp of map.ramps || []) {
     const rampHeight = getRampHeight(ramp, x, z);
-    if (rampHeight !== null) height = Math.max(height, rampHeight);
+    // スロープ下の通路にいるプレイヤーを、上面へ吸い上げない。
+    if (rampHeight !== null && playerY >= rampHeight - 0.18) {
+      height = Math.max(height, rampHeight);
+    }
   }
 
   for (const platform of map.elevatedPlatforms || []) {
-    if (Math.abs(x - platform.x) <= platform.w / 2 - PLAYER_RADIUS &&
+    if (playerY >= platform.h - 0.35 &&
+        Math.abs(x - platform.x) <= platform.w / 2 - PLAYER_RADIUS &&
         Math.abs(z - platform.z) <= platform.d / 2 + PLAYER_RADIUS) {
       height = Math.max(height, platform.h);
     }
@@ -2020,6 +2071,10 @@ function movePlayer(p, dt) {
 
   if (!collides(p.x, nextZ, collisionY2, currentHeight, p)) {
     p.z = nextZ;
+  }
+  if (p.isBot && p.mode === PAYLOAD_MODE && !p.botHasLeftRespawnArea &&
+      !getPayloadRespawnZoneAt(getMapForPlayer(p), p.x, p.z)) {
+    p.botHasLeftRespawnArea = true;
   }
 
   // ジャンプ中/空中では必ず重力を適用する。
@@ -2665,7 +2720,11 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
   };
 }
 
-function createPayloadPlayer(options,spawn){return createAreaPlayer({...options,mode:PAYLOAD_MODE},spawn);}
+function createPayloadPlayer(options,spawn){
+  const player = createAreaPlayer({...options,mode:PAYLOAD_MODE},spawn);
+  player.botHasLeftRespawnArea = !getPayloadRespawnZoneAt(payloadMap, player.x, player.z);
+  return player;
+}
 
 function areaQueueStatus() {
   const remainingMs = Math.max(0, AREA_QUEUE_DURATION_MS - (Date.now() - areaQueueStartedAt));
@@ -3836,12 +3895,25 @@ eventLoopDelay.enable();
 setInterval(() => {
   const p95 = eventLoopDelay.percentile(95) / 1e6;
   const max = eventLoopDelay.max / 1e6;
+  const memory = process.memoryUsage();
+  const heapLimit = require("v8").getHeapStatistics().heap_size_limit;
   if (p95 >= 100 || max >= 300) {
     appendServerLog("EVENT-LOOP-LAG", [
       "p95=" + p95.toFixed(1) + "ms",
       "max=" + max.toFixed(1) + "ms",
+      "rss=" + Math.round(memory.rss / 1048576) + "MB",
+      "heapUsed=" + Math.round(memory.heapUsed / 1048576) + "MB",
+      "heapLimit=" + Math.round(heapLimit / 1048576) + "MB",
       "players=" + players.size,
       "payloadPlayers=" + Array.from(players.values()).filter((p) => p.mode === PAYLOAD_MODE).length
+    ]);
+  }
+  if (memory.rss >= 5.5 * 1024 * 1024 * 1024 || memory.heapUsed >= heapLimit * 0.8) {
+    appendServerLog("MEMORY-HIGH", [
+      "rss=" + Math.round(memory.rss / 1048576) + "MB",
+      "heapUsed=" + Math.round(memory.heapUsed / 1048576) + "MB",
+      "heapLimit=" + Math.round(heapLimit / 1048576) + "MB",
+      "external=" + Math.round(memory.external / 1048576) + "MB"
     ]);
   }
   eventLoopDelay.reset();
