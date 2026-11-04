@@ -1150,7 +1150,7 @@ function applyGrapplePull(projectile, position) {
   owner.velocityY = Math.max(Number(owner.velocityY) || 0, clamp(5 + dy * 1.5, 3, 13));
   owner.grounded = false;
   owner.lastGroundedAt = 0;
-  broadcastGameEvent(owner, "grappleImpact", { id: projectile.id, x: position.x, y: position.y, z: position.z });
+  broadcastGameEvent(owner, "grappleImpact", { id: projectile.id, ownerId: owner.id, x: position.x, y: position.y, z: position.z });
 }
 
 function applyShockwave(projectile, position, now = Date.now()) {
@@ -1349,67 +1349,6 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
     if (now < cloud.expiresAt) continue;
     smokeClouds.delete(cloud.id);
     broadcastGameEvent(cloud.owner, "smokeCloudRemove", { id: cloud.id });
-  }
-}
-
-function spawnGrapplerProjectile(shooter, now = Date.now()) {
-  if (shooter.grappleTarget) { shooter.grappleTarget = null; broadcastGameEvent(shooter, "grappleEnd", { ownerId: shooter.id }); }
-  const dir = directionFromAngles(shooter.yaw, shooter.pitch), height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-  const origin = { x: shooter.x + dir.x * 0.62, y: shooter.y + height - 0.18, z: shooter.z + dir.z * 0.62 };
-  const id = "grappler-projectile-" + (++smokeSequence), speed = 42;
-  const p = { id, owner: shooter, ownerId: shooter.id, x: origin.x, y: origin.y, z: origin.z,
-    vx: dir.x * speed, vy: dir.y * speed, vz: dir.z * speed, expiresAt: now + 1600 };
-  grapplerProjectiles.set(id, p);
-  broadcastGameEvent(shooter, "grappleProjectileSpawn", { id, x: p.x, y: p.y, z: p.z, expiresAt: p.expiresAt });
-}
-function updateGrapplerProjectiles(dt, now = Date.now()) {
-  for (const p of [...grapplerProjectiles.values()]) {
-    const owner = players.get(p.ownerId);
-    if (!owner || owner.health <= 0 || now >= p.expiresAt) {
-      grapplerProjectiles.delete(p.id); broadcastGameEvent(p.owner, "grappleProjectileRemove", { id: p.id }); continue;
-    }
-    const from = { x: p.x, y: p.y, z: p.z };
-    const next = { x: p.x + p.vx * dt, y: p.y + p.vy * dt, z: p.z + p.vz * dt };
-    const delta = { x: next.x-from.x, y: next.y-from.y, z: next.z-from.z };
-    const distance = Math.hypot(delta.x, delta.y, delta.z);
-    let hitDistance = Infinity;
-    if (distance > 1e-5) {
-      const dir = { x: delta.x/distance, y: delta.y/distance, z: delta.z/distance };
-      const wall = rayHitsObstacle(from, dir, distance, owner);
-      if (wall !== null) hitDistance = Math.min(hitDistance, wall);
-      for (const target of players.values()) {
-        if (target.id === owner.id || target.health <= 0 || target.finished || !isSameGame(owner,target)) continue;
-        const hit = rayHitsPlayer(from, dir, target);
-        if (hit && hit.t >= 0 && hit.t <= distance) hitDistance = Math.min(hitDistance, hit.t);
-      }
-      const ground = getGroundHeight(next.x,next.z,from.y,owner);
-      if (p.vy <= 0 && next.y <= ground + 0.08 && from.y >= ground - 0.05) {
-        const f = clamp((from.y-(ground+0.08))/Math.max(1e-5,from.y-next.y),0,1);
-        hitDistance = Math.min(hitDistance,f*distance);
-      }
-      const bounds = getMapForPlayer(owner).world || WORLD;
-      for (const axis of ["x","z"]) if (next[axis] < bounds["min"+axis.toUpperCase()] || next[axis] > bounds["max"+axis.toUpperCase()]) {
-        const plane = next[axis] < bounds["min"+axis.toUpperCase()] ? bounds["min"+axis.toUpperCase()] : bounds["max"+axis.toUpperCase()];
-        const f=(plane-from[axis])/(next[axis]-from[axis]); if(f>=0&&f<=1)hitDistance=Math.min(hitDistance,f*distance);
-      }
-      if (hitDistance < distance) {
-        const t=clamp(hitDistance,0,distance), point={x:from.x+dir.x*t,y:from.y+dir.y*t,z:from.z+dir.z*t};
-        owner.grappleTarget=point; grapplerProjectiles.delete(p.id);
-        broadcastGameEvent(owner,"grappleProjectileRemove",{id:p.id});
-        broadcastGameEvent(owner,"grappleAttach",{ownerId:owner.id,x:point.x,y:point.y,z:point.z}); continue;
-      }
-    }
-    p.x=next.x;p.y=next.y;p.z=next.z;
-    broadcastGameEvent(owner,"grappleProjectileUpdate",{id:p.id,x:p.x,y:p.y,z:p.z});
-  }
-  for (const player of players.values()) {
-    const target=player.grappleTarget;if(!target||player.health<=0||player.finished)continue;
-    const dx=target.x-player.x,dy=target.y-(player.y+0.85),dz=target.z-player.z,dist=Math.hypot(dx,dy,dz);
-    if(dist<=1.6){player.grappleTarget=null;broadcastGameEvent(player,"grappleEnd",{ownerId:player.id});continue;}
-    const step=Math.min(dist-1.35,24*dt), nx=player.x+dx/dist*step, ny=player.y+dy/dist*step, nz=player.z+dz/dist*step;
-    if(collides(nx,nz,ny,player.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT,player)){player.grappleTarget=null;broadcastGameEvent(player,"grappleEnd",{ownerId:player.id});continue;}
-    player.x=nx;player.y=Math.max(0,ny);player.z=nz;player.velocityY=0;player.grounded=false;
-    player.input={forward:0,strafe:0,crouch:player.input?.crouch===true};
   }
 }
 
@@ -2549,11 +2488,6 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   if (shooter.weapon === "shockwaveLauncher") {
     shooter.lastFire = now;
     spawnGrenadeProjectile(shooter, now, "shockwave");
-    return;
-  }
-  if (shooter.weapon === "grappler") {
-    shooter.lastFire = now;
-    spawnGrapplerProjectile(shooter, now);
     return;
   }
   if (shooter.weapon === "grappler") {
@@ -4072,7 +4006,6 @@ setInterval(() => {
 
   updateSmokeProjectiles(dt, now);
   updateGrenadeProjectiles(dt, now);
-  updateGrapplerProjectiles(dt, now);
   updateAreaMatches(dt, now);
   updatePayloadMatches(dt, now);
   broadcastState();
