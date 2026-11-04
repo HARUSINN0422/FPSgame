@@ -1309,7 +1309,7 @@ function buildWorld(data) {
       payloadGateMeshes.push(gate);
       worldGroup.add(gate);
     } else {
-      makeBox(o.w, o.h, o.d, o.x, o.h / 2, o.z, 0x687582);
+      makeBox(o.w, o.h, o.d, o.x, o.ceiling ? o.y + o.h / 2 : o.h / 2, o.z, 0x687582);
     }
   }
 
