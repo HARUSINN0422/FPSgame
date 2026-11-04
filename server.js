@@ -541,9 +541,20 @@ const NOTICE_FILE = path.join(__dirname, "notices.txt");
 app.get("/api/lobby-info", (_req, res) => {
   let notice = "";
   try { notice = fs.readFileSync(NOTICE_FILE, "utf8"); } catch (_) {}
-  const onlinePlayers = Array.from(players.values()).filter(player => !player.isBot && io.sockets.sockets.has(player.id)).length;
+  const connectedHumans = Array.from(players.values()).filter(player =>
+    !player.isBot && !player.disconnectedAt && io.sockets.sockets.has(player.id)
+  );
+  const modeCounts = {
+    shootingRange: connectedHumans.filter(player => player.mode === TRAINING_MODE).length,
+    wander: connectedHumans.filter(player => player.mode === "Wander").length,
+    freeForAll: connectedHumans.filter(player => (player.mode || MAP_MODE) === MAP_MODE).length,
+    area: connectedHumans.filter(player => player.mode === AREA_MODE).length,
+    payload: connectedHumans.filter(player => player.mode === PAYLOAD_MODE).length,
+    duel: connectedHumans.filter(player => player.mode === "Duel").length
+  };
+  const onlinePlayers = connectedHumans.length;
   res.setHeader("Cache-Control", "no-store");
-  res.json({ onlinePlayers, notice });
+  res.json({ onlinePlayers, modeCounts, notice });
 });
 
 app.get("/api/online-count", (_req, res) => {
@@ -4164,10 +4175,13 @@ setInterval(() => {
   const previous = previousHumanOnlineCount;
   previousHumanOnlineCount = onlineCount;
   if (previous === 0 && onlineCount === 1 && pushSubscriptions.length > 0) {
-    const japanHour = Number(new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Tokyo", hour: "2-digit", hourCycle: "h23"
-    }).format(new Date()));
-    if (japanHour >= 8 && japanHour < 17) {
+    const japanTime = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+    }).formatToParts(new Date());
+    const japanHour = Number(japanTime.find(part => part.type === "hour")?.value || 0);
+    const japanMinute = Number(japanTime.find(part => part.type === "minute")?.value || 0);
+    const japanMinutes = japanHour * 60 + japanMinute;
+    if (japanMinutes >= 8 * 60 + 40 && japanMinutes < 17 * 60) {
       sendOnlinePushNotification().catch(error => console.error("[Push] 通知処理に失敗しました:", error));
     }
   }
