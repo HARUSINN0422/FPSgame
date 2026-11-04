@@ -1156,9 +1156,20 @@ body.controller-mode #settingsButton {
   color: #fff; background: #171c23; text-align: left; font: inherit;
 }
 .mode-card:active { transform: scale(.99); }
-.mode-card strong, .mode-card span { display: block; }
-.mode-card strong { font-size: 22px; margin-bottom: 8px; }
-.mode-card span { opacity: .72; line-height: 1.5; }
+.mode-card-heading {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; width: 100%; margin-bottom: 8px;
+}
+.mode-card strong { display: block; font-size: 22px; margin: 0; }
+.mode-card span { display: block; opacity: .72; line-height: 1.5; }
+.mode-card .mode-player-count {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px;
+  padding: 5px 10px; border: 1px solid rgba(120,180,255,.3);
+  border-radius: 999px; background: rgba(65,135,210,.14);
+  color: #b9d9ff; font-size: 14px; font-weight: 800; line-height: 1.2;
+  opacity: 1; white-space: nowrap;
+}
+.mode-card .mode-player-count b { font-size: 17px; font-variant-numeric: tabular-nums; }
 .mode-back-button {
   width: 100%; min-height: 44px; border: 1px solid rgba(255,255,255,.16);
   border-radius: 12px; color: #fff; background: #252c35; font: inherit; font-weight: 700;
