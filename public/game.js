@@ -173,6 +173,7 @@ let playerName = "";
 let lastInputSent = 0;
 let lastFrameTime = performance.now();
 let lastMinimapUpdate = 0;
+let lastWorldLodUpdate = 0;
 
 const movement = {
   forward: false,
@@ -1053,6 +1054,9 @@ function makeBox(w, h, d, x, y, z, color = 0x647080) {
   mesh.position.set(x, y, z);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.userData.worldLod = true;
+  mesh.userData.nearMaterial = mesh.material;
+  mesh.userData.farMaterial = new THREE.MeshBasicMaterial({ color });
   worldGroup.add(mesh);
   return mesh;
 }
@@ -1249,7 +1253,8 @@ function buildWorld(data) {
   worldGroup.add(floor);
 
   const gridSize = Math.max(worldWidth, worldDepth);
-  const grid = new THREE.GridHelper(gridSize, Math.max(1, Math.round(gridSize / 2)), 0x879487, 0x6b756b);
+  const gridDivisions = Math.max(1, Math.round(gridSize / (Math.max(worldWidth, worldDepth) > 150 ? 8 : 2)));
+  const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x879487, 0x6b756b);
   grid.position.set(centerX, 0.01, centerZ);
   worldGroup.add(grid);
 
@@ -1317,7 +1322,7 @@ function buildWorld(data) {
   const floorStyles = {
     fire: { color: 0xd92727 },
     slime: { color: 0x26b866 },
-    speed: { color: 0x006bff },
+    speed: { color: 0x00aaff },
     safe: { color: 0x26b866 }
   };
   for (const tile of data.floorTiles || []) {
@@ -1483,10 +1488,10 @@ function updateMinimap() {
   // 無敵中は敵全員を表示。それ以外は自分（エリアでは味方も）の視界に入った敵だけ表示。
   const showAllEnemies = Number(myState.invulnerableUntil || 0) > Date.now();
   const observers = [{ x: myState.x, y: myState.y || 0, z: myState.z, yaw, team: myState.team }];
-  if (selectedGameMode === "Area") {
+  if (selectedGameMode === "Area" || selectedGameMode === "Payload") {
     for (const obj of remotePlayers.values()) {
       const ally = obj.userData.playerState;
-      if (ally && ally.health > 0 && ally.team === myState.team && ally.mode === "Area") {
+      if (ally && ally.health > 0 && ally.team === myState.team && ally.mode === selectedGameMode) {
         observers.push({ x: obj.position.x, y: obj.position.y, z: obj.position.z, yaw: obj.rotation.y, team: ally.team });
       }
     }
@@ -1496,7 +1501,7 @@ function updateMinimap() {
   for (const obj of remotePlayers.values()) {
     const enemy = obj.userData.playerState;
     if (!enemy || enemy.health <= 0 || enemy.finished) continue;
-    if (selectedGameMode === "Area" && enemy.team === myState.team) continue;
+    const isAlly = (selectedGameMode === "Area" || selectedGameMode === "Payload") && enemy.team === myState.team;
 
     const ex = Number(enemy.x), ez = Number(enemy.z);
     // 煙幕内で姿が完全に隠れる敵は、ミニマップにも表示しない。
@@ -1514,7 +1519,7 @@ function updateMinimap() {
     const enemyDistance = Math.hypot(ex - myState.x, ez - myState.z);
     const showDistantMeleeEnemy = selectedGameMode === "Melee"
       && enemyDistance >= Math.max(worldWidth, worldDepth) / 2;
-    let spotted = showAllEnemies || showDistantMeleeEnemy;
+    let spotted = isAlly || showAllEnemies || showDistantMeleeEnemy;
     if (!spotted) {
       for (const observer of observers) {
         const dx = ex - observer.x;
@@ -1543,7 +1548,7 @@ function updateMinimap() {
     if (!spotted) continue;
     const exMap = mapX(ex);
     const ezMap = mapZ(ez);
-    ctx.fillStyle = selectedGameMode === "Area" ? (enemy.team === "blue" ? "#4aa5ff" : "#ff5c5c") : "#ff4d4d";
+    ctx.fillStyle = (selectedGameMode === "Area" || selectedGameMode === "Payload") ? (enemy.team === "blue" ? "#4aa5ff" : "#ff5c5c") : "#ff4d4d";
     ctx.beginPath();
     ctx.arc(exMap, ezMap, showAllEnemies ? 5 : 4, 0, Math.PI * 2);
     ctx.fill();
@@ -4700,6 +4705,15 @@ function animate(now) {
   sendInput(now);
   updateCamera();
   updateLaserSight();
+  // 広いマップでは遠景の壁を簡易マテリアルに切り替え、グリッドも粗くして描画負荷を抑える。
+  if (worldData?.world && Math.max(worldData.world.maxX - worldData.world.minX, worldData.world.maxZ - worldData.world.minZ) > 150 && now - lastWorldLodUpdate >= 250) {
+    lastWorldLodUpdate = now;
+    for (const object of worldGroup.children) {
+      if (!object.userData?.worldLod) continue;
+      const far = object.position.distanceTo(camera.position) > 65;
+      object.material = far ? object.userData.farMaterial : object.userData.nearMaterial;
+    }
+  }
   // Minimap redraws do not need to run at the full render frame rate.
   if (now - lastMinimapUpdate >= 100) {
     updateMinimap();
