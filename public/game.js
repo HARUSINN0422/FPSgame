@@ -99,6 +99,7 @@ scene.add(sun);
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 let payloadCartGroup = null;
+let payloadCartMapState = null;
 let payloadRole = null;
 let payloadAttackingTeam = null;
 let payloadGateMeshes = [];
@@ -1203,7 +1204,13 @@ function buildPayloadTrackVisual(pathPoints) {
   updatePayloadCartVisual({ x: pathPoints[0][0], y: pathPoints[0][1] || 0, z: pathPoints[0][2], yaw: 0 });
 }
 function updatePayloadCartVisual(cart) {
-  if (!payloadCartGroup || !cart) return;
+  if (!cart) return;
+  payloadCartMapState = {
+    x: Number(cart.x) || 0,
+    z: Number(cart.z) || 0,
+    yaw: Number(cart.yaw) || 0
+  };
+  if (!payloadCartGroup) return;
   payloadCartGroup.position.set(Number(cart.x) || 0, (Number(cart.y) || 0) + 0.02, Number(cart.z) || 0);
   payloadCartGroup.rotation.y = (Number(cart.yaw) || 0) + Math.PI / 2;
 }
@@ -1390,6 +1397,22 @@ function updateMinimap() {
   const mapX = (x) => ((x - world.minX) / (world.maxX - world.minX)) * w;
   const mapZ = (z) => ((z - world.minZ) / (world.maxZ - world.minZ)) * h;
 
+  if (selectedGameMode === "Payload" && Array.isArray(worldData.payloadPath) && worldData.payloadPath.length > 1) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,220,115,.72)";
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    worldData.payloadPath.forEach((point, index) => {
+      const x = mapX(point[0]);
+      const y = mapZ(point[2]);
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.strokeStyle = "rgba(255,255,255,.35)";
   ctx.lineWidth = 2;
   ctx.strokeRect(1, 1, w - 2, h - 2);
@@ -1419,6 +1442,26 @@ function updateMinimap() {
     const ow = (o.w / (world.maxX - world.minX)) * w;
     const oh = (o.d / (world.maxZ - world.minZ)) * h;
     ctx.fillRect(x, y, ow, oh);
+  }
+
+  if (selectedGameMode === "Payload" && payloadCartMapState) {
+    const cartX = mapX(payloadCartMapState.x);
+    const cartZ = mapZ(payloadCartMapState.z);
+    ctx.save();
+    ctx.translate(cartX, cartZ);
+    ctx.rotate(-payloadCartMapState.yaw);
+    ctx.fillStyle = "#ffd34f";
+    ctx.strokeStyle = "#fff7d1";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(0, -8);
+    ctx.lineTo(6.5, 0);
+    ctx.lineTo(0, 8);
+    ctx.lineTo(-6.5, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   const px = mapX(myState.x);
