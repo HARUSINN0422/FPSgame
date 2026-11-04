@@ -3071,7 +3071,8 @@ function releaseBowCharge() {
 }
 
 function startMinigunCharge() {
-  if (!joined || selectedWeapon !== "minigun" || myState?.health <= 0 || minigunCharging || minigunDraining) return;
+  if (!joined || selectedWeapon !== "minigun" || myState?.health <= 0 ||
+      Number(myState?.invulnerableUntil || 0) > Date.now() || minigunCharging || minigunDraining) return;
   minigunCharging = true;
   minigunLastUpdateAt = performance.now();
   socket.emit("minigunChargeStart");
