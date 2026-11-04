@@ -177,7 +177,7 @@ const WEAPONS = {
   smg: {
     name: "Submachine Gun",
     damage: 9,
-    fireInterval: 107,
+    fireInterval: 107 / 2.5,
     range: 68,
     spread: 0.045,
     falloffStart: 20,
@@ -267,11 +267,11 @@ try {
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
 WEAPONS.marksman.fireInterval = 225 * 1.25;
-WEAPONS.marksman.magazineSize = 10;
+WEAPONS.marksman.magazineSize = 15;
 WEAPONS.pistol.magazineSize = 6;
 WEAPONS.marksman.falloffStart = WEAPONS.marksman.range;
 WEAPONS.marksman.minDamageMultiplier = 0.95;
-WEAPONS.marksman.description = "連射可能 / 胴体35ダメージ / 装弾数10発・中〜長距離向け";
+WEAPONS.marksman.description = "連射可能 / 胴体35ダメージ / 装弾数15発・中〜長距離向け";
 WEAPONS.shotgun.damage = 25;
 WEAPONS.shotgun.fireInterval = 750 * 1.25;
 WEAPONS.shotgun.magazineSize = 3;
