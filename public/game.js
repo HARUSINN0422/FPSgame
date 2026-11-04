@@ -1069,7 +1069,13 @@ async function setupPushNotifications() {
       return;
     }
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => window.setTimeout(
+          () => reject(new Error("通知機能の起動に時間がかかっています。ページを再読み込みしてください。")),
+          15000
+        ))
+      ]);
       const subscription = await registration.pushManager.getSubscription();
       const enabled = Boolean(subscription);
       button.textContent = enabled ? "通知 ON（OFFにする）" : "通知 OFF（ONにする）";
@@ -1078,7 +1084,9 @@ async function setupPushNotifications() {
         ? "通知はONです。日本時間9:00〜17:00のオンライン開始を通知します。"
         : (Notification.permission === "denied" ? "ブラウザの通知設定でFPSgameの通知を許可してください。" : "通知はOFFです。");
     } catch (error) {
-      status.textContent = "通知状態を確認できませんでした。";
+      button.textContent = "通知状態を再確認";
+      button.classList.remove("push-enabled");
+      status.textContent = error.message || "通知状態を確認できませんでした。";
     }
   };
   button.addEventListener("click", async () => {
