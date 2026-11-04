@@ -342,30 +342,29 @@
       <div class="eyebrow">ONLINE FPS</div>
       <h1>ゲームモード選択</h1>
       <p>プレイするモードを選択してください。</p>
-      <div class="top-online-count mode-online-count">現在のプレイヤー数（BOT除く）：<strong id="modeOnlineCount">0</strong> 人</div>
       <div class="mode-grid">
         <button id="shootingRangeModeButton" class="mode-card" type="button">
-          <strong>射撃場</strong>
+          <div class="mode-card-heading"><strong>射撃場</strong><span class="mode-player-count"><b id="shootingRangePlayerCount">0</b>人</span></div>
           <span>動かないBOTを撃って武器を試せます。プレイヤーはダメージを受けません。</span>
         </button>
         <button id="wanderModeButton" class="mode-card" type="button">
-          <strong>お散歩モード</strong>
+          <div class="mode-card-heading"><strong>お散歩モード</strong><span class="mode-player-count"><b id="wanderPlayerCount">0</b>人</span></div>
           <span>ステージを選んで、1人で自由に探索できます。</span>
         </button>
         <button id="freeForAllModeButton" class="mode-card" type="button">
-          <strong>乱闘モード</strong>
+          <div class="mode-card-heading"><strong>乱闘モード</strong><span class="mode-player-count"><b id="freeForAllPlayerCount">0</b>人</span></div>
           <span>全員が敵の通常対戦。10分ごとにマップが切り替わります。</span>
         </button>
         <button id="areaModeButton" class="mode-card area-mode-card" type="button">
-          <strong>エリア（3対3）</strong>
+          <div class="mode-card-heading"><strong>エリア（3対3）</strong><span class="mode-player-count"><b id="areaPlayerCount">0</b>人</span></div>
           <span>中央エリアを5秒間確保するとカウントが進行。100%に到達したチームが勝利します。</span>
         </button>
         <button id="payloadModeButton" class="mode-card payload-mode-card" type="button">
-          <strong>ペイロード（3対3）</strong>
+          <div class="mode-card-heading"><strong>ペイロード（3対3）</strong><span class="mode-player-count"><b id="payloadPlayerCount">0</b>人</span></div>
           <span>攻撃側はカートを護送し、防衛側は進行を阻止します。チェックポイント到達で再出撃地点が前進します。</span>
         </button>
         <button id="duelModeButton" class="mode-card duel-mode-card" type="button">
-          <strong>タイマンモード（1対1）</strong>
+          <div class="mode-card-heading"><strong>タイマンモード（1対1）</strong><span class="mode-player-count"><b id="duelPlayerCount">0</b>人</span></div>
           <span>部屋を作成してルールを設定するか、募集中の部屋に参加して1対1で対戦します。</span>
         </button>
       </div>
