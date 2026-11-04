@@ -2592,7 +2592,8 @@ function fire() {
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
   if (!["pickaxe", "smoke", "shockwaveLauncher"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
-    reload();
+    // 弾切れによる自動リロードでは射撃ボタンの長押し状態を維持する。
+    reload(true);
     return;
   }
 
@@ -2605,9 +2606,9 @@ function fire() {
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
-function reload() {
+function reload(preserveFiring = false) {
   if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher"].includes(selectedWeapon)) return;
-  stopFiring();
+  if (!preserveFiring) stopFiring();
   socket.emit("reload");
 }
 
@@ -3570,7 +3571,8 @@ socket.on("state", (players) => {
     document.getElementById("deaths").textContent = String(myState.deaths);
     updateAmmoHud();
 
-    if (myState.reloading) stopFiring();
+    // リロード中も射撃タイマーは止めない。fire()側でリロード中の発射を抑止し、
+    // 完了後に長押しが続いていれば次の発射タイミングで自動再開する。
 
     if (hp <= 0) {
       stopAllControls();
