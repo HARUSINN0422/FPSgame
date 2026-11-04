@@ -1268,6 +1268,66 @@
       "h": 5.5,
       "respawnArea": true,
       "teamOnlyRole": "defense"
+    },
+    {
+      "x": -116.681,
+      "y": 5.5,
+      "z": 18.035,
+      "w": 12,
+      "d": 12,
+      "h": 0.8,
+      "respawnArea": true,
+      "ceiling": true
+    },
+    {
+      "x": -14.415,
+      "y": 5.5,
+      "z": -31.108,
+      "w": 12,
+      "d": 12,
+      "h": 0.8,
+      "respawnArea": true,
+      "ceiling": true
+    },
+    {
+      "x": -15.257,
+      "y": 5.5,
+      "z": 43.837,
+      "w": 12,
+      "d": 12,
+      "h": 0.8,
+      "respawnArea": true,
+      "ceiling": true
+    },
+    {
+      "x": 26.5,
+      "y": 5.5,
+      "z": 7.291,
+      "w": 12,
+      "d": 12,
+      "h": 0.8,
+      "respawnArea": true,
+      "ceiling": true
+    },
+    {
+      "x": 59.81,
+      "y": 5.5,
+      "z": -22.232,
+      "w": 12,
+      "d": 12,
+      "h": 0.8,
+      "respawnArea": true,
+      "ceiling": true
+    },
+    {
+      "x": 113.834,
+      "y": 5.5,
+      "z": -14.928,
+      "w": 12,
+      "d": 12,
+      "h": 0.8,
+      "respawnArea": true,
+      "ceiling": true
     }
   ],
   "ramps": [
