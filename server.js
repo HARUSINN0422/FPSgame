@@ -3561,22 +3561,34 @@ io.on("connection", (socket) => {
   socket.on("duel:requestRuleChange",({roomId}={})=>{const r=duelRooms.get(String(roomId||""));if(!r||r.status!=="ended")return;for(const id of r.playerIds)io.to(id).emit("duel:ruleChangeAllowed",{host:socket.id===r.hostId});});
   socket.on("duel:updateRules",({roomId,mapId,firstTo}={})=>{const r=duelRooms.get(String(roomId||""));const map=[...availableMaps,...areaMaps].find(m=>m.id===mapId&&m.id!=="shooting-range");if(!r||r.hostId!==socket.id||r.status!=="ended"||!map){socket.emit("duel:error",{message:"ルールを変更できません。"});return;}r.mapId=map.id;r.mapName=map.name;r.firstTo=Math.max(1,Math.min(10,Math.floor(Number(firstTo)||3)));r.readyIds=[];for(const id of r.playerIds)io.to(id).emit("duel:rulesChanged",{mapName:r.mapName,firstTo:r.firstTo});});
   socket.on("duel:rematchReady",({roomId}={})=>{const r=duelRooms.get(String(roomId||""));if(!r||r.status!=="ended")return;if(!r.readyIds.includes(socket.id))r.readyIds.push(socket.id);for(const id of r.playerIds)io.to(id).emit("duel:rematchWaiting",{readyCount:r.readyIds.length});if(r.playerIds.every(id=>r.readyIds.includes(id))){const map=[...availableMaps,...areaMaps].find(m=>m.id===r.mapId)||activeMap;r.status="starting";r.scores={};r.readyIds=[];r.roundResolved=false;const now=Date.now();for(const id of r.playerIds){const p=players.get(id);if(!p)continue;const index=r.playerIds.indexOf(id);const spawn=map.spawnPoints[index%map.spawnPoints.length]||map.spawnPoints[0];p.duelMap=map;p.duelFirstTo=r.firstTo;p.finished=false;p.health=Number(p.maxHealth)||100;p.x=spawn[0];p.y=spawn[1]||0;p.z=spawn[2];p.yaw=index===0?0:Math.PI;p.pitch=0;p.respawnAt=0;p.invulnerableUntil=now+3000;p.ammo=WEAPONS[p.weapon].magazineSize;if(Array.isArray(p.weaponAmmo))p.weaponAmmo[p.activeWeaponSlot||0]=p.ammo;p.reloadingUntil=0;p.lastFire=0;}r.status="playing";for(const id of r.playerIds)io.to(id).emit("duel:rematchStarted",{firstTo:r.firstTo});for(const id of r.playerIds){const p=players.get(id);if(p)io.to(id).emit("world",getWorldPayloadForMap(map,"Duel"));}broadcastPlayers();}});
-  socket.on("leaveMatch", () => {
+  socket.on("leaveMatch", (ack) => {
     const player = players.get(socket.id);
     if (player?.minigunFireTimer) clearTimeout(player.minigunFireTimer);
     if (player) player.minigunBurstId = (player.minigunBurstId || 0) + 1;
     if (player?.mode === AREA_MODE) {
       removeAreaPlayer(socket.id);
+      if (typeof ack === "function") ack({ ok: true });
       return;
     }
-    if(player?.mode===PAYLOAD_MODE){player.input={forward:0,strafe:0,crouch:false};const token=typeof player.reconnectToken==="string"?player.reconnectToken:"";if(token){const timer=setTimeout(()=>{const pending=pendingPayloadDisconnects.get(token);if(pending?.playerId===socket.id){pendingPayloadDisconnects.delete(token);removePayloadPlayer(socket.id);}},PAYLOAD_RECONNECT_GRACE_MS);timer.unref?.();player.disconnectedAt=Date.now();pendingPayloadDisconnects.set(token,{playerId:socket.id,timer});}else removePayloadPlayer(socket.id);return;}
-
+    // 明示的な退出（アプリを閉じた場合を含む）は再接続猶予を設けず、即座に人数から除外する。
+    if (player?.mode === PAYLOAD_MODE) {
+      const token = typeof player.reconnectToken === "string" ? player.reconnectToken : "";
+      const pending = token && pendingPayloadDisconnects.get(token);
+      if (pending?.playerId === socket.id) {
+        clearTimeout(pending.timer);
+        pendingPayloadDisconnects.delete(token);
+      }
+      removePayloadPlayer(socket.id);
+      if (typeof ack === "function") ack({ ok: true });
+      return;
+    }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     if (player) players.delete(socket.id);
     syncBots();
     broadcastPlayers();
     socket.emit("returnedToLobby");
+    if (typeof ack === "function") ack({ ok: true });
   });
 
   socket.on("join", (data = {}) => {
