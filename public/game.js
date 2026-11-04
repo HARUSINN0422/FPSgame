@@ -3998,7 +3998,7 @@ window.addEventListener("pageshow", () => {
   if (document.visibilityState === "visible" && !socket.connected) socket.connect();
 });
 setInterval(() => {
-  if (document.visibilityState === "visible" && socket.connected && joined) {
+  if (document.visibilityState === "visible" && socket.connected) {
     socket.emit("presence");
   }
 }, 10000);
