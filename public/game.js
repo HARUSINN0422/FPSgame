@@ -1141,7 +1141,14 @@ const topScreen = document.getElementById("topScreen");
 const topStartButton = document.getElementById("topStartButton");
 const topSettingsButton = document.getElementById("topSettingsButton");
 const topOnlineCount = document.getElementById("topOnlineCount");
-const modeOnlineCount = document.getElementById("modeOnlineCount");
+const modePlayerCountElements = {
+  shootingRange: document.getElementById("shootingRangePlayerCount"),
+  wander: document.getElementById("wanderPlayerCount"),
+  freeForAll: document.getElementById("freeForAllPlayerCount"),
+  area: document.getElementById("areaPlayerCount"),
+  payload: document.getElementById("payloadPlayerCount"),
+  duel: document.getElementById("duelPlayerCount")
+};
 const topNoticeList = document.getElementById("topNoticeList");
 const lobbyApiBase = location.hostname === "test-gamma-two-87.vercel.app"
   ? "https://harusinn.com/FPSgame/"
@@ -1153,7 +1160,10 @@ async function refreshLobbyInfo() {
     const info = await response.json();
     const onlinePlayers = Math.max(0, Number(info.onlinePlayers) || 0);
     if (topOnlineCount) topOnlineCount.textContent = String(onlinePlayers);
-    if (modeOnlineCount) modeOnlineCount.textContent = String(onlinePlayers);
+    const modeCounts = info.modeCounts || {};
+    for (const [mode, element] of Object.entries(modePlayerCountElements)) {
+      if (element) element.textContent = String(Math.max(0, Number(modeCounts[mode]) || 0));
+    }
     if (topNoticeList) {
       topNoticeList.replaceChildren();
       const lines = String(info.notice || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean);
