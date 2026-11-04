@@ -1,0 +1,10 @@
+{
+  "name": "FPSgame",
+  "short_name": "FPSgame",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#10141c",
+  "theme_color": "#10141c"
+}
