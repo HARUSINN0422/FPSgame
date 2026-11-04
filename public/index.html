@@ -220,14 +220,29 @@
 
   <button id="layoutEditDoneButton" class="hidden">配置編集を完了</button>
 
-  <div id="weaponScreen" class="overlay">
+  <div id="topScreen" class="overlay top-screen">
+    <div class="panel top-panel">
+      <div class="eyebrow">ONLINE FPS</div>
+      <h1>FPSgame</h1>
+      <label class="name-label" for="playerName">プレイヤー名（任意）</label>
+      <input id="playerName" class="name-input" type="text" maxlength="128" autocomplete="nickname" placeholder="空欄なら自動で名前を設定">
+      <div class="top-main-actions">
+        <button id="topStartButton" class="start-game-button" type="button">スタート</button>
+        <button id="topSettingsButton" class="mode-back-button" type="button">設定</button>
+      </div>
+      <div class="top-online-count">現在のプレイヤー数：<strong id="topOnlineCount">0</strong> 人</div>
+      <section class="top-notice">
+        <h2>お知らせ</h2>
+        <ul id="topNoticeList"><li>読み込み中...</li></ul>
+      </section>
+    </div>
+  </div>
+
+  <div id="weaponScreen" class="overlay hidden">
     <div class="panel">
       <div class="eyebrow">ONLINE FPS</div>
-      <h1>プレイヤー名と武器を選択</h1>
-      
-      <p>名前は任意です。空欄なら自動で名前を付けます。入力した名前はこの端末のCookieに保存されます。</p>
-      <label class="name-label" for="playerName">プレイヤー名（任意）</label>
-      <input id="playerName" class="name-input" type="text" maxlength="128" autocomplete="nickname" placeholder="空欄でもスタートできます">
+      <h1>武器構成を選択</h1>
+      <p>使用する武器、お守り、アルティメットを選択してください。</p>
       <div class="loadout-slot-picker">
         <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
@@ -281,6 +296,10 @@
         <button class="weapon-card" data-weapon="shockwaveLauncher">
           <strong>ショックウェーブランチャー</strong>
           <span>投擲 / 着弾地点から半径7.8mのプレイヤーを吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし</span>
+        </button>
+        <button class="weapon-card" data-weapon="grappler">
+          <strong>グラップラー</strong>
+          <span>吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要</span>
         </button>
         <button class="weapon-card" data-weapon="marksman">
           <strong>マークスマン</strong>
