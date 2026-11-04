@@ -1317,6 +1317,7 @@ function buildWorld(data) {
   const floorStyles = {
     fire: { color: 0xd92727 },
     slime: { color: 0x26b866 },
+    speed: { color: 0x258be8 },
     safe: { color: 0x26b866 }
   };
   for (const tile of data.floorTiles || []) {
