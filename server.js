@@ -3649,6 +3649,7 @@ io.on("connection", (socket) => {
       wanderMap,
       finished: false,
       isBot: false,
+      lastPresenceAt: Date.now(),
       x: spawn[0],
       y: 0,
       z: spawn[2],
