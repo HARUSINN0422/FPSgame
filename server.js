@@ -265,15 +265,20 @@ try {
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
-WEAPONS.marksman.fireInterval = 225;
+WEAPONS.marksman.fireInterval = 225 * 1.25;
+WEAPONS.marksman.magazineSize = 10;
 WEAPONS.pistol.magazineSize = 6;
 WEAPONS.marksman.falloffStart = WEAPONS.marksman.range;
 WEAPONS.marksman.minDamageMultiplier = 0.95;
+WEAPONS.marksman.description = "連射可能 / 胴体35ダメージ / 装弾数10発・中〜長距離向け";
 WEAPONS.shotgun.damage = 25;
+WEAPONS.shotgun.fireInterval = 750 * 1.25;
+WEAPONS.shotgun.magazineSize = 3;
 WEAPONS.shotgun.pellets = 8;
 WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
 WEAPONS.shotgun.minDamageMultiplier = 1;
 WEAPONS.shotgun.spread = 0.24 * 0.7;
+WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 装弾数3発・近距離向け";
 
 const app = express();
 
@@ -1062,6 +1067,9 @@ function applyShockwave(projectile, position, now = Date.now()) {
     if (projectile.owner.mode === TRAINING_MODE && target.id !== projectile.ownerId && !target.isBot) continue;
     if (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
     if (target.invulnerableUntil > now) continue;
+    if (target.id !== projectile.ownerId) {
+      target.ultimateCharge = Math.min(100, (Number(target.ultimateCharge) || 0) + 20);
+    }
     const dx = target.x - position.x;
     const dz = target.z - position.z;
     const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
@@ -1715,7 +1723,7 @@ function respawnBot(p, now) {
   p.reloadingUntil = 0; p.lastFire = 0;
   p.input = { forward: 0, strafe: 0, crouch: false };
   p.crouched = false; p.respawnAt = 0;
-  p.invulnerableUntil = now + 1500;
+  p.invulnerableUntil = now + (p.mode === PAYLOAD_MODE ? 2500 : 1500);
   p.damageHitstopUntil = 0; p.damageSlowUntil = 0;
 }
 
@@ -2147,6 +2155,59 @@ function rayHitsObstacle(origin, direction, maxDistance, player = null) {
 }
 
 
+function rayHitsPayloadCart(origin, direction, maxDistance, player = null) {
+  const info = getPayloadCartCollisionInfo(player);
+  if (!info) return null;
+
+  const dx = origin.x - info.cart.x;
+  const dz = origin.z - info.cart.z;
+  const cos = Math.cos(info.yaw);
+  const sin = Math.sin(info.yaw);
+  const localOrigin = {
+    x: cos * dx - sin * dz,
+    y: origin.y - (Number(info.cart.y) || 0),
+    z: sin * dx + cos * dz
+  };
+  const localDirection = {
+    x: cos * direction.x - sin * direction.z,
+    y: direction.y,
+    z: sin * direction.x + cos * direction.z
+  };
+  const deckTop = info.deckTop - (Number(info.cart.y) || 0);
+  const cargoTop = info.cargoTop - (Number(info.cart.y) || 0);
+  const boxes = [
+    { minX: -2.1, maxX: 2.1, minY: 0.08, maxY: deckTop, minZ: -1.225, maxZ: 1.225 },
+    { minX: -1.125, maxX: 0.425, minY: deckTop, maxY: cargoTop, minZ: -0.775, maxZ: 0.775 }
+  ];
+  let nearest = Infinity;
+
+  for (const box of boxes) {
+    let tMin = 0;
+    let tMax = maxDistance;
+    let intersects = true;
+    const axes = [
+      [localOrigin.x, localDirection.x, box.minX, box.maxX],
+      [localOrigin.y, localDirection.y, box.minY, box.maxY],
+      [localOrigin.z, localDirection.z, box.minZ, box.maxZ]
+    ];
+    for (const [o, d, min, max] of axes) {
+      if (Math.abs(d) < 1e-8) {
+        if (o < min || o > max) { intersects = false; break; }
+        continue;
+      }
+      let t1 = (min - o) / d;
+      let t2 = (max - o) / d;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+      tMin = Math.max(tMin, t1);
+      tMax = Math.min(tMax, t2);
+      if (tMin > tMax) { intersects = false; break; }
+    }
+    if (intersects && tMin >= 0 && tMin <= maxDistance) nearest = Math.min(nearest, tMin);
+  }
+
+  return Number.isFinite(nearest) ? nearest : null;
+}
+
 function rayHitsPlayer(origin, direction, target) {
   const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
@@ -2324,6 +2385,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
 
     const dir = directionFromAngles(yaw, pitch);
+    const cartDistance = rayHitsPayloadCart(origin, dir, weapon.range, shooter);
     let bestHit = null;
 
     for (const target of players.values()) {
@@ -2335,6 +2397,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
       const hitInfo = rayHitsPlayer(origin, dir, target);
       if (hitInfo === null || hitInfo.t > weapon.range) continue;
+      if (cartDistance !== null && cartDistance <= hitInfo.t + 0.001) continue;
 
       // プレイヤーより手前に壁がある場合は、その弾丸を無効にする。
       const wallDistance = rayHitsObstacle(origin, dir, hitInfo.t, shooter);
@@ -2449,7 +2512,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
     const visualDir = directionFromAngles(visualYaw, visualPitch);
     const wallDistance = rayHitsObstacle(origin, visualDir, weapon.range, shooter);
-    const distance = wallDistance ?? weapon.range;
+    const cartDistance = rayHitsPayloadCart(origin, visualDir, weapon.range, shooter);
+    const distance = Math.min(wallDistance ?? weapon.range, cartDistance ?? weapon.range);
     visualTracers.push({
       yaw: visualYaw,
       pitch: visualPitch,
@@ -2964,7 +3028,7 @@ function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQu
 function startPayloadMatch(fillWithBots){const waiting=payloadQueue.splice(0,6).filter(e=>io.sockets.sockets.has(e.socketId));payloadQueueStartedAt=0;lastPayloadQueueSecond=null;if(!waiting.length)return;const used=new Set(waiting.map(e=>e.name.toLowerCase())),names=PAYLOAD_BOT_NAMES.filter(n=>!used.has(n.toLowerCase()));for(let i=names.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const parts=waiting.map(e=>({...e,isBot:false}));while((fillWithBots||parts.length<6)&&parts.length<6)parts.push({socketId:null,name:names.shift()||("Payload BOT "+(parts.length+1)),skin:"",weapon:Math.random()<.65?"rifle":"marksman",secondaryWeapon:"shotgun",charm:"none",ultimateType:"skyfall",isBot:true});const counts={blue:0,red:0};for(const p of parts.filter(p=>!p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}for(const p of parts.filter(p=>p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}const attackingTeam=Math.random()<.5?"blue":"red",matchId="payload-"+Date.now()+"-"+(++payloadMatchSequence);const match={id:matchId,playerIds:[],humanIds:waiting.map(e=>e.socketId),attackingTeam,defendingTeam:attackingTeam==="blue"?"red":"blue",progress:0,checkpointIndex:0,startedAt:Date.now(),lastStateAt:0,finished:false,overtime:false,status:"playing"};payloadMatches.set(matchId,match);const indexes={blue:0,red:0};parts.forEach((e,i)=>{const role=e.team===attackingTeam?"attack":"defense",id=e.isBot?"bot:"+matchId+":"+i:e.socketId,spawn=getPayloadSpawnPoint({matchId,role},indexes[e.team]++),p=createPayloadPlayer({id,name:e.name,skin:e.skin,weapon:e.weapon,secondaryWeapon:e.secondaryWeapon,charm:e.charm,ultimateType:e.ultimateType,team:e.team,role,matchId,isBot:e.isBot,botSpawnIndex:indexes[e.team]-1},spawn);p.reconnectToken=e.reconnectToken||"";players.set(id,p);match.playerIds.push(id);if(!e.isBot){const c=io.sockets.sockets.get(e.socketId);if(c){c.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));c.emit("joined",{player:publicPlayer(p,true)});c.emit("payloadMatchStarted",{matchId,team:p.team,role:p.role,botCount:parts.filter(q=>q.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});}}});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 試合開始:",matchId);}
 function sendPayloadMatchState(match,force=false){if(!match||match.finished)return;const now=Date.now();if(!force&&now-match.lastStateAt<150)return;match.lastStateAt=now;const cart=getPayloadPointAtDistance(match.progress),near=match.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&!p.disconnectedAt&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),attackers=near.filter(p=>p.team===match.attackingTeam).length,defenders=near.filter(p=>p.team===match.defendingTeam).length,total=getPayloadTrackLength();const state={matchId:match.id,progress:total?Math.min(100,match.progress/total*100):0,distance:match.progress,totalDistance:total,cart,attackingTeam:match.attackingTeam,defendingTeam:match.defendingTeam,attackers,defenders,timeRemainingMs:Math.max(0,PAYLOAD_ROUND_TIME_MS-(now-match.startedAt)),overtime:match.overtime,checkpointIndex:match.checkpointIndex,status:attackers&&defenders?"contested":attackers?"pushing":"stalled"};for(const id of match.humanIds)io.to(id).emit("payloadState",state);}
 function finishPayloadMatch(match,winnerTeam){if(!match||match.finished)return;match.finished=true;const winnerRole=winnerTeam===match.attackingTeam?"attack":"defense";for(const id of match.playerIds){const p=players.get(id);if(p){p.finished=true;p.input={forward:0,strafe:0,crouch:false};p.jumpQueuedUntil=0;p.respawnAt=0;}}for(const id of match.humanIds){const p=players.get(id);if(p)io.to(id).emit("payloadMatchEnd",{matchId:match.id,won:p.role===winnerRole,team:p.team,role:p.role,winnerRole,progress:Math.min(100,match.progress/getPayloadTrackLength()*100),kills:p.kills,deaths:p.deaths});}broadcastPlayers();}
-function updatePayloadMatches(dt,now){const total=getPayloadTrackLength();for(const m of payloadMatches.values()){if(m.finished)continue;m.payloadUpdateTick=(m.payloadUpdateTick||0)+1;if(m.payloadUpdateTick%2!==0)continue;const stepDt=dt*2,cart=getPayloadPointAtDistance(m.progress),near=m.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&!p.disconnectedAt&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),a=near.filter(p=>p.team===m.attackingTeam).length,d=near.filter(p=>p.team===m.defendingTeam).length;if(a>0&&!d)m.progress=Math.min(total,m.progress+(1.68+Math.max(0,Math.min(2,a-1))*0.336)*stepDt);const cps=payloadMap.payloadCheckpointDistances||[];while(m.checkpointIndex+1<cps.length&&m.progress>=cps[m.checkpointIndex+1]){m.checkpointIndex++;for(const id of m.playerIds){const p=players.get(id);if(p&&!p.isBot){p.ultimateCharge=Math.min(100,(p.ultimateCharge||0)+10);io.to(id).emit("payloadCheckpoint",{checkpointIndex:m.checkpointIndex});}}}if(m.progress>=total){m.progress=total;sendPayloadMatchState(m,true);finishPayloadMatch(m,m.attackingTeam);continue;}const expired=now-m.startedAt>=PAYLOAD_ROUND_TIME_MS,onCart=near.some(p=>p.team===m.attackingTeam);if(expired&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}if(expired)m.overtime=true;if(m.overtime&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}sendPayloadMatchState(m);}}
+function updatePayloadMatches(dt,now){const total=getPayloadTrackLength();for(const m of payloadMatches.values()){if(m.finished)continue;m.payloadUpdateTick=(m.payloadUpdateTick||0)+1;if(m.payloadUpdateTick%2!==0)continue;const stepDt=dt*2,cart=getPayloadPointAtDistance(m.progress),near=m.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&!p.disconnectedAt&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),a=near.filter(p=>p.team===m.attackingTeam).length,d=near.filter(p=>p.team===m.defendingTeam).length;if(a>0&&!d)m.progress=Math.min(total,m.progress+(1.68+Math.max(0,Math.min(2,a-1))*0.336)*stepDt);else if(d>a)m.progress=Math.max(0,m.progress-(1.68+Math.max(0,Math.min(2,d-1))*0.336)/6*stepDt);const cps=payloadMap.payloadCheckpointDistances||[];while(m.checkpointIndex+1<cps.length&&m.progress>=cps[m.checkpointIndex+1]){m.checkpointIndex++;for(const id of m.playerIds){const p=players.get(id);if(p&&!p.isBot){p.ultimateCharge=Math.min(100,(p.ultimateCharge||0)+10);io.to(id).emit("payloadCheckpoint",{checkpointIndex:m.checkpointIndex});}}}if(m.progress>=total){m.progress=total;sendPayloadMatchState(m,true);finishPayloadMatch(m,m.attackingTeam);continue;}const expired=now-m.startedAt>=PAYLOAD_ROUND_TIME_MS,onCart=near.some(p=>p.team===m.attackingTeam);if(expired&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}if(expired)m.overtime=true;if(m.overtime&&!onCart){sendPayloadMatchState(m,true);finishPayloadMatch(m,m.defendingTeam);continue;}sendPayloadMatchState(m);}}
 function removePayloadPlayer(socketId){cancelPayloadQueue(socketId);const player=players.get(socketId);if(!player||player.mode!==PAYLOAD_MODE){io.to(socketId).emit("payloadReturnToModeSelect");return;}const match=payloadMatches.get(player.matchId);players.delete(socketId);if(!match){io.to(socketId).emit("payloadReturnToModeSelect");broadcastPlayers();return;}match.playerIds=match.playerIds.filter(id=>id!==socketId);match.humanIds=match.humanIds.filter(id=>id!==socketId);io.to(socketId).emit("payloadReturnToModeSelect");if(!match.humanIds.length){for(const id of match.playerIds)players.delete(id);payloadMatches.delete(match.id);}else if(!match.finished){const id="bot:"+match.id+":replacement:"+Date.now(),bot=createPayloadPlayer({id,name:PAYLOAD_BOT_NAMES[Math.floor(Math.random()*PAYLOAD_BOT_NAMES.length)],weapon:"rifle",secondaryWeapon:"shotgun",team:player.team,role:player.role,matchId:match.id,isBot:true},[player.x,player.y,player.z]);players.set(id,bot);match.playerIds.push(id);}broadcastPlayers();sendPayloadMatchState(match,true);}
 
 function removeTrainingBots(matchId) {
@@ -3386,8 +3450,8 @@ io.on("connection", (socket) => {
     p.input.crouch = false;
     p.crouched = false;
     p.respawnAt = 0;
-    // リスポーン後3秒間は攻撃・被弾ともに無効。
-    p.invulnerableUntil = Date.now() + 3000;
+    // ペイロードでは復帰後4秒間、それ以外は従来どおり3秒間無敵。
+    p.invulnerableUntil = Date.now() + (p.mode === PAYLOAD_MODE ? 4000 : 3000);
     p.damageHitstopUntil = 0;
     p.damageSlowUntil = 0;
 
