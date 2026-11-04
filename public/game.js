@@ -1293,7 +1293,7 @@ function buildWorld(data) {
   // 射撃場専用の特殊床。薄い直方体全体をBasicMaterialで描画し、面を完全な単色にする。
   const floorStyles = {
     fire: { color: 0xd92727 },
-    slime: { color: 0x7756d6 },
+    slime: { color: 0x26b866 },
     safe: { color: 0x26b866 }
   };
   for (const tile of data.floorTiles || []) {
