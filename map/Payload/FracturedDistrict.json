@@ -2,12 +2,12 @@
   "rotationOrder": 1,
   "id": "payload-fractured-district",
   "name": "Fractured District",
-  "description": "256×256の市街地を横断するペイロード専用マップ。北側・南側の側道まで大きく蛇行する経路と、迂回・迎撃に使える床エリアを配置。",
+  "description": "南北の範囲を特殊床の外縁まで縮小したペイロード専用マップ。東西の広さと市街地の経路は維持。",
   "world": {
     "minX": -128,
     "maxX": 128,
-    "minZ": -128,
-    "maxZ": 128
+    "minZ": -82,
+    "maxZ": 82
   },
   "spawnPoints": [
     [
@@ -1562,16 +1562,16 @@
       "d": 12
     },
     {
-      "id": "payload-fire-north-entry",
-      "type": "fire",
+      "id": "payload-speed-north-entry",
+      "type": "speed",
       "x": -78,
       "z": -76,
       "w": 16,
       "d": 12
     },
     {
-      "id": "payload-slime-north-mid",
-      "type": "slime",
+      "id": "payload-speed-north-mid",
+      "type": "speed",
       "x": -18,
       "z": -76,
       "w": 18,
@@ -1602,16 +1602,16 @@
       "d": 12
     },
     {
-      "id": "payload-fire-south-mid",
-      "type": "fire",
+      "id": "payload-speed-south-mid",
+      "type": "speed",
       "x": 38,
       "z": 76,
       "w": 16,
       "d": 12
     },
     {
-      "id": "payload-slime-south-exit",
-      "type": "slime",
+      "id": "payload-speed-south-exit",
+      "type": "speed",
       "x": 92,
       "z": 76,
       "w": 18,
