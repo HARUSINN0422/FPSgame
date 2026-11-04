@@ -117,7 +117,8 @@ function updatePayloadGateColors(attackingTeam) {
 const remotePlayers = new Map();
 const tracers = [];
 const smokeProjectileMeshes = new Map();
-const grenadeProjectileMeshes = new Map();\nconst grappleTethers = new Map();
+const grenadeProjectileMeshes = new Map();
+const grappleTethers = new Map();
 const grenadeExplosionMeshes = new Map();
 const skyfallImpactMeshes = new Map();
 const smokeCloudMeshes = new Map();
@@ -1716,7 +1717,8 @@ function createWeaponMesh(weapon) {
     return group;
   }
 
-  if (weapon === "grappler") { const grip=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.55,10),new THREE.MeshStandardMaterial({color:0x394653,metalness:.6}));grip.rotation.x=Math.PI/2;group.add(grip);const cup=new THREE.Mesh(new THREE.CylinderGeometry(.19,.13,.16,16),new THREE.MeshStandardMaterial({color:0xe04d43}));cup.rotation.x=Math.PI/2;cup.position.z=-.35;group.add(cup);group.position.set(.34,1.02,-.22);group.rotation.x=-.08;return group; }\n  if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
+  if (weapon === "grappler") { const grip=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.55,10),new THREE.MeshStandardMaterial({color:0x394653,metalness:.6}));grip.rotation.x=Math.PI/2;group.add(grip);const cup=new THREE.Mesh(new THREE.CylinderGeometry(.19,.13,.16,16),new THREE.MeshStandardMaterial({color:0xe04d43}));cup.rotation.x=Math.PI/2;cup.position.z=-.35;group.add(cup);group.position.set(.34,1.02,-.22);group.rotation.x=-.08;return group; }
+  if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
     const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "shockwaveLauncher" ? 0x39b9d8 : weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18, emissive: weapon === "shockwaveLauncher" ? 0x123d4b : 0x000000, emissiveIntensity: weapon === "shockwaveLauncher" ? 0.6 : 0 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
     group.add(body);
@@ -3755,7 +3757,15 @@ socket.on("shot", createTracer);
 socket.on("smokeProjectileSpawn", createSmokeProjectileVisual);
 socket.on("smokeProjectileUpdate", (data) => createSmokeProjectileVisual(data));
 socket.on("smokeProjectileRemove", ({ id }) => removeSmokeProjectileVisual(id));
-socket.on("grappleProjectileSpawn", data => createGrenadeProjectileVisual({ ...data, type: "grappler" }));\nsocket.on("grappleProjectileUpdate", data => createGrenadeProjectileVisual({ ...data, type: "grappler" }));\nsocket.on("grappleProjectileRemove", ({id}) => removeGrenadeProjectileVisual(id));\nsocket.on("grappleAttach", data => { const old=grappleTethers.get(data.ownerId);if(old){scene.remove(old);old.geometry.dispose();old.material.dispose();}const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(data.x,data.y,data.z)]),new THREE.LineBasicMaterial({color:0xe7e7e7}));line.userData.anchor=new THREE.Vector3(data.x,data.y,data.z);scene.add(line);grappleTethers.set(data.ownerId,line); });\nsocket.on("grappleEnd", ({ownerId}) => {const line=grappleTethers.get(ownerId);if(line){scene.remove(line);line.geometry.dispose();line.material.dispose();grappleTethers.delete(ownerId);}});\nsocket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
+socket.on("grappleImpact", data => {
+  const ownerId = data.ownerId || data.id;
+  const old = grappleTethers.get(ownerId);
+  if (old) { scene.remove(old); old.geometry.dispose(); old.material.dispose(); }
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(data.x, data.y, data.z)]), new THREE.LineBasicMaterial({ color: 0xe7e7e7 }));
+  line.userData.anchor = new THREE.Vector3(data.x, data.y, data.z);
+  scene.add(line); grappleTethers.set(ownerId, line);
+  setTimeout(() => { if (grappleTethers.get(ownerId) === line) { scene.remove(line); line.geometry.dispose(); line.material.dispose(); grappleTethers.delete(ownerId); } }, 900);
+});\nsocket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
 socket.on("grenadeExplosion", createGrenadeExplosionVisual);
@@ -4844,7 +4854,8 @@ function animate(now) {
     }
   }
 
-  for (const [ownerId,line] of grappleTethers) { let origin=null;if(ownerId===myId&&myState)origin=new THREE.Vector3(myState.x,(myState.y||0)+1.25,myState.z);else{const remote=remotePlayers.get(ownerId);if(remote)origin=remote.position.clone().add(new THREE.Vector3(0,1.25,0));}if(origin)line.geometry.setFromPoints([origin,line.userData.anchor]);}\n  renderer.render(scene, camera);
+  for (const [ownerId,line] of grappleTethers) { let origin=null;if(ownerId===myId&&myState)origin=new THREE.Vector3(myState.x,(myState.y||0)+1.25,myState.z);else{const remote=remotePlayers.get(ownerId);if(remote)origin=remote.position.clone().add(new THREE.Vector3(0,1.25,0));}if(origin)line.geometry.setFromPoints([origin,line.userData.anchor]);}\n  for (const [ownerId, line] of grappleTethers) { let origin = null; if (ownerId === myId && myState) origin = new THREE.Vector3(myState.x, (myState.y || 0) + 1.25, myState.z); else { const remote = remotePlayers.get(ownerId); if (remote) origin = remote.position.clone().add(new THREE.Vector3(0, 1.25, 0)); } if (origin) line.geometry.setFromPoints([origin, line.userData.anchor]); }
+  renderer.render(scene, camera);
 }
 
 requestAnimationFrame(animate);
