@@ -3977,13 +3977,18 @@ io.on("connection", (socket) => {
       for(const q of players.values()){
         if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;
         if(fanHalfAngle>0){
+          // 火炎放射器/フリーズキャノンは地面に描画した扇形の真上を命中範囲にする。
+          // 水平方向の扇形判定なので、照準の上下角に左右されず足元の範囲が一致する。
+          const dx=q.x-a.x, dz=q.z-a.z;
+          const forwardX=-Math.sin(a.yaw), forwardZ=-Math.cos(a.yaw);
+          const forward=dx*forwardX+dz*forwardZ;
+          const side=Math.abs(dx*forwardZ-dz*forwardX);
+          const targetPadding=0.45;
+          if(forward<=0||forward>range||side>Math.tan(fanHalfAngle)*forward+targetPadding)continue;
           const targetHeight=q.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT;
           const target={x:q.x,y:q.y+targetHeight*0.5,z:q.z};
           const vx=target.x-origin.x,vy=target.y-origin.y,vz=target.z-origin.z;
           const distance=Math.hypot(vx,vy,vz);
-          if(distance>range||distance<0.001)continue;
-          const forward=(vx*dir.x+vy*dir.y+vz*dir.z)/distance;
-          if(forward<fanCos)continue;
           const wallDir={x:vx/distance,y:vy/distance,z:vz/distance};
           const wall=rayHitsObstacle(origin,wallDir,distance,a);
           if(wall!==null&&wall<distance-0.35)continue;
@@ -4008,7 +4013,7 @@ io.on("connection", (socket) => {
           q.freezeChance = Math.min(100, (q.freezeChance || 0) + 5);
           q.freezeLastHitAt = t;
           q.freezeDecayAt = t + 500;
-          if (Math.random() * 100 < q.freezeChance) q.frozenUntil = t + 2000;
+          if (Math.random() * 100 < q.freezeChance) q.frozenUntil = t + 3000;
         }
 
         // 通常銃・弓と同じ damageDealt / damageTaken 通知を、ビーム系にも必ず送る。
