@@ -3548,7 +3548,7 @@ function createTracer(event) {
       pellet.y ?? start.y + dir.y * distance,
       pellet.z ?? start.z + dir.z * distance
     );
-    // サーバー側のレールガン当たり判定と同じ半径2mで表示する。
+    // サーバー側のレールガン当たり判定と同じ半径1mで表示する。
     // 深度テストを無効にして、地形や敵モデルに隠れてビーム自体が見えなくなるのを防ぐ。
     const beamVector = end.clone().sub(start);
     const beamLength = Math.max(0.001, beamVector.length());
