@@ -3156,8 +3156,17 @@ function setScopeEnabled(enabled) {
   updateScopeButton();
 }
 
+function isLocalGrapplerExtended() {
+  if (!myId) return false;
+  if (grappleTethers.has(myId)) return true;
+  for (const mesh of grenadeProjectileMeshes.values()) {
+    if (mesh.userData.ownerId === myId && mesh.userData.projectileType === "grapple") return true;
+  }
+  return false;
+}
+
 function selectWeaponSlot(slot) {
-  if (!joined || myState?.health <= 0) return;
+  if (!joined || myState?.health <= 0 || isLocalGrapplerExtended()) return;
   const now = performance.now();
   if (now - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
   const nextSlot = Number(slot);
@@ -3539,12 +3548,12 @@ function createTracer(event) {
       pellet.y ?? start.y + dir.y * distance,
       pellet.z ?? start.z + dir.z * distance
     );
-    // サーバー側の rayHitsPlayer と同じ半径（PLAYER_RADIUS 0.45 × 2 × 5 = 4.5m）で表示する。
+    // サーバー側のレールガン当たり判定と同じ半径2mで表示する。
     // 深度テストを無効にして、地形や敵モデルに隠れてビーム自体が見えなくなるのを防ぐ。
     const beamVector = end.clone().sub(start);
     const beamLength = Math.max(0.001, beamVector.length());
     const beamDirection = beamVector.clone().normalize();
-    const hitRadius = 0.45 * 2 * 5;
+    const hitRadius = 2;
     const geometry = new THREE.CylinderGeometry(hitRadius, hitRadius, beamLength, 24, 1, true);
     const material = new THREE.MeshBasicMaterial({
       color: 0x8cecff,
