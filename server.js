@@ -2651,13 +2651,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     if (now - shooter.lastFire < 1000) return;
     shooter.lastFire = now;
     const dir = directionFromAngles(shooter.yaw, shooter.pitch);
-    const muzzleRight = { x: Math.cos(shooter.yaw), y: 0, z: -Math.sin(shooter.yaw) };
     const eyeY = shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15;
-    const origin = {
-      x: shooter.x + dir.x * 0.65 + muzzleRight.x * 0.22,
-      y: eyeY + dir.y * 0.65,
-      z: shooter.z + dir.z * 0.65 + muzzleRight.z * 0.22
-    };
+    // 画面中央（視点の中心）から照準方向へ発射する。
+    const origin = { x: shooter.x, y: eyeY, z: shooter.z };
     let best = null;
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
