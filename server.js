@@ -2650,8 +2650,14 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   if (shooter.weapon === "railgun") {
     if (now - shooter.lastFire < 1000) return;
     shooter.lastFire = now;
-    const origin = { x: shooter.x, y: shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15, z: shooter.z };
     const dir = directionFromAngles(shooter.yaw, shooter.pitch);
+    const muzzleRight = { x: Math.cos(shooter.yaw), y: 0, z: -Math.sin(shooter.yaw) };
+    const eyeY = shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15;
+    const origin = {
+      x: shooter.x + dir.x * 0.65 + muzzleRight.x * 0.22,
+      y: eyeY + dir.y * 0.65,
+      z: shooter.z + dir.z * 0.65 + muzzleRight.z * 0.22
+    };
     let best = null;
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
@@ -3998,7 +4004,7 @@ io.on("connection", (socket) => {
           const wall=rayHitsObstacle(origin,wallDir,distance,a);
           if(wall!==null&&wall<distance-0.35)continue;
         }else{
-          const h=rayHitsPlayer(origin,dir,q);
+          const h=rayHitsPlayer(origin,dir,q,a.weapon==="laserBeam"?PLAYER_RADIUS*4:null);
           if(!h||h.t>range)continue;
           if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}
         }
@@ -4482,7 +4488,7 @@ setInterval(() => {
   }
   const previous = previousHumanOnlineCount;
   previousHumanOnlineCount = onlineCount;
-  if (onlineCount > previous && pushSubscriptions.length > 0) {
+  if (previous === 0 && onlineCount === 1 && pushSubscriptions.length > 0) {
     const japanTime = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
     }).formatToParts(new Date());
