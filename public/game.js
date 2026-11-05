@@ -281,6 +281,7 @@ const DEFAULT_SETTINGS = {
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
   autoRespawnEnabled: false,
+  bowScopeZoomEnabled: true,
   keyboard: {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     lookUp: "ArrowUp", lookDown: "ArrowDown", lookRight: "ArrowRight", lookLeft: "ArrowLeft",
@@ -344,6 +345,7 @@ function loadGameSettings() {
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
       autoRespawnEnabled: saved.autoRespawnEnabled === true,
+      bowScopeZoomEnabled: saved.bowScopeZoomEnabled !== false,
       keyboard: savedKeyboard,
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
@@ -530,6 +532,9 @@ function updateSettingsUi() {
     const label = document.getElementById("allowLookWhileJumpCrouchHeldValue");
     if (label) label.textContent = jumpCrouchLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
+
+  const bowScopeZoomToggle = document.getElementById("bowScopeZoomToggle");
+  if (bowScopeZoomToggle) bowScopeZoomToggle.checked = gameSettings.bowScopeZoomEnabled !== false;
 
   const touchAimAssistSelect = document.getElementById("touchAimAssistStrengthSelect");
   if (touchAimAssistSelect) touchAimAssistSelect.value = String(gameSettings.touchAimAssistStrength ?? 0);
@@ -801,6 +806,12 @@ function setupSettings() {
     gameSettings.autoRespawnEnabled = Boolean(event.target.checked);
     const label = document.getElementById("autoRespawnToggleValue");
     if (label) label.textContent = event.target.checked ? "ON" : "OFF";
+    saveGameSettings();
+  });
+
+  document.getElementById("bowScopeZoomToggle")?.addEventListener("change", (event) => {
+    gameSettings.bowScopeZoomEnabled = Boolean(event.target.checked);
+    if (selectedWeapon === "bow" && bowChargeStartedAt) updateBowChargeScope((performance.now() - bowChargeStartedAt) / 1500);
     saveGameSettings();
   });
 
@@ -2176,6 +2187,9 @@ function updateWeaponBeamVisuals() {
         const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         const cameraDown = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
         start.addScaledVector(direction, 0.9).addScaledVector(cameraRight, 0.22).addScaledVector(cameraDown, 0.16);
+      } else if (weapon === "railgun") {
+        const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        start.addScaledVector(direction, 0.65).addScaledVector(cameraRight, 0.22);
       } else {
         start.addScaledVector(direction, 0.7);
       }
@@ -2241,7 +2255,7 @@ function updateWeaponBeamVisuals() {
     } else {
       if (!beam || beam.userData.weapon !== weapon || beam.userData.groundFan) {
         removeWeaponBeamVisual(id);
-        const radius = weapon === "laserBeam" ? 0.022 : 0.075;
+        const radius = weapon === "laserBeam" ? 0.044 : 0.075;
         beam = new THREE.Mesh(
           new THREE.CylinderGeometry(radius * 0.72, radius, 1, 12, 1, false),
           new THREE.MeshBasicMaterial({
@@ -3212,12 +3226,13 @@ const BOW_FIRE_COOLDOWN_MS = 750;
 function updateBowChargeScope(progress) {
   const amount = THREE.MathUtils.clamp(progress / 0.5, 0, 1);
   if (selectedWeapon !== "bow" || scopeEnabled) return;
-  camera.fov = 76 - (52 * amount);
+  const zoomAmount = gameSettings.bowScopeZoomEnabled === false ? 0 : amount;
+  camera.fov = 76 - (52 * zoomAmount);
   camera.updateProjectionMatrix();
   const overlay = document.getElementById("scopeOverlay");
   if (overlay) {
-    overlay.classList.toggle("hidden", amount <= 0.001);
-    overlay.style.opacity = String(amount);
+    overlay.classList.toggle("hidden", zoomAmount <= 0.001);
+    overlay.style.opacity = String(zoomAmount);
   }
 }
 function resetBowChargeScope() {
