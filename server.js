@@ -3873,8 +3873,8 @@ io.on("connection", (socket) => {
 
   socket.on("bowRelease", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.frozenUntil > now || !p.bowChargeStartedAt) return;
     const now = Date.now();
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.frozenUntil > now || !p.bowChargeStartedAt) return;
     const startedAt = p.bowChargeStartedAt;
     p.bowChargeStartedAt = 0;
     if (now < (p.bowNextFireAt || 0)) return;
