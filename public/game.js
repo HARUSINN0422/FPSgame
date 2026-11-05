@@ -2189,13 +2189,13 @@ function updateWeaponBeamVisuals() {
       direction = directionFromAngles(yawValue, pitchValue);
     }
     const isFan = weapon === "flamethrower" || weapon === "freezeCannon";
-    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 12 : 14;
+    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 9 : 10.5;
     const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     let beam = weaponBeamMeshes.get(id);
     if (isFan) {
       if (!beam || beam.userData.weapon !== weapon || !beam.userData.groundFan) {
         removeWeaponBeamVisual(id);
-        const halfAngle = THREE.MathUtils.degToRad(24);
+        const halfAngle = THREE.MathUtils.degToRad(45);
         const shape = new THREE.Shape();
         shape.moveTo(0, 0);
         shape.absarc(0, 0, range, -Math.PI / 2 - halfAngle, -Math.PI / 2 + halfAngle, false);
@@ -3045,8 +3045,6 @@ function updateWeaponReticle() {
   const crosshair = document.getElementById("crosshair");
   if (!crosshair) return;
   const reticles = {
-    flamethrower: ["weapon-fan", ""],
-    freezeCannon: ["weapon-fan", ""],
     bow: ["weapon-bow", "⌒"],
     minigun: ["weapon-minigun", "✣"],
     pickaxe: ["weapon-pickaxe", "+"],
@@ -3060,9 +3058,11 @@ function updateWeaponReticle() {
     marksman: ["weapon-marksman", "⊙"],
     sniper: ["weapon-sniper", "·"]
   };
+  const noReticle = selectedWeapon === "flamethrower" || selectedWeapon === "freezeCannon";
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-bow", "weapon-minigun", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper", "weapon-fan");
+  crosshair.classList.remove("weapon-bow", "weapon-minigun", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper", "weapon-fan", "weapon-no-reticle");
   crosshair.classList.add(className);
+  crosshair.classList.toggle("weapon-no-reticle", noReticle);
   crosshair.textContent = glyph;
   updatePickaxeReticleBounds();
 }
