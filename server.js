@@ -224,12 +224,16 @@ const WEAPONS = {
   bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
   minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
   shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
-  grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false }
+  grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
+  railgun: { name: "Railgun", damage: 50, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  flamethrower: { name: "Flamethrower", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
+  laserBeam: { name: "Laser Beam", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
+  freezeCannon: { name: "Freeze Cannon", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
 };
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃 / 70ダメージ",
@@ -2186,6 +2190,8 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
 
 function movePlayer(p, dt) {
   const now = Date.now();
+  if (p.frozenUntil > now) { p.input.forward = 0; p.input.strafe = 0; p.velocityY = 0; return; }
+  if (p.frozenUntil) p.frozenUntil = 0;
   if (p.ultimateActiveUntil > now) {
     // 天墜の浮上中は上下位置を維持しつつ、ごく低速で横移動できる。
     if (p.skyfallImpactId) {
@@ -2885,6 +2891,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 }
 
 function applyIncomingDamage(target, amount) {
+  if(target.burnUntil>Date.now() && target.burnNextAt<=Date.now()){applyIncomingDamage(target,3);target.burnNextAt=Date.now()+1000;}
   let damage = Math.max(0, Number(amount) || 0);
   // 天墜で浮上している間は受けるダメージを75%軽減する。
   if (target.skyfallImpactId && target.ultimateActiveUntil > Date.now()) damage *= 0.25;
@@ -2928,6 +2935,7 @@ function publicPlayer(p, includeSkin = false) {
     yaw: p.yaw,
     pitch: p.pitch,
     crouched: Boolean(p.crouched),
+    frozenUntil: Number(p.frozenUntil) || 0,
     name: p.name,
     invisible: Number(p.invisibleUntil) > Date.now(),
     health: p.health,
@@ -3806,10 +3814,28 @@ io.on("connection", (socket) => {
 
   socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || ["bow", "minigun"].includes(p.weapon)) return;
+    if (!p || p.health <= 0 || p.finished || ["bow", "minigun", "railgun", "flamethrower", "laserBeam", "freezeCannon"].includes(p.weapon) || p.frozenUntil > Date.now()) return;
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
 
+  socket.on("railgunChargeStart", () => { const p=players.get(socket.id), now=Date.now(); if(p&&p.weapon==="railgun"&&p.health>0&&!p.finished&&p.invulnerableUntil<=now&&p.frozenUntil<=now)p.railgunChargeStartedAt=now; });
+  socket.on("railgunRelease", () => { const p=players.get(socket.id),now=Date.now(); if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<1000||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return; p.railgunChargeStartedAt=0; fireShot(p); });
+  socket.on("beamStart", () => {
+    const p=players.get(socket.id),now=Date.now(); if(!p||p.health<=0||p.finished||!["flamethrower","laserBeam","freezeCannon"].includes(p.weapon)||p.invulnerableUntil>now||p.frozenUntil>now||p.beamTimer)return;
+    p.beamLastHitAt=new Map(); p.beamTimer=setInterval(()=>{
+      const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer)clearInterval(a.beamTimer);if(a)a.beamTimer=null;return;}
+      const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
+      for(const q of players.values()){if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;const h=rayHitsPlayer(origin,dir,q),range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?12:14;if(!h||h.t>range)continue;if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}seen.add(q.id);
+        if(a.weapon==="laserBeam"){q.laserStreak=(a.beamLastHitAt.get(q.id)&&t-a.beamLastHitAt.get(q.id)<=700)?Math.min(6,(q.laserStreak||1)+1):1;const d=4*Math.pow(2,q.laserStreak-1);applyIncomingDamage(q,d);addUltimateCharge(a,d);}
+        else if(a.weapon==="flamethrower"){applyIncomingDamage(q,5);addUltimateCharge(a,5);q.burnExposure=(q.burnExposure||0)+.5;q.burnUntil=t+q.burnExposure*1000;}
+        else {applyIncomingDamage(q,4);addUltimateCharge(a,4);q.freezeChance=Math.min(100,(q.freezeChance||0)+5);if(Math.random()*100<q.freezeChance)q.frozenUntil=t+2000;}
+        a.beamLastHitAt.set(q.id,t);
+      }
+      for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
+      broadcastPlayers();
+    },500);p.beamTimer.unref?.();
+  });
+  socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){p.beamTimer=null;p.beamLastHitAt=null;}});
   socket.on("bowChargeStart", () => {
     const p = players.get(socket.id);
     const now = Date.now();
@@ -3937,7 +3963,7 @@ io.on("connection", (socket) => {
     if (!p || p.finished) return;
     const nextWeapon = sanitizeWeapon(weapon);
     if (p.weapon === nextWeapon) return;
-    p.bowChargeStartedAt = 0;
+    p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer)clearInterval(p.beamTimer);p.beamTimer=null;
     if (!Array.isArray(p.weaponSlots)) p.weaponSlots = [p.weapon, nextWeapon];
     p.weaponSlots[p.activeWeaponSlot || 0] = nextWeapon;
     p.weapon = nextWeapon;
@@ -3955,7 +3981,7 @@ io.on("connection", (socket) => {
     if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
     if (nextSlot === p.activeWeaponSlot && nextWeapon === p.weapon) return;
-    p.bowChargeStartedAt = 0;
+    p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer)clearInterval(p.beamTimer);p.beamTimer=null;
     p.minigunChargeStartedAt = 0;
     p.minigunBurstId = (p.minigunBurstId || 0) + 1;
     if (p.minigunFireTimer) clearTimeout(p.minigunFireTimer);
@@ -3982,6 +4008,7 @@ io.on("connection", (socket) => {
     cancelAreaQueue(socket.id);
     cancelPayloadQueue(socket.id);
     const player = players.get(socket.id);
+    if(player?.beamTimer)clearInterval(player.beamTimer);
     if (player?.mode === AREA_MODE) {
       removeAreaPlayer(socket.id);
       return;
