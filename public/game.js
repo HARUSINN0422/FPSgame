@@ -3404,18 +3404,16 @@ function createTracer(event) {
 
     // アサルトライフルは弾頭に短いトレーサーを付ける。
     // 弾そのものが長い線に見えないよう、線は弾の後ろだけに短く表示する。
-    if (isRifle) {
-      const geometry = new THREE.BufferGeometry().setFromPoints([
-        start,
-        start
-      ]);
+    if (isRifle || event.weapon === "railgun") {
+      const geometry = new THREE.BufferGeometry().setFromPoints([start, start]);
       const material = new THREE.LineBasicMaterial({
         color: bulletColor,
         transparent: true,
-        opacity: .8
+        opacity: event.weapon === "railgun" ? 1 : .8
       });
       line = new THREE.Line(geometry, material);
-      line.userData.rifleTracer = true;
+      if (event.weapon === "railgun") line.userData.railgunTracer = true;
+      else line.userData.rifleTracer = true;
       scene.add(line);
     } else {
       const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
@@ -3430,7 +3428,7 @@ function createTracer(event) {
 
     const dot = new THREE.Mesh(
       new THREE.SphereGeometry(
-        event.weapon === "railgun" ? .14 : isRifle ? .075 : event.weapon === "shotgun" ? .06 : .045,
+        event.weapon === "railgun" ? .26 : isRifle ? .075 : event.weapon === "shotgun" ? .06 : .045,
         8,
         8
       ),
@@ -5102,10 +5100,10 @@ function animate(now) {
       tracer.dot.position.lerpVectors(tracer.start, tracer.end, progress);
 
       if (tracer.line) {
-        if (tracer.line.userData?.rifleTracer) {
+        if (tracer.line.userData?.rifleTracer || tracer.line.userData?.railgunTracer) {
           const current = tracer.dot.position;
           const dir = tracer.end.clone().sub(tracer.start).normalize();
-          const streakLength = 0.75;
+          const streakLength = tracer.line.userData?.railgunTracer ? 2.8 : 0.75;
           const streakStart = current.clone().sub(dir.multiplyScalar(streakLength));
           tracer.line.geometry.setFromPoints([streakStart, current]);
         } else {
