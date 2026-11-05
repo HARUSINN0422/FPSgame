@@ -281,7 +281,7 @@ const DEFAULT_SETTINGS = {
   allowLookWhileActionHeld: true,
   allowLookWhileJumpCrouchHeld: true,
   autoRespawnEnabled: false,
-  bowScopeZoomEnabled: true,
+  bowUsesSniperSensitivity: true,
   keyboard: {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     lookUp: "ArrowUp", lookDown: "ArrowDown", lookRight: "ArrowRight", lookLeft: "ArrowLeft",
@@ -309,6 +309,12 @@ const DEFAULT_SETTINGS = {
 };
 
 let gameSettings = loadGameSettings();
+function getScopeSensitivityMultiplier() {
+  const sniperAiming = selectedWeapon === "sniper" && scopeEnabled;
+  const bowAiming = selectedWeapon === "bow" && bowChargeStartedAt > 0 &&
+    gameSettings.bowUsesSniperSensitivity !== false;
+  return sniperAiming || bowAiming ? gameSettings.sniperSensitivity : 1;
+}
 let layoutEditing = false;
 
 function cloneSettings(settings) {
@@ -345,7 +351,7 @@ function loadGameSettings() {
       allowLookWhileActionHeld: saved.allowLookWhileActionHeld !== false,
       allowLookWhileJumpCrouchHeld: saved.allowLookWhileJumpCrouchHeld !== false,
       autoRespawnEnabled: saved.autoRespawnEnabled === true,
-      bowScopeZoomEnabled: saved.bowScopeZoomEnabled !== false,
+      bowUsesSniperSensitivity: saved.bowUsesSniperSensitivity !== false && saved.bowScopeZoomEnabled !== false,
       keyboard: savedKeyboard,
       layout: {
         movePad: { ...DEFAULT_SETTINGS.layout.movePad, ...(saved.layout?.movePad || {}) },
@@ -534,7 +540,7 @@ function updateSettingsUi() {
   }
 
   const bowScopeZoomToggle = document.getElementById("bowScopeZoomToggle");
-  if (bowScopeZoomToggle) bowScopeZoomToggle.checked = gameSettings.bowScopeZoomEnabled !== false;
+  if (bowScopeZoomToggle) bowScopeZoomToggle.checked = gameSettings.bowUsesSniperSensitivity !== false;
 
   const touchAimAssistSelect = document.getElementById("touchAimAssistStrengthSelect");
   if (touchAimAssistSelect) touchAimAssistSelect.value = String(gameSettings.touchAimAssistStrength ?? 0);
@@ -810,8 +816,8 @@ function setupSettings() {
   });
 
   document.getElementById("bowScopeZoomToggle")?.addEventListener("change", (event) => {
-    gameSettings.bowScopeZoomEnabled = Boolean(event.target.checked);
-    if (selectedWeapon === "bow" && bowChargeStartedAt) updateBowChargeScope((performance.now() - bowChargeStartedAt) / 1500);
+    gameSettings.bowUsesSniperSensitivity = Boolean(event.target.checked);
+    // 感度設定のみ変更。弓のスコープ倍率・表示は常に有効。
     saveGameSettings();
   });
 
@@ -2187,9 +2193,6 @@ function updateWeaponBeamVisuals() {
         const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         const cameraDown = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
         start.addScaledVector(direction, 0.9).addScaledVector(cameraRight, 0.22).addScaledVector(cameraDown, 0.16);
-      } else if (weapon === "railgun") {
-        const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-        start.addScaledVector(direction, 0.65).addScaledVector(cameraRight, 0.22);
       } else {
         start.addScaledVector(direction, 0.7);
       }
@@ -2943,7 +2946,7 @@ function pollGamepad(now) {
   joystick.strafe = lx;
   joystick.forward = -ly;
 
-  const lookSpeed = .045 * gameSettings.controllerSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  const lookSpeed = .045 * gameSettings.controllerSensitivity * (getScopeSensitivityMultiplier());
   yaw -= rx * lookSpeed;
   pitch -= ry * lookSpeed;
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
@@ -3009,7 +3012,7 @@ function sendInput(now) {
   const forward = THREE.MathUtils.clamp(keyboardForward + joystick.forward, -1, 1) * scopeMoveMultiplier;
   const lookDelta = lastKeyboardLookAt ? Math.min((now - lastKeyboardLookAt) / 1000, 0.1) : 0;
   lastKeyboardLookAt = now;
-  const lookSpeed = 1.8 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  const lookSpeed = 1.8 * gameSettings.mouseSensitivity * (getScopeSensitivityMultiplier());
   // 視点の回転方向を入力方向に合わせる（右/上は正方向ではなく反対符号）。
   yaw -= ((keyboardLook.right ? 1 : 0) - (keyboardLook.left ? 1 : 0)) * lookSpeed * lookDelta;
   pitch -= ((keyboardLook.down ? 1 : 0) - (keyboardLook.up ? 1 : 0)) * lookSpeed * lookDelta;
@@ -3226,7 +3229,7 @@ const BOW_FIRE_COOLDOWN_MS = 750;
 function updateBowChargeScope(progress) {
   const amount = THREE.MathUtils.clamp(progress / 0.5, 0, 1);
   if (selectedWeapon !== "bow" || scopeEnabled) return;
-  const zoomAmount = gameSettings.bowScopeZoomEnabled === false ? 0 : amount;
+  const zoomAmount = amount;
   camera.fov = 76 - (52 * zoomAmount);
   camera.updateProjectionMatrix();
   const overlay = document.getElementById("scopeOverlay");
@@ -4743,8 +4746,8 @@ document.addEventListener("pointermove", (event) => {
   previous.x = event.clientX;
   previous.y = event.clientY;
 
-  yaw -= dx * .0045 * gameSettings.touchSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
-  pitch -= dy * .0045 * gameSettings.touchSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  yaw -= dx * .0045 * gameSettings.touchSensitivity * (getScopeSensitivityMultiplier());
+  pitch -= dy * .0045 * gameSettings.touchSensitivity * (getScopeSensitivityMultiplier());
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
   event.preventDefault();
 }, { capture: true, passive: false });
@@ -4981,8 +4984,8 @@ document.addEventListener("pointerlockchange", () => {
 document.addEventListener("mousemove", (e) => {
   if (!pointerLocked) return;
 
-  yaw -= e.movementX * .0028 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
-  pitch -= e.movementY * .0028 * gameSettings.mouseSensitivity * (scopeEnabled && selectedWeapon === "sniper" ? gameSettings.sniperSensitivity : 1);
+  yaw -= e.movementX * .0028 * gameSettings.mouseSensitivity * (getScopeSensitivityMultiplier());
+  pitch -= e.movementY * .0028 * gameSettings.mouseSensitivity * (getScopeSensitivityMultiplier());
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 });
 
