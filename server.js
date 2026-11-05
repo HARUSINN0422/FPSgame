@@ -2973,9 +2973,52 @@ setInterval(() => {
   for(const p of players.values()){
     if(p.freezeLastHitAt && now-p.freezeLastHitAt>=500 && (p.freezeDecayAt||0)<=now){p.freezeChance=Math.max(0,(p.freezeChance||0)-5);p.freezeDecayAt=now+500;}
   }
-  for(const p of players.values()){
-    if(p.burnUntil>now && (p.burnNextAt||0)<=now && p.health>0){applyIncomingDamage(p,3);p.burnNextAt=now+1000;}
-    if(p.burnUntil<=now){p.burnExposure=0;p.burnNextAt=0;}
+  for (const p of players.values()) {
+    if (p.burnUntil > now && (p.burnNextAt || 0) <= now && p.health > 0) {
+      const burnDamage = 3;
+      const split = applyIncomingDamage(p, burnDamage);
+      const attacker = players.get(p.burnSourceId);
+      io.to(p.id).emit("damageTaken", { damage: Math.round(split.totalDamage), zone: "body" });
+      if (attacker && attacker.id !== p.id && split.totalDamage > 0) {
+        addUltimateCharge(attacker, burnDamage);
+        io.to(attacker.id).emit("damageDealt", {
+          targetId: p.id,
+          damage: Math.round(split.totalDamage),
+          shieldDamage: Math.round(split.shieldDamage),
+          healthDamage: Math.round(split.healthDamage),
+          zone: "body",
+          x: p.x,
+          y: p.y + (p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.5,
+          z: p.z
+        });
+      }
+      if (p.health <= 0 && attacker && attacker.id !== p.id) {
+        p.health = 0;
+        p.respawnAt = now + 5000;
+        p.kills = p.kills || 0;
+        attacker.health = Number(attacker.maxHealth) || 100;
+        attacker.kills = (attacker.kills || 0) + 1;
+        p.deaths = (p.deaths || 0) + 1;
+        if (p.mode === "Duel") resolveDuelRound(attacker, p);
+        p.invisibleUntil = 0;
+        if (p.riftDuelId) finishRiftDuel(p);
+        if (attacker.invisibleUntil > Date.now()) attacker.invisibleUntil = 0;
+        broadcastGameEvent(attacker, "elimination", {
+          killerId: attacker.id,
+          killerName: attacker.name,
+          victimId: p.id,
+          victimName: p.name,
+          killerKills: attacker.kills,
+          zone: "body"
+        });
+      }
+      p.burnNextAt = now + 1000;
+    }
+    if (p.burnUntil <= now) {
+      p.burnExposure = 0;
+      p.burnNextAt = 0;
+      p.burnSourceId = null;
+    }
   }
 },250).unref?.();
 
