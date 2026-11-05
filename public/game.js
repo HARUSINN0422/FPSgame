@@ -3522,20 +3522,26 @@ function createTracer(event) {
       pellet.y ?? start.y + dir.y * distance,
       pellet.z ?? start.z + dir.z * distance
     );
-    // 即着弾ビーム。従来の細い線に対して直径を5倍にした円柱で描画する。
+    // サーバー側の rayHitsPlayer と同じ半径（PLAYER_RADIUS 0.45 × 2 × 5 = 4.5m）で表示する。
+    // 深度テストを無効にして、地形や敵モデルに隠れてビーム自体が見えなくなるのを防ぐ。
     const beamVector = end.clone().sub(start);
     const beamLength = Math.max(0.001, beamVector.length());
     const beamDirection = beamVector.clone().normalize();
-    const geometry = new THREE.CylinderGeometry(0.125, 0.125, beamLength, 10, 1, false);
+    const hitRadius = 0.45 * 2 * 5;
+    const geometry = new THREE.CylinderGeometry(hitRadius, hitRadius, beamLength, 24, 1, true);
     const material = new THREE.MeshBasicMaterial({
       color: 0x8cecff,
       transparent: true,
-      opacity: 0.9,
-      depthWrite: false
+      opacity: 0.24,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
     });
     const line = new THREE.Mesh(geometry, material);
     line.position.copy(start).add(end).multiplyScalar(0.5);
     line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), beamDirection);
+    line.renderOrder = 1000;
     scene.add(line);
     tracers.push({ line, dot: null, start, end, born: performance.now(), life: 110 });
     return;
