@@ -87,6 +87,11 @@
         </div>
           <div class="settings-group">
             <div class="settings-group-title">スコープ設定</div>
+            <label class="setting-section look-toggle-row">
+              <strong>弓のチャージ中にスコープ倍率を使用</strong>
+              <span><input id="bowScopeZoomToggle" type="checkbox" checked> <strong>ON / OFF</strong></span>
+              <p>ONでは現在の弓の倍率表示を使用します。OFFではチャージ中も通常の視野角のままです。</p>
+            </label>
             <div class="setting-section">
               <strong>スナイパースコープ感度 <span><strong id="sniperSensitivityValue">1.00</strong></span></strong>
               <input id="sniperSensitivitySlider" type="range" min="0.01" max="2.00" step="0.05" value="1">
@@ -645,6 +650,6 @@
     }
   </script>
   <script type="module" src="skin-editor.js?v=minecraft-skin-import-2"></script>
-  <script type="module" src="game.js?v=weapon-visuals-push-5"></script>
+  <script type="module" src="game.js?v=weapon-visuals-push-6"></script>
 </body>
 </html>
