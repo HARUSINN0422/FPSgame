@@ -2171,7 +2171,14 @@ function updateWeaponBeamVisuals() {
       if (!joined || !camera) continue;
       start = camera.getWorldPosition(new THREE.Vector3());
       direction = camera.getWorldDirection(new THREE.Vector3());
-      start.addScaledVector(direction, 0.7);
+      // 一人称視点では銃口付近から細く描画し、画面手前でビームが太く見えるのを防ぐ。
+      if (weapon === "laserBeam") {
+        const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const cameraDown = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+        start.addScaledVector(direction, 0.9).addScaledVector(cameraRight, 0.22).addScaledVector(cameraDown, 0.16);
+      } else {
+        start.addScaledVector(direction, 0.7);
+      }
       playerX = myState?.x ?? start.x;
       playerY = myState?.y ?? start.y - 1.3;
       playerZ = myState?.z ?? start.z;
@@ -2234,11 +2241,12 @@ function updateWeaponBeamVisuals() {
     } else {
       if (!beam || beam.userData.weapon !== weapon || beam.userData.groundFan) {
         removeWeaponBeamVisual(id);
-        const radius = 0.075;
+        const radius = weapon === "laserBeam" ? 0.022 : 0.075;
         beam = new THREE.Mesh(
           new THREE.CylinderGeometry(radius * 0.72, radius, 1, 12, 1, false),
           new THREE.MeshBasicMaterial({
-            color, transparent: true, opacity: 0.94, depthWrite: false,
+            color, transparent: true, opacity: weapon === "laserBeam" ? 0.72 : 0.94,
+            depthTest: true, depthWrite: false,
             blending: THREE.AdditiveBlending, side: THREE.DoubleSide
           })
         );
@@ -3553,7 +3561,7 @@ function createTracer(event) {
     const beamVector = end.clone().sub(start);
     const beamLength = Math.max(0.001, beamVector.length());
     const beamDirection = beamVector.clone().normalize();
-    const hitRadius = 2;
+    const hitRadius = 1;
     const geometry = new THREE.CylinderGeometry(hitRadius, hitRadius, beamLength, 24, 1, true);
     const material = new THREE.MeshBasicMaterial({
       color: 0x8cecff,
