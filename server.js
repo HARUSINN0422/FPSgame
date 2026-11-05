@@ -3849,9 +3849,9 @@ io.on("connection", (socket) => {
   socket.on("railgunRelease", () => { const p=players.get(socket.id),now=Date.now(); if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<1000||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return; p.railgunChargeStartedAt=0; fireShot(p); });
   socket.on("beamStart", () => {
     const p=players.get(socket.id),now=Date.now(); if(!p||p.health<=0||p.finished||!["flamethrower","laserBeam","freezeCannon"].includes(p.weapon)||p.invulnerableUntil>now||p.frozenUntil>now||p.beamTimer)return;
-    broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:true});
+    broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:true,x:p.x,y:p.y+(p.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:p.z,yaw:p.yaw,pitch:p.pitch});
     p.beamLastHitAt=new Map(); p.beamTimer=setInterval(()=>{
-      const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false});}if(a)a.beamTimer=null;return;}
+      const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
       for(const q of players.values()){if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;const h=rayHitsPlayer(origin,dir,q),range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?12:14;if(!h||h.t>range)continue;if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}seen.add(q.id);
         if(a.weapon==="laserBeam"){q.laserStreak=(a.beamLastHitAt.get(q.id)&&t-a.beamLastHitAt.get(q.id)<=700)?Math.min(6,(q.laserStreak||1)+1):1;const d=4*Math.pow(2,q.laserStreak-1);applyIncomingDamage(q,d);addUltimateCharge(a,d);}
@@ -3863,7 +3863,7 @@ io.on("connection", (socket) => {
       broadcastPlayers();
     },500);p.beamTimer.unref?.();
   });
-  socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false});p.beamTimer=null;p.beamLastHitAt=null;}});
+  socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch});p.beamTimer=null;p.beamLastHitAt=null;}});
   socket.on("bowChargeStart", () => {
     const p = players.get(socket.id);
     const now = Date.now();
