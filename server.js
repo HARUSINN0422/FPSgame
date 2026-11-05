@@ -2561,15 +2561,17 @@ function rayHitsPayloadCart(origin, direction, maxDistance, player = null) {
   return Number.isFinite(nearest) ? nearest : null;
 }
 
-function rayHitsPlayer(origin, direction, target) {
+function rayHitsPlayer(origin, direction, target, hitRadiusMultiplier = 1) {
   const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
   const ox = origin.x - targetCenter.x;
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
 
+  // 通常武器は従来の判定半径。レールガンのみビーム幅に合わせて5倍に拡張。
+  const hitRadius = PLAYER_RADIUS * 2 * Math.max(1, Number(hitRadiusMultiplier) || 1);
   const b = 2 * (ox * direction.x + oy * direction.y + oz * direction.z);
-  const c = ox * ox + oy * oy + oz * oz - PLAYER_RADIUS * PLAYER_RADIUS * 4;
+  const c = ox * ox + oy * oy + oz * oz - hitRadius * hitRadius;
   const disc = b * b - 4 * c;
   if (disc < 0) return null;
 
@@ -2651,7 +2653,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
           (shooter.mode === TRAINING_MODE && !target.isBot) ||
           (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
-      const hit = rayHitsPlayer(origin, dir, target);
+      const hit = rayHitsPlayer(origin, dir, target, 5);
       if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
     }
 
