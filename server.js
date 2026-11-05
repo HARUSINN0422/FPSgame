@@ -2919,7 +2919,6 @@ setInterval(() => {
 },250).unref?.();
 
 function applyIncomingDamage(target, amount) {
-  if(target.burnUntil>Date.now() && target.burnNextAt<=Date.now()){applyIncomingDamage(target,3);target.burnNextAt=Date.now()+1000;}
   let damage = Math.max(0, Number(amount) || 0);
   // 天墜で浮上している間は受けるダメージを75%軽減する。
   if (target.skyfallImpactId && target.ultimateActiveUntil > Date.now()) damage *= 0.25;
