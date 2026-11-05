@@ -272,6 +272,7 @@ p {
 #crosshair.weapon-sniper { font-size: 20px; font-weight: 300; }
 body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
 #crosshair.weapon-switch-blocked { visibility: hidden !important; opacity: 0 !important; }
+#crosshair.weapon-no-reticle { display: none !important; }
 
 #ammoHud {
   pointer-events: auto;
