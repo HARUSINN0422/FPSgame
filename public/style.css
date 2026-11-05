@@ -1874,3 +1874,34 @@ body.controller-mode #settingsButton {
 /* プッシュ通知ON状態 */
 #pushNotificationToggle.push-enabled { background: #247a43; border-color: #42a96a; color: #fff; }
 #pushNotificationToggle:disabled { opacity: .6; }
+
+
+/* 火炎放射器/フリーズキャノン用：照準中心から広がる扇形の範囲表示 */
+#crosshair.weapon-fan {
+  width: 220px;
+  height: 132px;
+  font-size: 0;
+  line-height: 0;
+  opacity: .98;
+  background: linear-gradient(90deg, rgba(255,255,255,.9), rgba(255,255,255,.9)) center bottom / 2px 9px no-repeat;
+}
+#crosshair.weapon-fan::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 66px;
+  border: 2px solid rgba(255,255,255,.95);
+  border-bottom: 0;
+  border-radius: 110px 110px 0 0;
+  filter: drop-shadow(0 0 3px rgba(0,0,0,.95));
+}
+#crosshair.weapon-fan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.92);
+  clip-path: polygon(49.4% 100%, 0 0, 1.5% 0, 50% 95%, 98.5% 0, 100% 0, 50.6% 100%);
+  filter: drop-shadow(0 0 3px rgba(0,0,0,.95));
+}
