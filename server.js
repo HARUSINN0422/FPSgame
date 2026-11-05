@@ -2992,25 +2992,27 @@ setInterval(() => {
           z: p.z
         });
       }
-      if (p.health <= 0 && attacker && attacker.id !== p.id) {
+      if (p.health <= 0) {
         p.health = 0;
         p.respawnAt = now + 5000;
         p.kills = p.kills || 0;
-        attacker.health = Number(attacker.maxHealth) || 100;
-        attacker.kills = (attacker.kills || 0) + 1;
         p.deaths = (p.deaths || 0) + 1;
-        if (p.mode === "Duel") resolveDuelRound(attacker, p);
         p.invisibleUntil = 0;
         if (p.riftDuelId) finishRiftDuel(p);
-        if (attacker.invisibleUntil > Date.now()) attacker.invisibleUntil = 0;
-        broadcastGameEvent(attacker, "elimination", {
-          killerId: attacker.id,
-          killerName: attacker.name,
-          victimId: p.id,
-          victimName: p.name,
-          killerKills: attacker.kills,
-          zone: "body"
-        });
+        if (attacker && attacker.id !== p.id) {
+          attacker.health = Number(attacker.maxHealth) || 100;
+          attacker.kills = (attacker.kills || 0) + 1;
+          if (p.mode === "Duel") resolveDuelRound(attacker, p);
+          if (attacker.invisibleUntil > Date.now()) attacker.invisibleUntil = 0;
+          broadcastGameEvent(attacker, "elimination", {
+            killerId: attacker.id,
+            killerName: attacker.name,
+            victimId: p.id,
+            victimName: p.name,
+            killerKills: attacker.kills,
+            zone: "body"
+          });
+        }
       }
       p.burnNextAt = now + 1000;
     }
