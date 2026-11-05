@@ -3449,10 +3449,20 @@ function createTracer(event) {
       pellet.y ?? start.y + dir.y * distance,
       pellet.z ?? start.z + dir.z * distance
     );
-    // 即着弾のため、弾頭を移動させず、発射時点で全長のビームを描画する。
-    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
-    const material = new THREE.LineBasicMaterial({ color: 0x8cecff, transparent: true, opacity: 1 });
-    const line = new THREE.Line(geometry, material);
+    // 即着弾ビーム。従来の細い線に対して直径を5倍にした円柱で描画する。
+    const beamVector = end.clone().sub(start);
+    const beamLength = Math.max(0.001, beamVector.length());
+    const beamDirection = beamVector.clone().normalize();
+    const geometry = new THREE.CylinderGeometry(0.125, 0.125, beamLength, 10, 1, false);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x8cecff,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false
+    });
+    const line = new THREE.Mesh(geometry, material);
+    line.position.copy(start).add(end).multiplyScalar(0.5);
+    line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), beamDirection);
     scene.add(line);
     tracers.push({ line, dot: null, start, end, born: performance.now(), life: 110 });
     return;
