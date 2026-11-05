@@ -2153,8 +2153,13 @@ function removeWeaponBeamVisual(id) {
   const beam = weaponBeamMeshes.get(id);
   if (!beam) return;
   scene.remove(beam);
-  beam.geometry?.dispose();
-  beam.material?.dispose();
+  beam.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) {
+      if (Array.isArray(child.material)) child.material.forEach(material => material.dispose());
+      else child.material.dispose();
+    }
+  });
   weaponBeamMeshes.delete(id);
 }
 
@@ -2194,11 +2199,34 @@ function updateWeaponBeamVisuals() {
           ? new THREE.CylinderGeometry(farRadius, nearRadius, 1, 24, 1, false)
           : new THREE.CylinderGeometry(nearRadius * 0.72, nearRadius, 1, 12, 1, false),
         new THREE.MeshBasicMaterial({
-          color, transparent: true, opacity: isFan ? 0.25 : 0.94,
+          color, transparent: true, opacity: isFan ? 0.34 : 0.94,
           depthWrite: false, blending: THREE.AdditiveBlending,
           side: THREE.DoubleSide
         })
       );
+      if (isFan) {
+        // 扇形の外周弧と左右の境界線を追加し、範囲の端を明確にする。
+        const outlinePositions = [];
+        outlinePositions.push(-nearRadius, -0.5, 0, -farRadius, 0.5, 0);
+        outlinePositions.push(nearRadius, -0.5, 0, farRadius, 0.5, 0);
+        const arcSegments = 40;
+        for (let i = 0; i < arcSegments; i++) {
+          const a0 = (i / arcSegments) * Math.PI * 2;
+          const a1 = ((i + 1) / arcSegments) * Math.PI * 2;
+          outlinePositions.push(
+            Math.cos(a0) * farRadius, 0.5, Math.sin(a0) * farRadius,
+            Math.cos(a1) * farRadius, 0.5, Math.sin(a1) * farRadius
+          );
+        }
+        const outlineGeometry = new THREE.BufferGeometry();
+        outlineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(outlinePositions, 3));
+        const outline = new THREE.LineSegments(outlineGeometry, new THREE.LineBasicMaterial({
+          color, transparent: true, opacity: 0.98, depthTest: false,
+          depthWrite: false, blending: THREE.AdditiveBlending
+        }));
+        outline.renderOrder = 31;
+        beam.add(outline);
+      }
       beam.userData.weapon = weapon;
       beam.renderOrder = 30;
       scene.add(beam);
@@ -2567,6 +2595,46 @@ function createRemotePlayer() {
   root.add(invulnerabilityShield);
   root.userData.invulnerabilityShield = invulnerabilityShield;
 
+  // 凍結中は敵側からも一目で分かるよう、氷の輪郭を全身に表示する。
+  const freezeShell = new THREE.Mesh(
+    new THREE.SphereGeometry(0.88, 14, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0x70eaff, transparent: true, opacity: 0.26,
+      wireframe: true, depthWrite: false
+    })
+  );
+  freezeShell.position.y = 1.0;
+  freezeShell.visible = false;
+  freezeShell.renderOrder = 18;
+  root.add(freezeShell);
+  root.userData.freezeShell = freezeShell;
+
+  // 名前とは別の状態ラベルを頭上に表示する。
+  const freezeCanvas = document.createElement("canvas");
+  freezeCanvas.width = 384;
+  freezeCanvas.height = 96;
+  const freezeContext = freezeCanvas.getContext("2d");
+  freezeContext.font = "bold 58px Arial, sans-serif";
+  freezeContext.textAlign = "center";
+  freezeContext.textBaseline = "middle";
+  freezeContext.lineJoin = "round";
+  freezeContext.lineWidth = 12;
+  freezeContext.strokeStyle = "rgba(0,20,35,0.95)";
+  freezeContext.strokeText("❄ 凍結中", 192, 48);
+  freezeContext.fillStyle = "#a8f4ff";
+  freezeContext.fillText("❄ 凍結中", 192, 48);
+  const freezeTexture = new THREE.CanvasTexture(freezeCanvas);
+  freezeTexture.colorSpace = THREE.SRGBColorSpace;
+  const freezeLabel = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: freezeTexture, transparent: true, depthTest: false, depthWrite: false
+  }));
+  freezeLabel.scale.set(1.75, 0.44, 1);
+  freezeLabel.position.set(0, 2.62, 0);
+  freezeLabel.visible = false;
+  freezeLabel.renderOrder = 40;
+  root.add(freezeLabel);
+  root.userData.freezeLabel = freezeLabel;
+
   // 名前はキャラクターモデル/スキンとは独立したSpriteとして表示する。
   const nameCanvas = document.createElement("canvas");
   nameCanvas.width = 512;
@@ -2639,6 +2707,9 @@ function updateRemotePlayers(players) {
       }
     }
     obj.userData.playerState = p;
+    const isFrozen = Number(p.frozenUntil || 0) > Date.now() && p.health > 0;
+    if (obj.userData.freezeShell) obj.userData.freezeShell.visible = isFrozen && !p.invisible;
+    if (obj.userData.freezeLabel) obj.userData.freezeLabel.visible = isFrozen && !p.invisible;
     for (const mesh of Object.values(obj.userData.skinMeshes?.base || {})) mesh.visible = !p.invisible;
     for (const mesh of Object.values(obj.userData.skinMeshes?.overlay || {})) mesh.visible = !p.invisible;
     if (obj.userData.nameSprite) obj.userData.nameSprite.visible = !p.invisible;
@@ -2957,6 +3028,8 @@ function updateWeaponReticle() {
   const crosshair = document.getElementById("crosshair");
   if (!crosshair) return;
   const reticles = {
+    flamethrower: ["weapon-fan", ""],
+    freezeCannon: ["weapon-fan", ""],
     bow: ["weapon-bow", "⌒"],
     minigun: ["weapon-minigun", "✣"],
     pickaxe: ["weapon-pickaxe", "+"],
@@ -2971,7 +3044,7 @@ function updateWeaponReticle() {
     sniper: ["weapon-sniper", "·"]
   };
   const [className, glyph] = reticles[selectedWeapon] || reticles.pistol;
-  crosshair.classList.remove("weapon-bow", "weapon-minigun", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper");
+  crosshair.classList.remove("weapon-bow", "weapon-minigun", "weapon-pickaxe", "weapon-smoke", "weapon-grenade", "weapon-pistol", "weapon-smg", "weapon-rifle", "weapon-shotgun", "weapon-marksman", "weapon-sniper", "weapon-fan");
   crosshair.classList.add(className);
   crosshair.textContent = glyph;
   updatePickaxeReticleBounds();
