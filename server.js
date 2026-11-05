@@ -248,7 +248,11 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
   bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
-  minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ"
+  minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
+  railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
+  flamethrower: "長押しで連続噴射 / 炎に当たるたび0.5秒ごとに5ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（毎秒3ダメージ） / 弾薬・リロード不要",
+  laserBeam: "長押しで連続照射 / 同じ相手に0.5秒ごとに命中すると4→8→16→32→64→128ダメージ（最大128） / 弾薬・リロード不要 / 壁を貫通",
+  freezeCannon: "長押しで冷気を連続噴射 / 0.5秒ごとに4ダメージ / 命中ごとに凍結確率+5%（命中が途切れると毎秒10%低下） / 凍結すると2秒間移動・射撃不可 / 弾薬・リロード不要"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -275,6 +279,10 @@ WEAPONS.smg.magazineSize = 20;
 WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数20発";
 WEAPONS.grappler.magazineSize = 0;
 WEAPONS.grappler.description = "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要";
+// 古いdata/weapons.jsonに空の説明が保存されていても、新武器の説明を必ず表示する。
+for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
+  if (!String(WEAPONS[id].description || "").trim()) WEAPONS[id].description = DEFAULT_WEAPON_DESCRIPTIONS[id];
+}
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
 WEAPONS.marksman.fireInterval = 225 * 1.25;
