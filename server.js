@@ -2980,7 +2980,7 @@ setInterval(() => {
     if(p.freezeLastHitAt && now-p.freezeLastHitAt>=500 && (p.freezeDecayAt||0)<=now){p.freezeChance=Math.max(0,(p.freezeChance||0)-5);p.freezeDecayAt=now+500;}
   }
   for (const p of players.values()) {
-    if (p.burnUntil > now && (p.burnNextAt || 0) <= now && p.health > 0) {
+    if (p.burnUntil > now && (p.burnStartAt || 0) <= now && (p.burnNextAt || 0) <= now && p.health > 0) {
       const burnDamage = 3;
       const split = applyIncomingDamage(p, burnDamage);
       const attacker = players.get(p.burnSourceId);
@@ -3025,6 +3025,7 @@ setInterval(() => {
     if (p.burnUntil <= now) {
       p.burnExposure = 0;
       p.burnNextAt = 0;
+      p.burnStartAt = 0;
       p.burnSourceId = null;
     }
   }
@@ -3975,8 +3976,8 @@ io.on("connection", (socket) => {
     p.beamLastHitAt=new Map(); p.beamTimer=setInterval(()=>{
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
-      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?12:14;
-      const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/7.5:0;
+      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?9:10.5;
+      const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/4:0;
       const fanCos=Math.cos(fanHalfAngle);
       for(const q of players.values()){
         if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;
@@ -4010,7 +4011,9 @@ io.on("connection", (socket) => {
         } else if (a.weapon === "flamethrower") {
           beamDamage = 5;
           q.burnExposure = (q.burnExposure || 0) + 0.5;
-          q.burnUntil = t + q.burnExposure * 1000;
+          // 直接炎ダメージが止まってから500ms後に延焼ダメージを開始する。
+          q.burnStartAt = t + 500;
+          q.burnUntil = t + q.burnExposure * 1000 + 500;
           q.burnSourceId = a.id;
         } else {
           beamDamage = 4;
