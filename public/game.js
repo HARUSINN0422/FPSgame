@@ -3074,8 +3074,7 @@ function selectWeaponSlot(slot) {
   const slots = Array.isArray(myState?.weaponSlots) ? myState.weaponSlots : weaponSlots;
   if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot > 1 || !slots[nextSlot]) return;
   if (nextSlot === activeWeaponSlot && selectedWeapon === slots[nextSlot]) return;
-  if (selectedWeapon === "minigun") cancelMinigunCharge();
-  stopFiring();
+  cancelFiringForWeaponSwitch();
   lastWeaponSwitchAt = now;
   const switchReticle = document.getElementById("crosshair");
   switchReticle?.classList.add("weapon-switch-blocked");
@@ -3122,14 +3121,47 @@ function resetBowChargeScope() {
   if (overlay) { overlay.classList.add("hidden"); overlay.style.opacity = "0"; }
 }
 let railgunChargeStartedAt=0,railgunChargeTimer=null;
-function startRailgunCharge(){if(!joined||selectedWeapon!=="railgun"||myState?.health<=0||railgunChargeStartedAt||myState?.frozenUntil>Date.now())return;railgunChargeStartedAt=performance.now();socket.emit("railgunChargeStart");const hud=document.getElementById("bowChargeHud");hud?.classList.remove("hidden");const fill=document.getElementById("bowChargeFill"),label=hud?.querySelector("span");if(label)label.textContent="レールガン チャージ";railgunChargeTimer=setInterval(()=>{if(fill)fill.style.width=Math.min(100,(performance.now()-railgunChargeStartedAt)/10)+"%";},30);}
-function releaseRailgunCharge(){if(!railgunChargeStartedAt)return;const elapsed=performance.now()-railgunChargeStartedAt;railgunChargeStartedAt=0;if(railgunChargeTimer)clearInterval(railgunChargeTimer);railgunChargeTimer=null;document.getElementById("bowChargeHud")?.classList.add("hidden");if(elapsed>=1000)socket.emit("railgunRelease");}
+function startRailgunCharge() {
+  if (!joined || selectedWeapon !== "railgun" || myState?.health <= 0 ||
+      railgunChargeStartedAt || myState?.frozenUntil > Date.now()) return;
+  railgunChargeStartedAt = performance.now();
+  socket.emit("railgunChargeStart");
+  const hud = document.getElementById("bowChargeHud");
+  const fill = document.getElementById("bowChargeFill");
+  const label = hud?.querySelector("span");
+  if (label) label.textContent = "レールガン チャージ";
+  hud?.setAttribute("aria-label", "レールガンのチャージ");
+  if (fill) fill.style.width = "0%";
+  hud?.classList.remove("hidden");
+  if (railgunChargeTimer) clearInterval(railgunChargeTimer);
+  railgunChargeTimer = setInterval(() => {
+    if (fill) fill.style.width = Math.min(100, (performance.now() - railgunChargeStartedAt) / 10) + "%";
+  }, 30);
+}
+function releaseRailgunCharge() {
+  if (!railgunChargeStartedAt) return;
+  const elapsed = performance.now() - railgunChargeStartedAt;
+  railgunChargeStartedAt = 0;
+  if (railgunChargeTimer) clearInterval(railgunChargeTimer);
+  railgunChargeTimer = null;
+  const hud = document.getElementById("bowChargeHud");
+  hud?.classList.add("hidden");
+  const fill = document.getElementById("bowChargeFill");
+  if (fill) fill.style.width = "0%";
+  const label = hud?.querySelector("span");
+  if (label) label.textContent = "弓のチャージ";
+  hud?.setAttribute("aria-label", "弓のチャージ");
+  if (elapsed >= 1000 && selectedWeapon === "railgun") socket.emit("railgunRelease");
+}
 function startBowCharge() {
   if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt || performance.now() < bowNextChargeAt) return;
   bowChargeStartedAt = performance.now();
   socket.emit("bowChargeStart");
   const gauge = document.getElementById("bowChargeHud");
   const fill = document.getElementById("bowChargeFill");
+  const label = gauge?.querySelector("span");
+  if (label) label.textContent = "弓のチャージ";
+  gauge?.setAttribute("aria-label", "弓のチャージ");
   gauge?.classList.remove("hidden");
   if (bowChargeInterval) clearInterval(bowChargeInterval);
   const update = () => {
@@ -3164,6 +3196,8 @@ function startMinigunCharge() {
   const fill = document.getElementById("bowChargeFill");
   const label = gauge?.querySelector("span");
   if (label) label.textContent = "ミニガン チャージ";
+  gauge?.setAttribute("aria-label", "ミニガンのチャージ");
+  if (fill) fill.style.width = "0%";
   gauge?.setAttribute("aria-label", "ミニガンのチャージ");
   gauge?.classList.remove("hidden");
   if (minigunChargeInterval) clearInterval(minigunChargeInterval);
@@ -3222,14 +3256,43 @@ function startFiring(forceRepeat = false) {
 }
 
 function stopFiring() {
-  if(selectedWeapon==="railgun"){releaseRailgunCharge();return;}
-  if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon))socket.emit("beamStop");
-  if (selectedWeapon === "bow") { releaseBowCharge(); return; }
-  if (selectedWeapon === "minigun") { releaseMinigunCharge(); return; }
+  // 押し始めた武器のチャージだけを解放し、現在選択中の武器名で誤判定しない。
+  if (railgunChargeStartedAt) { releaseRailgunCharge(); return; }
+  if (bowChargeStartedAt) { releaseBowCharge(); return; }
+  if (minigunCharging) { releaseMinigunCharge(); return; }
+  if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
   if (autoFireTimer) {
     clearInterval(autoFireTimer);
     autoFireTimer = null;
   }
+}
+
+function cancelFiringForWeaponSwitch() {
+  if (autoFireTimer) {
+    clearInterval(autoFireTimer);
+    autoFireTimer = null;
+  }
+  // 武器切替は「発射」ではなくキャンセル。チャージ中の武器が切り替わっても誤発射しない。
+  if (railgunChargeStartedAt) {
+    railgunChargeStartedAt = 0;
+    if (railgunChargeTimer) clearInterval(railgunChargeTimer);
+    railgunChargeTimer = null;
+  }
+  if (bowChargeStartedAt) {
+    bowChargeStartedAt = 0;
+    if (bowChargeInterval) clearInterval(bowChargeInterval);
+    bowChargeInterval = null;
+    resetBowChargeScope();
+  }
+  if (minigunCharging || minigunDraining || minigunChargeValue > 0) cancelMinigunCharge();
+  if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
+  const hud = document.getElementById("bowChargeHud");
+  hud?.classList.add("hidden");
+  const fill = document.getElementById("bowChargeFill");
+  if (fill) fill.style.width = "0%";
+  const label = hud?.querySelector("span");
+  if (label) label.textContent = "弓のチャージ";
+  hud?.setAttribute("aria-label", "弓のチャージ");
 }
 
 function stopAllControls() {
@@ -3376,6 +3439,24 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
+  if (event.weapon === "railgun") {
+    const start = new THREE.Vector3(event.x, event.y, event.z);
+    const pellet = event.tracers?.[0] || {};
+    const dir = directionFromAngles(pellet.yaw ?? event.yaw, pellet.pitch ?? event.pitch);
+    const distance = Math.max(0, Number(pellet.distance) || 150);
+    const end = new THREE.Vector3(
+      pellet.x ?? start.x + dir.x * distance,
+      pellet.y ?? start.y + dir.y * distance,
+      pellet.z ?? start.z + dir.z * distance
+    );
+    // 即着弾のため、弾頭を移動させず、発射時点で全長のビームを描画する。
+    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+    const material = new THREE.LineBasicMaterial({ color: 0x8cecff, transparent: true, opacity: 1 });
+    const line = new THREE.Line(geometry, material);
+    scene.add(line);
+    tracers.push({ line, dot: null, start, end, born: performance.now(), life: 110 });
+    return;
+  }
   if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     return;
@@ -5118,9 +5199,11 @@ function animate(now) {
         tracers[i].line.geometry.dispose();
         tracers[i].line.material.dispose();
       }
-      scene.remove(tracers[i].dot);
-      tracers[i].dot.geometry.dispose();
-      tracers[i].dot.material.dispose();
+      if (tracers[i].dot) {
+        scene.remove(tracers[i].dot);
+        tracers[i].dot.geometry.dispose();
+        tracers[i].dot.material.dispose();
+      }
       tracers.splice(i, 1);
     }
   }
