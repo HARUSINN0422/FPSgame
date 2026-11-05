@@ -2633,6 +2633,23 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
   // リスポーン直後3秒間は攻撃できない。
   if (shooter.invulnerableUntil > now) return;
+  if (shooter.weapon === "railgun") {
+    if (now - shooter.lastFire < 1000) return;
+    shooter.lastFire = now;
+    const origin = { x: shooter.x, y: shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15, z: shooter.z };
+    const dir = directionFromAngles(shooter.yaw, shooter.pitch);
+    let best = null;
+    for (const target of players.values()) {
+      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter,target) ||
+          (shooter.mode === TRAINING_MODE && !target.isBot) ||
+          (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
+      const hit = rayHitsPlayer(origin,dir,target);
+      if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
+    }
+    if (best) { applyIncomingDamage(best.target,50); addUltimateCharge(shooter,50); }
+    broadcastGameEvent(shooter,"shot",{id:shooter.id,x:origin.x,y:origin.y,z:origin.z,yaw:shooter.yaw,pitch:shooter.pitch,weapon:"railgun",hit:Boolean(best),tracers:[{yaw:shooter.yaw,pitch:shooter.pitch,distance:best?.t||150}]});
+    return;
+  }
 
   finishReload(shooter, now);
   if (shooter.reloadingUntil > now) return;
@@ -2889,6 +2906,14 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     tracers: visualTracers
   });
 }
+
+setInterval(() => {
+  const now=Date.now();
+  for(const p of players.values()){
+    if(p.burnUntil>now && (p.burnNextAt||0)<=now && p.health>0){applyIncomingDamage(p,3);p.burnNextAt=now+1000;}
+    if(p.burnUntil<=now){p.burnExposure=0;p.burnNextAt=0;}
+  }
+},250).unref?.();
 
 function applyIncomingDamage(target, amount) {
   if(target.burnUntil>Date.now() && target.burnNextAt<=Date.now()){applyIncomingDamage(target,3);target.burnNextAt=Date.now()+1000;}
