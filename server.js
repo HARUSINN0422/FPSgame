@@ -3849,6 +3849,7 @@ io.on("connection", (socket) => {
   socket.on("railgunRelease", () => { const p=players.get(socket.id),now=Date.now(); if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<1000||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return; p.railgunChargeStartedAt=0; fireShot(p); });
   socket.on("beamStart", () => {
     const p=players.get(socket.id),now=Date.now(); if(!p||p.health<=0||p.finished||!["flamethrower","laserBeam","freezeCannon"].includes(p.weapon)||p.invulnerableUntil>now||p.frozenUntil>now||p.beamTimer)return;
+    broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:true});
     p.beamLastHitAt=new Map(); p.beamTimer=setInterval(()=>{
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer)clearInterval(a.beamTimer);if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
@@ -3862,7 +3863,7 @@ io.on("connection", (socket) => {
       broadcastPlayers();
     },500);p.beamTimer.unref?.();
   });
-  socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){p.beamTimer=null;p.beamLastHitAt=null;}});
+  socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false});p.beamTimer=null;p.beamLastHitAt=null;}});
   socket.on("bowChargeStart", () => {
     const p = players.get(socket.id);
     const now = Date.now();
@@ -3990,7 +3991,7 @@ io.on("connection", (socket) => {
     if (!p || p.finished) return;
     const nextWeapon = sanitizeWeapon(weapon);
     if (p.weapon === nextWeapon) return;
-    p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer)clearInterval(p.beamTimer);p.beamTimer=null;
+    p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer){clearInterval(p.beamTimer);broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false});}p.beamTimer=null;
     if (!Array.isArray(p.weaponSlots)) p.weaponSlots = [p.weapon, nextWeapon];
     p.weaponSlots[p.activeWeaponSlot || 0] = nextWeapon;
     p.weapon = nextWeapon;
@@ -4008,7 +4009,7 @@ io.on("connection", (socket) => {
     if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
     if (nextSlot === p.activeWeaponSlot && nextWeapon === p.weapon) return;
-    p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer)clearInterval(p.beamTimer);p.beamTimer=null;
+    p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer){clearInterval(p.beamTimer);broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false});}p.beamTimer=null;
     p.minigunChargeStartedAt = 0;
     p.minigunBurstId = (p.minigunBurstId || 0) + 1;
     if (p.minigunFireTimer) clearTimeout(p.minigunFireTimer);
