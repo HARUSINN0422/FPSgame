@@ -6,6 +6,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FPSgame">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="FPSgame">
   <meta name="screen-orientation" content="landscape">
   <title>FPSgame</title>
   <link rel="manifest" href="manifest.webmanifest">
@@ -324,7 +326,7 @@
           <strong>スナイパーライフル</strong>
           <span>高威力 / 装弾数3発・連射は遅い</span>
         </button>
-        <button class="weapon-card" data-weapon="railgun"><strong>レールガン</strong><span>1秒チャージ / 壁貫通 / 50ダメージ</span></button>
+        <button class="weapon-card" data-weapon="railgun"><strong>レールガン</strong><span>発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要</span></button>
         <button class="weapon-card" data-weapon="shockwaveLauncher">
           <strong>ショックウェーブランチャー</strong>
           <span>投擲 / 着弾地点から半径7.8mのプレイヤーを吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし</span>
@@ -333,9 +335,9 @@
           <strong>グラップラー</strong>
           <span>吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要</span>
         </button>
-        <button class="weapon-card" data-weapon="flamethrower"><strong>火炎放射器</strong><span>長押しで炎を噴射 / 接触中5ダメージ・炎症</span></button>
-        <button class="weapon-card" data-weapon="laserBeam"><strong>レーザービーム</strong><span>長押し照射 / 連続命中でダメージ2倍</span></button>
-        <button class="weapon-card" data-weapon="freezeCannon"><strong>フリーズキャノン</strong><span>長押しで冷気 / 連続命中で凍結確率上昇</span></button>
+        <button class="weapon-card" data-weapon="flamethrower"><strong>火炎放射器</strong><span>長押しで連続噴射 / 炎に当たるたび0.5秒ごとに5ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（毎秒3ダメージ） / 弾薬・リロード不要</span></button>
+        <button class="weapon-card" data-weapon="laserBeam"><strong>レーザービーム</strong><span>長押しで連続照射 / 同じ相手に0.5秒ごとに命中すると4→8→16→32→64→128ダメージ（最大128） / 弾薬・リロード不要 / 壁を貫通</span></button>
+        <button class="weapon-card" data-weapon="freezeCannon"><strong>フリーズキャノン</strong><span>長押しで冷気を連続噴射 / 0.5秒ごとに4ダメージ / 命中ごとに凍結確率+5%（命中が途切れると毎秒10%低下） / 凍結すると2秒間移動・射撃不可 / 弾薬・リロード不要</span></button>
       </div>
       <button id="confirmLoadoutButton" class="start-game-button" type="button">この武器構成に決定</button>
     </div>
@@ -643,6 +645,6 @@
     }
   </script>
   <script type="module" src="skin-editor.js?v=minecraft-skin-import-2"></script>
-  <script type="module" src="game.js?v=weapon-beams-push-4"></script>
+  <script type="module" src="game.js?v=weapon-visuals-push-5"></script>
 </body>
 </html>
