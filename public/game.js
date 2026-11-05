@@ -2182,15 +2182,21 @@ function updateWeaponBeamVisuals() {
     const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 12 : 14;
     const end = start.clone().addScaledVector(direction, range);
     const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
+    const isFan = weapon === "flamethrower" || weapon === "freezeCannon";
+    const fanHalfAngle = THREE.MathUtils.degToRad(24);
+    const farRadius = Math.tan(fanHalfAngle) * range;
     let beam = weaponBeamMeshes.get(id);
     if (!beam || beam.userData.weapon !== weapon) {
       removeWeaponBeamVisual(id);
-      const radius = weapon === "flamethrower" ? 0.16 : weapon === "laserBeam" ? 0.075 : 0.13;
+      const nearRadius = weapon === "flamethrower" ? 0.18 : weapon === "laserBeam" ? 0.075 : 0.16;
       beam = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius * 0.72, radius, 1, 12, 1, false),
+        isFan
+          ? new THREE.CylinderGeometry(farRadius, nearRadius, 1, 24, 1, false)
+          : new THREE.CylinderGeometry(nearRadius * 0.72, nearRadius, 1, 12, 1, false),
         new THREE.MeshBasicMaterial({
-          color, transparent: true, opacity: 0.94,
-          depthWrite: false, blending: THREE.AdditiveBlending
+          color, transparent: true, opacity: isFan ? 0.25 : 0.94,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide
         })
       );
       beam.userData.weapon = weapon;
