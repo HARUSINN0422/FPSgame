@@ -2910,6 +2910,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 setInterval(() => {
   const now=Date.now();
   for(const p of players.values()){
+    if(p.freezeLastHitAt && now-p.freezeLastHitAt>=500 && (p.freezeDecayAt||0)<=now){p.freezeChance=Math.max(0,(p.freezeChance||0)-5);p.freezeDecayAt=now+500;}
+  }
+  for(const p of players.values()){
     if(p.burnUntil>now && (p.burnNextAt||0)<=now && p.health>0){applyIncomingDamage(p,3);p.burnNextAt=now+1000;}
     if(p.burnUntil<=now){p.burnExposure=0;p.burnNextAt=0;}
   }
@@ -3853,7 +3856,7 @@ io.on("connection", (socket) => {
       for(const q of players.values()){if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;const h=rayHitsPlayer(origin,dir,q),range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?12:14;if(!h||h.t>range)continue;if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}seen.add(q.id);
         if(a.weapon==="laserBeam"){q.laserStreak=(a.beamLastHitAt.get(q.id)&&t-a.beamLastHitAt.get(q.id)<=700)?Math.min(6,(q.laserStreak||1)+1):1;const d=4*Math.pow(2,q.laserStreak-1);applyIncomingDamage(q,d);addUltimateCharge(a,d);}
         else if(a.weapon==="flamethrower"){applyIncomingDamage(q,5);addUltimateCharge(a,5);q.burnExposure=(q.burnExposure||0)+.5;q.burnUntil=t+q.burnExposure*1000;}
-        else {applyIncomingDamage(q,4);addUltimateCharge(a,4);q.freezeChance=Math.min(100,(q.freezeChance||0)+5);if(Math.random()*100<q.freezeChance)q.frozenUntil=t+2000;}
+        else {applyIncomingDamage(q,4);addUltimateCharge(a,4);q.freezeChance=Math.min(100,(q.freezeChance||0)+5);q.freezeLastHitAt=t;q.freezeDecayAt=t+500;if(Math.random()*100<q.freezeChance)q.frozenUntil=t+2000;}
         a.beamLastHitAt.set(q.id,t);
       }
       for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
