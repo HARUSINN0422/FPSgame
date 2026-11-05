@@ -2228,6 +2228,7 @@ function updateWeaponBeamVisuals() {
       }
       // ShapeGeometryを地面へ寝かせ、照準方向に合わせた扇形を足元から表示する。
       beam.position.set(playerX, playerY + 0.055, playerZ);
+      beam.rotation.order = "YXZ";
       beam.rotation.set(Math.PI / 2, yawValue, 0);
       beam.scale.set(1, 1, 1);
     } else {
