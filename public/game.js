@@ -2156,7 +2156,17 @@ function updateWeaponBeamVisuals() {
     } else {
       const playerObject = remotePlayers.get(id);
       const player = playerObject?.userData.playerState;
-      if (!playerObject || !player) continue;
+      if (!playerObject || !player) {
+        activeWeaponBeams.delete(id);
+        const oldBeam = weaponBeamMeshes.get(id);
+        if (oldBeam) {
+          scene.remove(oldBeam);
+          oldBeam.geometry.dispose();
+          oldBeam.material.dispose();
+          weaponBeamMeshes.delete(id);
+        }
+        continue;
+      }
       start = new THREE.Vector3(playerObject.position.x, playerObject.position.y + 1.28, playerObject.position.z);
       direction = directionFromAngles(Number(player.yaw) || 0, Number(player.pitch) || 0);
     }
@@ -3366,8 +3376,8 @@ function createTracer(event) {
     ? event.tracers
     : [{ yaw: event.yaw, pitch: event.pitch, distance: event.hit ? 18 : 12 }];
 
-  // 全武器で弾の色を統一する。
-  const bulletColor = 0xffe0a3;
+  // レールガンは高エネルギー弾として、長めの青白いトレーサーで表示する。
+  const bulletColor = event.weapon === "railgun" ? 0x8cecff : 0xffe0a3;
   const isRifle = ["smg", "rifle", "marksman", "sniper"].includes(event.weapon);
 
   for (const pellet of entries) {
@@ -3424,7 +3434,7 @@ function createTracer(event) {
       start: start.clone(),
       end: end.clone(),
       born: performance.now(),
-      life: isRifle ? 110 : event.weapon === "shotgun" ? 115 : 100
+      life: event.weapon === "railgun" ? 280 : isRifle ? 110 : event.weapon === "shotgun" ? 115 : 100
     });
   }
 }
