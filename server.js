@@ -2648,14 +2648,67 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const dir = directionFromAngles(shooter.yaw, shooter.pitch);
     let best = null;
     for (const target of players.values()) {
-      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter,target) ||
+      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
           (shooter.mode === TRAINING_MODE && !target.isBot) ||
           (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
-      const hit = rayHitsPlayer(origin,dir,target);
+      const hit = rayHitsPlayer(origin, dir, target);
       if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
     }
-    if (best) { applyIncomingDamage(best.target,50); addUltimateCharge(shooter,50); }
-    broadcastGameEvent(shooter,"shot",{id:shooter.id,x:origin.x,y:origin.y,z:origin.z,yaw:shooter.yaw,pitch:shooter.pitch,weapon:"railgun",hit:Boolean(best),tracers:[{yaw:shooter.yaw,pitch:shooter.pitch,distance:best?.t||150}]});
+
+    // レールガンは移動弾を生成せず、発射フレームで照準上の最初の相手に即着弾する。
+    // 既存仕様どおり壁は貫通し、射程は150m。
+    if (best) {
+      const damage = 50;
+      const split = applyIncomingDamage(best.target, damage);
+      addUltimateCharge(shooter, damage);
+      const hitX = origin.x + dir.x * best.t;
+      const hitY = origin.y + dir.y * best.t;
+      const hitZ = origin.z + dir.z * best.t;
+
+      io.to(shooter.id).emit("damageDealt", {
+        targetId: best.target.id,
+        damage: Math.round(split.totalDamage),
+        shieldDamage: Math.round(split.shieldDamage),
+        healthDamage: Math.round(split.healthDamage),
+        zone: best.zone || "body",
+        x: hitX, y: hitY, z: hitZ
+      });
+      io.to(best.target.id).emit("damageTaken", {
+        damage: Math.round(split.totalDamage),
+        zone: best.zone || "body"
+      });
+
+      if (best.target.health <= 0) {
+        shooter.health = Number(shooter.maxHealth) || 100;
+        best.target.health = 0;
+        best.target.respawnAt = now + 5000;
+        best.target.kills = best.target.kills || 0;
+        shooter.kills = (shooter.kills || 0) + 1;
+        best.target.deaths = (best.target.deaths || 0) + 1;
+        if (best.target.mode === "Duel") resolveDuelRound(shooter, best.target);
+        best.target.invisibleUntil = 0;
+        if (best.target.riftDuelId) finishRiftDuel(best.target);
+        if (shooter.invisibleUntil > Date.now()) shooter.invisibleUntil = 0;
+        broadcastGameEvent(shooter, "elimination", {
+          killerId: shooter.id,
+          killerName: shooter.name,
+          victimId: best.target.id,
+          victimName: best.target.name,
+          killerKills: shooter.kills,
+          zone: best.zone || "body"
+        });
+      }
+    }
+
+    // トレーサーは着弾点までの一直線を一度に描画する。移動弾の速度・補間処理は使わない。
+    broadcastGameEvent(shooter, "shot", {
+      id: shooter.id,
+      x: origin.x, y: origin.y, z: origin.z,
+      yaw: shooter.yaw, pitch: shooter.pitch,
+      weapon: "railgun",
+      hit: Boolean(best),
+      tracers: [{ yaw: shooter.yaw, pitch: shooter.pitch, distance: best?.t || 150 }]
+    });
     return;
   }
 
