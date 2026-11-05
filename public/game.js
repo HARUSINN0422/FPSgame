@@ -2166,76 +2166,92 @@ function removeWeaponBeamVisual(id) {
 function updateWeaponBeamVisuals() {
   for (const [id, beamData] of activeWeaponBeams) {
     const weapon = beamData.weapon;
-    let start, direction;
+    let start, direction, playerX, playerY, playerZ, yawValue;
     if (id === myId) {
       if (!joined || !camera) continue;
       start = camera.getWorldPosition(new THREE.Vector3());
       direction = camera.getWorldDirection(new THREE.Vector3());
       start.addScaledVector(direction, 0.7);
+      playerX = myState?.x ?? start.x;
+      playerY = myState?.y ?? start.y - 1.3;
+      playerZ = myState?.z ?? start.z;
+      yawValue = yaw;
     } else {
       const playerObject = remotePlayers.get(id);
       const player = playerObject?.userData.playerState;
-      const px = Number(playerObject?.position.x ?? beamData.x);
-      const py = Number(playerObject?.position.y ?? beamData.y ?? 0);
-      const pz = Number(playerObject?.position.z ?? beamData.z);
-      const yawValue = Number(player?.yaw ?? beamData.yaw);
+      playerX = Number(playerObject?.position.x ?? beamData.x);
+      playerY = Number(playerObject?.position.y ?? beamData.y ?? 0);
+      playerZ = Number(playerObject?.position.z ?? beamData.z);
+      yawValue = Number(player?.yaw ?? beamData.yaw);
       const pitchValue = Number(player?.pitch ?? beamData.pitch);
-      if (![px, py, pz, yawValue, pitchValue].every(Number.isFinite)) continue;
-      start = new THREE.Vector3(px, py + 1.28, pz);
+      if (![playerX, playerY, playerZ, yawValue, pitchValue].every(Number.isFinite)) continue;
+      start = new THREE.Vector3(playerX, playerY + 1.28, playerZ);
       direction = directionFromAngles(yawValue, pitchValue);
     }
-    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 12 : 14;
-    const end = start.clone().addScaledVector(direction, range);
-    const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     const isFan = weapon === "flamethrower" || weapon === "freezeCannon";
-    const fanHalfAngle = THREE.MathUtils.degToRad(24);
-    const farRadius = Math.tan(fanHalfAngle) * range;
+    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 12 : 14;
+    const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     let beam = weaponBeamMeshes.get(id);
-    if (!beam || beam.userData.weapon !== weapon) {
-      removeWeaponBeamVisual(id);
-      const nearRadius = weapon === "flamethrower" ? 0.18 : weapon === "laserBeam" ? 0.075 : 0.16;
-      beam = new THREE.Mesh(
-        isFan
-          ? new THREE.CylinderGeometry(farRadius, nearRadius, 1, 24, 1, false)
-          : new THREE.CylinderGeometry(nearRadius * 0.72, nearRadius, 1, 12, 1, false),
-        new THREE.MeshBasicMaterial({
-          color, transparent: true, opacity: isFan ? 0.34 : 0.94,
-          depthWrite: false, blending: THREE.AdditiveBlending,
-          side: THREE.DoubleSide
-        })
-      );
-      if (isFan) {
-        // 扇形の外周弧と左右の境界線を追加し、範囲の端を明確にする。
-        const outlinePositions = [];
-        outlinePositions.push(-nearRadius, -0.5, 0, -farRadius, 0.5, 0);
-        outlinePositions.push(nearRadius, -0.5, 0, farRadius, 0.5, 0);
-        const arcSegments = 40;
-        for (let i = 0; i < arcSegments; i++) {
-          const a0 = (i / arcSegments) * Math.PI * 2;
-          const a1 = ((i + 1) / arcSegments) * Math.PI * 2;
-          outlinePositions.push(
-            Math.cos(a0) * farRadius, 0.5, Math.sin(a0) * farRadius,
-            Math.cos(a1) * farRadius, 0.5, Math.sin(a1) * farRadius
-          );
+    if (isFan) {
+      if (!beam || beam.userData.weapon !== weapon || !beam.userData.groundFan) {
+        removeWeaponBeamVisual(id);
+        const halfAngle = THREE.MathUtils.degToRad(24);
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.absarc(0, 0, range, -Math.PI / 2 - halfAngle, -Math.PI / 2 + halfAngle, false);
+        shape.lineTo(0, 0);
+        const geometry = new THREE.ShapeGeometry(shape, 48);
+        const material = new THREE.MeshBasicMaterial({
+          color, transparent: true, opacity: weapon === "flamethrower" ? 0.28 : 0.24,
+          depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending
+        });
+        beam = new THREE.Group();
+        const fill = new THREE.Mesh(geometry, material);
+        fill.renderOrder = 30;
+        beam.add(fill);
+        const edgePoints = [new THREE.Vector3(0, 0, 0)];
+        const arcSegments = 48;
+        for (let i = 0; i <= arcSegments; i++) {
+          const angle = -Math.PI / 2 - halfAngle + (2 * halfAngle * i / arcSegments);
+          edgePoints.push(new THREE.Vector3(Math.cos(angle) * range, Math.sin(angle) * range, 0));
         }
-        const outlineGeometry = new THREE.BufferGeometry();
-        outlineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(outlinePositions, 3));
-        const outline = new THREE.LineSegments(outlineGeometry, new THREE.LineBasicMaterial({
-          color, transparent: true, opacity: 0.98, depthTest: false,
-          depthWrite: false, blending: THREE.AdditiveBlending
+        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(edgePoints);
+        const outline = new THREE.Line(outlineGeometry, new THREE.LineBasicMaterial({
+          color, transparent: true, opacity: 0.98, depthTest: false, depthWrite: false
         }));
         outline.renderOrder = 31;
         beam.add(outline);
+        beam.userData.weapon = weapon;
+        beam.userData.groundFan = true;
+        scene.add(beam);
+        weaponBeamMeshes.set(id, beam);
       }
-      beam.userData.weapon = weapon;
-      beam.renderOrder = 30;
-      scene.add(beam);
-      weaponBeamMeshes.set(id, beam);
+      // ShapeGeometryを地面へ寝かせ、照準方向に合わせた扇形を足元から表示する。
+      beam.position.set(playerX, playerY + 0.055, playerZ);
+      beam.rotation.set(Math.PI / 2, yawValue, 0);
+      beam.scale.set(1, 1, 1);
+    } else {
+      if (!beam || beam.userData.weapon !== weapon || beam.userData.groundFan) {
+        removeWeaponBeamVisual(id);
+        const radius = 0.075;
+        beam = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 0.72, radius, 1, 12, 1, false),
+          new THREE.MeshBasicMaterial({
+            color, transparent: true, opacity: 0.94, depthWrite: false,
+            blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+          })
+        );
+        beam.userData.weapon = weapon;
+        beam.renderOrder = 30;
+        scene.add(beam);
+        weaponBeamMeshes.set(id, beam);
+      }
+      const end = start.clone().addScaledVector(direction, range);
+      const delta = end.sub(start);
+      beam.position.copy(start).addScaledVector(delta, 0.5);
+      beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.clone().normalize());
+      beam.scale.set(1, delta.length(), 1);
     }
-    const delta = end.sub(start);
-    beam.position.copy(start).addScaledVector(delta, 0.5);
-    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.clone().normalize());
-    beam.scale.set(1, delta.length(), 1);
   }
   for (const id of [...weaponBeamMeshes.keys()]) {
     if (!activeWeaponBeams.has(id)) removeWeaponBeamVisual(id);
