@@ -1096,6 +1096,11 @@ async function setupPushNotifications() {
     busy = true;
     button.disabled = true;
     try {
+      // iOSのホーム画面アプリでは通知許可要求がユーザー操作中に呼ばれる必要がある。
+      // serviceWorker.ready等のawaitより先にrequestPermissionを開始する。
+      const permissionRequest = Notification.permission === "granted"
+        ? Promise.resolve("granted")
+        : Notification.requestPermission();
       const registration = await navigator.serviceWorker.ready;
       const existing = await registration.pushManager.getSubscription();
       if (existing) {
@@ -1103,17 +1108,13 @@ async function setupPushNotifications() {
         await existing.unsubscribe();
         status.textContent = "通知をOFFにしました。";
       } else {
-        if (!isStandalone && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
-          status.textContent = "先にSafariの共有メニューから「ホーム画面に追加」し、追加したFPSgameを開いてください。";
-          return;
-        }
         if (Notification.permission === "denied") {
           status.textContent = "端末の設定でFPSgameの通知を許可してから、もう一度押してください。";
           return;
         }
-        const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+        const permission = await permissionRequest;
         if (permission !== "granted") {
-          status.textContent = "通知の許可が必要です。";
+          status.textContent = "通知の許可が必要です。ホーム画面から開いたFPSgameで再度お試しください。";
           return;
         }
         const keyResponse = await api("public-key", { method: "GET", headers: {} });
@@ -2135,8 +2136,66 @@ function startRemoteWeaponAction(event) {
   obj.userData.weaponActionType = event.weapon;
 }
 
+const activeWeaponBeams = new Map();
+const weaponBeamMeshes = new Map();
+
+function setWeaponBeam(data = {}) {
+  if (!data.id) return;
+  if (data.active) activeWeaponBeams.set(data.id, data.weapon);
+  else activeWeaponBeams.delete(data.id);
+}
+
+function updateWeaponBeamVisuals() {
+  for (const [id, weapon] of activeWeaponBeams) {
+    let start, direction;
+    if (id === myId) {
+      if (!joined || !camera) continue;
+      start = camera.getWorldPosition(new THREE.Vector3());
+      direction = camera.getWorldDirection(new THREE.Vector3());
+      start.addScaledVector(direction, 0.42);
+    } else {
+      const playerObject = remotePlayers.get(id);
+      const player = playerObject?.userData.playerState;
+      if (!playerObject || !player) continue;
+      start = new THREE.Vector3(playerObject.position.x, playerObject.position.y + 1.28, playerObject.position.z);
+      direction = directionFromAngles(Number(player.yaw) || 0, Number(player.pitch) || 0);
+    }
+    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 12 : 14;
+    const end = start.clone().addScaledVector(direction, range);
+    const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
+    let beam = weaponBeamMeshes.get(id);
+    if (!beam || beam.userData.weapon !== weapon) {
+      if (beam) {
+        scene.remove(beam);
+        beam.geometry.dispose();
+        beam.material.dispose();
+      }
+      const radius = weapon === "flamethrower" ? 0.105 : weapon === "laserBeam" ? 0.035 : 0.075;
+      beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 0.72, radius, 1, 8, 1, true),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.78, depthWrite: false })
+      );
+      beam.userData.weapon = weapon;
+      scene.add(beam);
+      weaponBeamMeshes.set(id, beam);
+    }
+    const delta = end.sub(start);
+    beam.position.copy(start).addScaledVector(delta, 0.5);
+    beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.clone().normalize());
+    beam.scale.set(1, delta.length(), 1);
+  }
+  for (const [id, beam] of [...weaponBeamMeshes]) {
+    if (activeWeaponBeams.has(id)) continue;
+    scene.remove(beam);
+    beam.geometry.dispose();
+    beam.material.dispose();
+    weaponBeamMeshes.delete(id);
+  }
+}
+
 function updateSmokeVisuals(now, dt) {
   animateLocalWeaponViewModel(now);
+  updateWeaponBeamVisuals();
   for (const [id, mesh] of [...grenadeProjectileMeshes]) {
     if (Date.now() >= Number(mesh.userData.expiresAt || Infinity)) { removeGrenadeProjectileVisual(id); continue; }
     if (mesh.userData.targetPosition) mesh.position.lerp(mesh.userData.targetPosition, 1 - Math.exp(-24 * dt));
@@ -3870,6 +3929,7 @@ socket.on("respawned", ({ player }) => {
   showMessage("リスポーンしました");
 });
 
+socket.on("weaponBeam", setWeaponBeam);
 socket.on("shot", createTracer);
 socket.on("smokeProjectileSpawn", createSmokeProjectileVisual);
 socket.on("smokeProjectileUpdate", (data) => createSmokeProjectileVisual(data));
