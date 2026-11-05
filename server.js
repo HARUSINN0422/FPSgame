@@ -3946,10 +3946,67 @@ io.on("connection", (socket) => {
           if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}
         }
         seen.add(q.id);
-        if(a.weapon==="laserBeam"){q.laserStreak=(a.beamLastHitAt.get(q.id)&&t-a.beamLastHitAt.get(q.id)<=700)?Math.min(6,(q.laserStreak||1)+1):1;const d=4*Math.pow(2,q.laserStreak-1);applyIncomingDamage(q,d);addUltimateCharge(a,d);}
-        else if(a.weapon==="flamethrower"){applyIncomingDamage(q,5);addUltimateCharge(a,5);q.burnExposure=(q.burnExposure||0)+.5;q.burnUntil=t+q.burnExposure*1000;}
-        else {applyIncomingDamage(q,4);addUltimateCharge(a,4);q.freezeChance=Math.min(100,(q.freezeChance||0)+5);q.freezeLastHitAt=t;q.freezeDecayAt=t+500;if(Math.random()*100<q.freezeChance)q.frozenUntil=t+2000;}
-        a.beamLastHitAt.set(q.id,t);
+        let beamDamage = 0;
+        if (a.weapon === "laserBeam") {
+          q.laserStreak = (a.beamLastHitAt.get(q.id) && t - a.beamLastHitAt.get(q.id) <= 700)
+            ? Math.min(6, (q.laserStreak || 1) + 1) : 1;
+          beamDamage = 4 * Math.pow(2, q.laserStreak - 1);
+        } else if (a.weapon === "flamethrower") {
+          beamDamage = 5;
+          q.burnExposure = (q.burnExposure || 0) + 0.5;
+          q.burnUntil = t + q.burnExposure * 1000;
+          q.burnSourceId = a.id;
+        } else {
+          beamDamage = 4;
+          q.freezeChance = Math.min(100, (q.freezeChance || 0) + 5);
+          q.freezeLastHitAt = t;
+          q.freezeDecayAt = t + 500;
+          if (Math.random() * 100 < q.freezeChance) q.frozenUntil = t + 2000;
+        }
+
+        // 通常銃・弓と同じ damageDealt / damageTaken 通知を、ビーム系にも必ず送る。
+        const split = applyIncomingDamage(q, beamDamage);
+        addUltimateCharge(a, beamDamage);
+        const damagePosition = {
+          x: q.x,
+          y: q.y + (q.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.5,
+          z: q.z
+        };
+        io.to(a.id).emit("damageDealt", {
+          targetId: q.id,
+          damage: Math.round(split.totalDamage),
+          shieldDamage: Math.round(split.shieldDamage),
+          healthDamage: Math.round(split.healthDamage),
+          zone: "body",
+          ...damagePosition
+        });
+        io.to(q.id).emit("damageTaken", {
+          damage: Math.round(split.totalDamage),
+          zone: "body"
+        });
+
+        // ビームの継続ダメージでも通常武器と同じ死亡・キル処理を行う。
+        if (q.health <= 0) {
+          q.health = 0;
+          q.respawnAt = t + 5000;
+          q.kills = q.kills || 0;
+          a.health = Number(a.maxHealth) || 100;
+          a.kills = (a.kills || 0) + 1;
+          q.deaths = (q.deaths || 0) + 1;
+          if (q.mode === "Duel") resolveDuelRound(a, q);
+          q.invisibleUntil = 0;
+          if (q.riftDuelId) finishRiftDuel(q);
+          if (a.invisibleUntil > Date.now()) a.invisibleUntil = 0;
+          broadcastGameEvent(a, "elimination", {
+            killerId: a.id,
+            killerName: a.name,
+            victimId: q.id,
+            victimName: q.name,
+            killerKills: a.kills,
+            zone: "body"
+          });
+        }
+        a.beamLastHitAt.set(q.id, t);
       }
       for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
       broadcastPlayers();
