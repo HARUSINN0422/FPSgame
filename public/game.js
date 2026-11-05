@@ -2141,51 +2141,60 @@ const weaponBeamMeshes = new Map();
 
 function setWeaponBeam(data = {}) {
   if (!data.id) return;
-  if (data.active) activeWeaponBeams.set(data.id, data.weapon);
-  else activeWeaponBeams.delete(data.id);
+  if (data.active && ["flamethrower", "laserBeam", "freezeCannon"].includes(data.weapon)) {
+    // Remote playerのstate更新より先にbeamイベントが届いても描画状態を保持する。
+    activeWeaponBeams.set(data.id, { ...data });
+  } else {
+    activeWeaponBeams.delete(data.id);
+  }
+}
+
+function removeWeaponBeamVisual(id) {
+  const beam = weaponBeamMeshes.get(id);
+  if (!beam) return;
+  scene.remove(beam);
+  beam.geometry?.dispose();
+  beam.material?.dispose();
+  weaponBeamMeshes.delete(id);
 }
 
 function updateWeaponBeamVisuals() {
-  for (const [id, weapon] of activeWeaponBeams) {
+  for (const [id, beamData] of activeWeaponBeams) {
+    const weapon = beamData.weapon;
     let start, direction;
     if (id === myId) {
       if (!joined || !camera) continue;
       start = camera.getWorldPosition(new THREE.Vector3());
       direction = camera.getWorldDirection(new THREE.Vector3());
-      start.addScaledVector(direction, 0.42);
+      start.addScaledVector(direction, 0.7);
     } else {
       const playerObject = remotePlayers.get(id);
       const player = playerObject?.userData.playerState;
-      if (!playerObject || !player) {
-        activeWeaponBeams.delete(id);
-        const oldBeam = weaponBeamMeshes.get(id);
-        if (oldBeam) {
-          scene.remove(oldBeam);
-          oldBeam.geometry.dispose();
-          oldBeam.material.dispose();
-          weaponBeamMeshes.delete(id);
-        }
-        continue;
-      }
-      start = new THREE.Vector3(playerObject.position.x, playerObject.position.y + 1.28, playerObject.position.z);
-      direction = directionFromAngles(Number(player.yaw) || 0, Number(player.pitch) || 0);
+      const px = Number(playerObject?.position.x ?? beamData.x);
+      const py = Number(playerObject?.position.y ?? beamData.y ?? 0);
+      const pz = Number(playerObject?.position.z ?? beamData.z);
+      const yawValue = Number(player?.yaw ?? beamData.yaw);
+      const pitchValue = Number(player?.pitch ?? beamData.pitch);
+      if (![px, py, pz, yawValue, pitchValue].every(Number.isFinite)) continue;
+      start = new THREE.Vector3(px, py + 1.28, pz);
+      direction = directionFromAngles(yawValue, pitchValue);
     }
     const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 12 : 14;
     const end = start.clone().addScaledVector(direction, range);
     const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     let beam = weaponBeamMeshes.get(id);
     if (!beam || beam.userData.weapon !== weapon) {
-      if (beam) {
-        scene.remove(beam);
-        beam.geometry.dispose();
-        beam.material.dispose();
-      }
-      const radius = weapon === "flamethrower" ? 0.105 : weapon === "laserBeam" ? 0.035 : 0.075;
+      removeWeaponBeamVisual(id);
+      const radius = weapon === "flamethrower" ? 0.16 : weapon === "laserBeam" ? 0.075 : 0.13;
       beam = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius * 0.72, radius, 1, 8, 1, true),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.78, depthWrite: false })
+        new THREE.CylinderGeometry(radius * 0.72, radius, 1, 12, 1, false),
+        new THREE.MeshBasicMaterial({
+          color, transparent: true, opacity: 0.94,
+          depthWrite: false, blending: THREE.AdditiveBlending
+        })
       );
       beam.userData.weapon = weapon;
+      beam.renderOrder = 30;
       scene.add(beam);
       weaponBeamMeshes.set(id, beam);
     }
@@ -2194,12 +2203,8 @@ function updateWeaponBeamVisuals() {
     beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.clone().normalize());
     beam.scale.set(1, delta.length(), 1);
   }
-  for (const [id, beam] of [...weaponBeamMeshes]) {
-    if (activeWeaponBeams.has(id)) continue;
-    scene.remove(beam);
-    beam.geometry.dispose();
-    beam.material.dispose();
-    weaponBeamMeshes.delete(id);
+  for (const id of [...weaponBeamMeshes.keys()]) {
+    if (!activeWeaponBeams.has(id)) removeWeaponBeamVisual(id);
   }
 }
 
@@ -3419,7 +3424,7 @@ function createTracer(event) {
 
     const dot = new THREE.Mesh(
       new THREE.SphereGeometry(
-        isRifle ? .055 : event.weapon === "shotgun" ? .045 : .035,
+        event.weapon === "railgun" ? .14 : isRifle ? .075 : event.weapon === "shotgun" ? .06 : .045,
         8,
         8
       ),
@@ -3434,7 +3439,7 @@ function createTracer(event) {
       start: start.clone(),
       end: end.clone(),
       born: performance.now(),
-      life: event.weapon === "railgun" ? 280 : isRifle ? 110 : event.weapon === "shotgun" ? 115 : 100
+      life: event.weapon === "railgun" ? 650 : isRifle ? 150 : event.weapon === "shotgun" ? 135 : 120
     });
   }
 }
