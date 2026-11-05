@@ -1272,6 +1272,8 @@ function spawnGrappleProjectile(shooter, now = Date.now()) {
 function applyGrapplePull(projectile, position) {
   const owner = projectile.owner;
   if (!owner || players.get(owner.id) !== owner || owner.health <= 0 || owner.finished) return;
+  // 着弾後、画面上にグラップラーの紐が表示されている間は武器切替を禁止する。
+  owner.grappleTetherUntil = Date.now() + 900;
   const dx = position.x - owner.x;
   const dy = position.y - (owner.y + (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65);
   const dz = position.z - owner.z;
@@ -2561,15 +2563,17 @@ function rayHitsPayloadCart(origin, direction, maxDistance, player = null) {
   return Number.isFinite(nearest) ? nearest : null;
 }
 
-function rayHitsPlayer(origin, direction, target, hitRadiusMultiplier = 1) {
+function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
   const ox = origin.x - targetCenter.x;
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
 
-  // 通常武器は従来の判定半径。レールガンのみビーム幅に合わせて5倍に拡張。
-  const hitRadius = PLAYER_RADIUS * 2 * Math.max(1, Number(hitRadiusMultiplier) || 1);
+  // 通常武器は従来の判定半径。レールガンは指定した半径2mを使用する。
+  const hitRadius = Number.isFinite(Number(hitRadiusOverride)) && hitRadiusOverride !== null
+    ? Math.max(0, Number(hitRadiusOverride))
+    : PLAYER_RADIUS * 2;
   const b = 2 * (ox * direction.x + oy * direction.y + oz * direction.z);
   const c = ox * ox + oy * oy + oz * oz - hitRadius * hitRadius;
   const disc = b * b - 4 * c;
@@ -2653,7 +2657,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
           (shooter.mode === TRAINING_MODE && !target.isBot) ||
           (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
-      const hit = rayHitsPlayer(origin, dir, target, 5);
+      const hit = rayHitsPlayer(origin, dir, target, 2);
       if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
     }
 
@@ -4206,6 +4210,11 @@ io.on("connection", (socket) => {
   socket.on("switchWeapon", (slotIndex) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished || !Array.isArray(p.weaponSlots)) return;
+    const now = Date.now();
+    const grappleInFlight = [...grenadeProjectiles.values()].some(projectile =>
+      projectile.type === "grapple" && projectile.ownerId === p.id
+    );
+    if (grappleInFlight || Number(p.grappleTetherUntil || 0) > now) return;
     const nextSlot = Number(slotIndex);
     if (!Number.isInteger(nextSlot) || nextSlot < 0 || nextSlot >= Math.min(2, p.weaponSlots.length)) return;
     const nextWeapon = sanitizeWeapon(p.weaponSlots[nextSlot]);
