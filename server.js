@@ -3853,15 +3853,46 @@ io.on("connection", (socket) => {
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
 
-  socket.on("railgunChargeStart", () => { const p=players.get(socket.id), now=Date.now(); if(p&&p.weapon==="railgun"&&p.health>0&&!p.finished&&p.invulnerableUntil<=now&&p.frozenUntil<=now)p.railgunChargeStartedAt=now; });
-  socket.on("railgunRelease", () => { const p=players.get(socket.id),now=Date.now(); if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<1000||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return; p.railgunChargeStartedAt=0; fireShot(p); });
+  socket.on("railgunChargeStart", () => {
+    const p=players.get(socket.id),now=Date.now();
+    if(!p||p.weapon!=="railgun"||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return;
+    p.railgunChargeStartedAt=now;
+  });
+  socket.on("railgunRelease", () => {
+    const p=players.get(socket.id),now=Date.now();
+    if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<950||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return;
+    p.railgunChargeStartedAt=0;
+    p.lastFire=0;
+    fireShot(p);
+  });
   socket.on("beamStart", () => {
     const p=players.get(socket.id),now=Date.now(); if(!p||p.health<=0||p.finished||!["flamethrower","laserBeam","freezeCannon"].includes(p.weapon)||p.invulnerableUntil>now||p.frozenUntil>now||p.beamTimer)return;
     broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:true,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch});
     p.beamLastHitAt=new Map(); p.beamTimer=setInterval(()=>{
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
-      for(const q of players.values()){if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;const h=rayHitsPlayer(origin,dir,q),range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?12:14;if(!h||h.t>range)continue;if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}seen.add(q.id);
+      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?12:14;
+      const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/7.5:0;
+      const fanCos=Math.cos(fanHalfAngle);
+      for(const q of players.values()){
+        if(q.id===a.id||q.health<=0||q.finished||!isSameGame(a,q)||(a.mode===TRAINING_MODE&&!q.isBot)||(isTeamMatchMode(a.mode)&&q.team===a.team)||q.invulnerableUntil>t)continue;
+        if(fanHalfAngle>0){
+          const targetHeight=q.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT;
+          const target={x:q.x,y:q.y+targetHeight*0.5,z:q.z};
+          const vx=target.x-origin.x,vy=target.y-origin.y,vz=target.z-origin.z;
+          const distance=Math.hypot(vx,vy,vz);
+          if(distance>range||distance<0.001)continue;
+          const forward=(vx*dir.x+vy*dir.y+vz*dir.z)/distance;
+          if(forward<fanCos)continue;
+          const wallDir={x:vx/distance,y:vy/distance,z:vz/distance};
+          const wall=rayHitsObstacle(origin,wallDir,distance,a);
+          if(wall!==null&&wall<distance-0.35)continue;
+        }else{
+          const h=rayHitsPlayer(origin,dir,q);
+          if(!h||h.t>range)continue;
+          if(a.weapon!=="laserBeam"){const wall=rayHitsObstacle(origin,dir,h.t,a);if(wall!==null&&wall<h.t)continue;}
+        }
+        seen.add(q.id);
         if(a.weapon==="laserBeam"){q.laserStreak=(a.beamLastHitAt.get(q.id)&&t-a.beamLastHitAt.get(q.id)<=700)?Math.min(6,(q.laserStreak||1)+1):1;const d=4*Math.pow(2,q.laserStreak-1);applyIncomingDamage(q,d);addUltimateCharge(a,d);}
         else if(a.weapon==="flamethrower"){applyIncomingDamage(q,5);addUltimateCharge(a,5);q.burnExposure=(q.burnExposure||0)+.5;q.burnUntil=t+q.burnExposure*1000;}
         else {applyIncomingDamage(q,4);addUltimateCharge(a,4);q.freezeChance=Math.min(100,(q.freezeChance||0)+5);q.freezeLastHitAt=t;q.freezeDecayAt=t+500;if(Math.random()*100<q.freezeChance)q.frozenUntil=t+2000;}
