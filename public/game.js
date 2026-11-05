@@ -212,7 +212,8 @@ const weaponConfig = {
   marksman: { fireInterval: 450, automatic: true },
   sniper: { fireInterval: 1200, automatic: false },
   bow: { fireInterval: 1, automatic: false },
-  minigun: { fireInterval: 107 / 3, automatic: false }
+  minigun: { fireInterval: 107 / 3, automatic: false },
+  railgun: { fireInterval: 1, automatic: false }, flamethrower: { fireInterval: 500, automatic: true }, laserBeam: { fireInterval: 500, automatic: true }, freezeCannon: { fireInterval: 500, automatic: true }
 };
 
 async function refreshPublicWeaponSettings() {
@@ -2840,14 +2841,14 @@ function setCrouch(held) {
 }
 
 function fire() {
-  if (selectedWeapon === "bow" || selectedWeapon === "minigun") return;
+  if (["bow","minigun","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)) return;
   if (!joined || myState?.reloading) return;
   // 武器切替中はレティクルが隠れている時間と同じ長さだけ発射を禁止する。
   if (performance.now() - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (!["pickaxe", "smoke", "shockwaveLauncher", "grappler"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
+  if (!["pickaxe", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
     // 弾切れによる自動リロードでは射撃ボタンの長押し状態を維持する。
     reload(true);
     return;
@@ -2863,13 +2864,13 @@ function fire() {
 }
 
 function reload(preserveFiring = false) {
-  if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) return;
+  if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)) return;
   if (!preserveFiring) stopFiring();
   socket.emit("reload");
 }
 
 function weaponDisplayName(id) {
-  return ({ pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -3040,6 +3041,9 @@ function resetBowChargeScope() {
   const overlay = document.getElementById("scopeOverlay");
   if (overlay) { overlay.classList.add("hidden"); overlay.style.opacity = "0"; }
 }
+let railgunChargeStartedAt=0,railgunChargeTimer=null;
+function startRailgunCharge(){if(!joined||selectedWeapon!=="railgun"||myState?.health<=0||railgunChargeStartedAt||myState?.frozenUntil>Date.now())return;railgunChargeStartedAt=performance.now();socket.emit("railgunChargeStart");const hud=document.getElementById("bowChargeHud");hud?.classList.remove("hidden");const fill=document.getElementById("bowChargeFill"),label=hud?.querySelector("span");if(label)label.textContent="レールガン チャージ";railgunChargeTimer=setInterval(()=>{if(fill)fill.style.width=Math.min(100,(performance.now()-railgunChargeStartedAt)/10)+"%";},30);}
+function releaseRailgunCharge(){if(!railgunChargeStartedAt)return;const elapsed=performance.now()-railgunChargeStartedAt;railgunChargeStartedAt=0;if(railgunChargeTimer)clearInterval(railgunChargeTimer);railgunChargeTimer=null;document.getElementById("bowChargeHud")?.classList.add("hidden");if(elapsed>=1000)socket.emit("railgunRelease");}
 function startBowCharge() {
   if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt || performance.now() < bowNextChargeAt) return;
   bowChargeStartedAt = performance.now();
@@ -3127,6 +3131,8 @@ function cancelMinigunCharge() {
   document.getElementById("bowChargeHud")?.classList.add("hidden");
 }
 function startFiring(forceRepeat = false) {
+  if(selectedWeapon==="railgun"){startRailgunCharge();return;}
+  if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)){socket.emit("beamStart");return;}
   if (selectedWeapon === "bow") { startBowCharge(); return; }
   if (selectedWeapon === "minigun") { startMinigunCharge(); return; }
   fire();
@@ -3136,6 +3142,8 @@ function startFiring(forceRepeat = false) {
 }
 
 function stopFiring() {
+  if(selectedWeapon==="railgun"){releaseRailgunCharge();return;}
+  if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon))socket.emit("beamStop");
   if (selectedWeapon === "bow") { releaseBowCharge(); return; }
   if (selectedWeapon === "minigun") { releaseMinigunCharge(); return; }
   if (autoFireTimer) {
