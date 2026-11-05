@@ -3864,14 +3864,14 @@ io.on("connection", (socket) => {
   socket.on("bowChargeStart", () => {
     const p = players.get(socket.id);
     const now = Date.now();
-    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.invulnerableUntil > now) return;
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.invulnerableUntil > now || p.frozenUntil > now) return;
     if (now < (p.bowNextFireAt || 0)) return;
     if (!p.bowChargeStartedAt) p.bowChargeStartedAt = now;
   });
 
   socket.on("bowRelease", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || !p.bowChargeStartedAt) return;
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "bow" || p.frozenUntil > now || !p.bowChargeStartedAt) return;
     const now = Date.now();
     const startedAt = p.bowChargeStartedAt;
     p.bowChargeStartedAt = 0;
@@ -3883,7 +3883,7 @@ io.on("connection", (socket) => {
   socket.on("minigunChargeStart", () => {
     const p = players.get(socket.id);
     const now = Date.now();
-    if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" || p.invulnerableUntil > now) return;
+    if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" || p.invulnerableUntil > now || p.frozenUntil > now) return;
     if (!p.minigunChargeStartedAt && !p.minigunFireTimer) p.minigunChargeStartedAt = now;
   });
 
@@ -3891,7 +3891,7 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     const now = Date.now();
     if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" ||
-        p.invulnerableUntil > now || !p.minigunChargeStartedAt) return;
+        p.invulnerableUntil > now || p.frozenUntil > now || !p.minigunChargeStartedAt) return;
     const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 3000);
     p.minigunChargeStartedAt = 0;
     const shotCount = Math.floor(chargedMs / WEAPONS.minigun.fireInterval);
