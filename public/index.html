@@ -379,7 +379,7 @@
           <span>部屋を作成してルールを設定するか、募集中の部屋に参加して1対1で対戦します。</span>
         </button>
         <button id="buildModeButton" class="mode-card build-mode-card" type="button">
-          <div class="mode-card-heading"><strong>ビルドモード</strong><span class="mode-player-count">建築</span></div>
+          <div class="mode-card-heading"><strong>ビルドモード</strong><span class="mode-player-count"><b id="buildPlayerCount">0</b>人</span></div>
           <span>32×32のマップで壁や床を自由に設置できます。建築物はHP50で、武器で破壊できます。</span>
         </button>
       </div>
@@ -548,7 +548,6 @@
     <button id="buildWallButton" type="button" class="build-type-button active" aria-pressed="true">壁</button>
     <button id="buildFloorButton" type="button" class="build-type-button" aria-pressed="false">床</button>
     <button id="buildPlaceButton" type="button" class="build-place-button">設置</button>
-    <span class="build-help">Q / E：種類　F：設置</span>
   </div>
 
   <div id="ultimateMapPicker" class="overlay hidden" aria-hidden="true"><section class="panel ultimate-map-panel"><h2>テレポート先を選択</h2><p>マップ内の地点をタップしてください。障害物の中やマップ外には移動できません。</p><canvas id="ultimateMapCanvas" width="720" height="520"></canvas><button id="ultimateMapCancel" type="button">キャンセル</button></section></div>
