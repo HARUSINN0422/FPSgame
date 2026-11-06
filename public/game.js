@@ -139,6 +139,13 @@ let controllerRespawnRequested = false;
 const clock = new THREE.Clock();
 
 let worldData = null;
+let buildPreviewMesh = null;
+let buildPreviewActive = true;
+let selectedBuildType = "wall";
+let buildPreviewPosition = null;
+let gamepadBuildLeftHeld = false;
+let gamepadBuildRightHeld = false;
+let gamepadBuildPlaceHeld = false;
 let respawnTimer = null;
 let autoRespawnRequested = false;
 
@@ -1211,6 +1218,89 @@ topStartButton?.addEventListener("click", () => {
 topSettingsButton?.addEventListener("click", () => document.getElementById("settingsButton")?.click());
 updateGamepadStatus();
 
+function selectBuildType(type) {
+  if (type !== "wall" && type !== "floor") return;
+  selectedBuildType = type;
+  buildPreviewActive = true;
+  document.getElementById("buildWallButton")?.classList.toggle("active", type === "wall");
+  document.getElementById("buildFloorButton")?.classList.toggle("active", type === "floor");
+  document.getElementById("buildWallButton")?.setAttribute("aria-pressed", String(type === "wall"));
+  document.getElementById("buildFloorButton")?.setAttribute("aria-pressed", String(type === "floor"));
+  updateBuildPreview();
+}
+
+function placeBuildStructure() {
+  if (!joined || selectedGameMode !== "Build" || !buildPreviewActive || !buildPreviewPosition || !socket.connected) return;
+  socket.emit("buildPlace", {
+    type: selectedBuildType,
+    x: buildPreviewPosition.x,
+    z: buildPreviewPosition.z,
+    rotation: buildPreviewPosition.rotation
+  });
+}
+
+function updateBuildToolbar() {
+  const toolbar = document.getElementById("buildToolbar");
+  const visible = joined && selectedGameMode === "Build";
+  toolbar?.classList.toggle("hidden", !visible);
+  if (visible) updateBuildPreview();
+  else if (buildPreviewMesh) buildPreviewMesh.visible = false;
+}
+
+function updateBuildPreview() {
+  if (selectedGameMode !== "Build" || !joined || !buildPreviewActive || !worldData?.map || worldData.map.id !== "build-world") {
+    if (buildPreviewMesh) buildPreviewMesh.visible = false;
+    buildPreviewPosition = null;
+    return;
+  }
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const point = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(ground, point)) {
+    if (buildPreviewMesh) buildPreviewMesh.visible = false;
+    buildPreviewPosition = null;
+    return;
+  }
+  const x = Math.floor(point.x) + 0.5;
+  const z = Math.floor(point.z) + 0.5;
+  const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
+  if (x < bounds.minX + 0.5 || x > bounds.maxX - 0.5 || z < bounds.minZ + 0.5 || z > bounds.maxZ - 0.5) {
+    if (buildPreviewMesh) buildPreviewMesh.visible = false;
+    buildPreviewPosition = null;
+    return;
+  }
+  const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
+  buildPreviewPosition = { x, z, rotation };
+  const isWall = selectedBuildType === "wall";
+  if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType) {
+    if (buildPreviewMesh) {
+      scene.remove(buildPreviewMesh);
+      buildPreviewMesh.geometry.dispose();
+      buildPreviewMesh.material.dispose();
+    }
+    buildPreviewMesh = new THREE.Mesh(
+      isWall ? new THREE.BoxGeometry(1, 1, 0.16) : new THREE.BoxGeometry(1, 0.12, 1),
+      new THREE.MeshBasicMaterial({
+        color: isWall ? 0x80d6ff : 0x8ee5a8,
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false
+      })
+    );
+    buildPreviewMesh.userData.buildType = selectedBuildType;
+    buildPreviewMesh.renderOrder = 20;
+    scene.add(buildPreviewMesh);
+  }
+  buildPreviewMesh.position.set(x, isWall ? 0.5 : 0.06, z);
+  buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
+  buildPreviewMesh.visible = true;
+}
+
+document.getElementById("buildWallButton")?.addEventListener("click", () => selectBuildType("wall"));
+document.getElementById("buildFloorButton")?.addEventListener("click", () => selectBuildType("floor"));
+document.getElementById("buildPlaceButton")?.addEventListener("click", placeBuildStructure);
+
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(w, h, d),
@@ -1420,10 +1510,10 @@ function buildWorld(data) {
   floor.receiveShadow = true;
   worldGroup.add(floor);
 
-  // Payloadは横長の矩形マップなので、正方形GridHelperによるステージ外の格子線を描画しない。
+  // Buildモードは1m単位の32×32グリッドを表示する。
   if (data.map?.id !== "payload-fractured-district") {
     const gridSize = Math.max(worldWidth, worldDepth);
-    const gridDivisions = Math.max(1, Math.round(gridSize / (Math.max(worldWidth, worldDepth) > 150 ? 8 : 2)));
+    const gridDivisions = data.map?.id === "build-world" ? 32 : Math.max(1, Math.round(gridSize / (Math.max(worldWidth, worldDepth) > 150 ? 8 : 2)));
     const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x879487, 0x6b756b);
     grid.position.set(centerX, 0.01, centerZ);
     worldGroup.add(grid);
@@ -1494,7 +1584,8 @@ function buildWorld(data) {
     fire: { color: 0xd92727 },
     slime: { color: 0x26b866 },
     speed: { color: 0x00aaff },
-    safe: { color: 0x26b866 }
+    safe: { color: 0x26b866 },
+    build: { color: 0x8b9eae }
   };
   for (const tile of data.floorTiles || []) {
     const style = floorStyles[tile.type] || floorStyles.safe;
@@ -2953,6 +3044,15 @@ function pollGamepad(now) {
 
   const buttonFor = (action) => Number(gameSettings.controllerButtons?.[action] ?? DEFAULT_SETTINGS.controllerButtons[action]);
   const jumpPressed = Boolean(pad.buttons?.[buttonFor("jump")]?.pressed);
+  const buildLeftPressed = selectedGameMode === "Build" && Boolean(pad.buttons?.[14]?.pressed);
+  const buildRightPressed = selectedGameMode === "Build" && Boolean(pad.buttons?.[15]?.pressed);
+  const buildPlacePressed = selectedGameMode === "Build" && Boolean(pad.buttons?.[0]?.pressed);
+  if (buildLeftPressed && !gamepadBuildLeftHeld) selectBuildType("wall");
+  if (buildRightPressed && !gamepadBuildRightHeld) selectBuildType("floor");
+  if (buildPlacePressed && !gamepadBuildPlaceHeld) placeBuildStructure();
+  gamepadBuildLeftHeld = buildLeftPressed;
+  gamepadBuildRightHeld = buildRightPressed;
+  gamepadBuildPlaceHeld = buildPlacePressed;
   const reloadPressed = Boolean(pad.buttons?.[buttonFor("reload")]?.pressed);
   const crouchPressed = Boolean(pad.buttons?.[buttonFor("crouch")]?.pressed);
   const switchPressed = Boolean(pad.buttons?.[buttonFor("switchWeapon")]?.pressed);
@@ -2962,7 +3062,7 @@ function pollGamepad(now) {
   if (ultimatePressed && !gamepadUltimateHeld) activateUltimate();
   gamepadUltimateHeld = ultimatePressed;
 
-  if (jumpPressed && !gamepadJumpHeld) {
+  if (jumpPressed && !gamepadJumpHeld && selectedGameMode !== "Build") {
     if (myState?.health <= 0) {
       requestRespawn();
     } else {
@@ -3370,6 +3470,10 @@ function cancelMinigunCharge() {
   document.getElementById("bowChargeHud")?.classList.add("hidden");
 }
 function startFiring(forceRepeat = false) {
+  if (selectedGameMode === "Build") {
+    buildPreviewActive = false;
+    updateBuildPreview();
+  }
   if(selectedWeapon==="railgun"){startRailgunCharge();return;}
   if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)){socket.emit("beamStart");return;}
   if (selectedWeapon === "bow") { startBowCharge(); return; }
@@ -3702,6 +3806,9 @@ document.getElementById("respawnButton")?.addEventListener("click", () => {
 });
 
 socket.on("world", buildWorld);
+socket.on("buildStructureUpdate", (data) => {
+  if (selectedGameMode === "Build" && data?.map?.id === "build-world") buildWorld(data);
+});
 socket.on("riftDuelResult", data => showMessage(data?.won ? "鏡界の勝者！元の場所へ戻りました。3秒間無敵です。" : "鏡界で敗北しました。通常のデスとして処理されます。"));
 
 const mapChangeCountdownElement = document.getElementById("mapChangeCountdown");
@@ -4090,6 +4197,7 @@ socket.on("joined", ({ player }) => {
   document.getElementById("settingsButton")?.classList.remove("hidden");
   document.getElementById("areaHud")?.classList.toggle("hidden", selectedGameMode !== "Area");
   document.getElementById("payloadHud")?.classList.toggle("hidden", selectedGameMode !== "Payload");
+  updateBuildToolbar();
   payloadRole = player.role || payloadRole;
   const areaTeamLabel = document.getElementById("areaTeamLabel");
   if (areaTeamLabel) areaTeamLabel.textContent = selectedGameMode === "Area"
@@ -4101,6 +4209,7 @@ socket.on("joined", ({ player }) => {
   updateAmmoHud();
   updateWeaponSwitchButton();
   closeInventory();
+  updateBuildToolbar();
   if (reconnecting) showMessage("サーバーに再接続しました");
 });
 
@@ -4318,6 +4427,7 @@ socket.on("disconnect", () => {
   setConnectionStatus("接続中…", false);
 
   if (joined || (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden")) || (selectedGameMode === "Payload" && payloadQueuePanel && !payloadQueuePanel.classList.contains("hidden"))) {
+    updateBuildToolbar();
     wasJoinedBeforeDisconnect = true;
     joined = false;
     stopAllControls();
@@ -4577,6 +4687,27 @@ document.getElementById("duelQuitButton")?.addEventListener("click",()=>{
   setTimeout(()=>{if(!joined)return;if(button)button.disabled=false;},3000);
   selectedGameMode="Melee";
 });
+document.getElementById("buildModeButton")?.addEventListener("click", () => {
+  if (joined) return;
+  const name = savePlayerName();
+  selectedGameMode = "Build";
+  areaResultOpen = false;
+  selectedWeapon = selectedPrimaryWeapon;
+  weaponSlots = [selectedPrimaryWeapon, selectedSecondaryWeapon];
+  document.getElementById("modeScreen")?.classList.add("hidden");
+  document.getElementById("areaQueuePanel")?.classList.add("hidden");
+  document.getElementById("payloadQueuePanel")?.classList.add("hidden");
+  socket.emit("join", {
+    name,
+    weapon: selectedPrimaryWeapon,
+    secondaryWeapon: selectedSecondaryWeapon,
+    charm: selectedCharm,
+    ultimateType: selectedUltimate,
+    mode: "Build",
+    skin: window.getPlayerSkinData?.()
+  });
+});
+
 document.getElementById("areaModeButton")?.addEventListener("click",()=>{
   if (joined) return;
   const name = savePlayerName();
@@ -5200,6 +5331,11 @@ function performBoundAction(action, pressed, isRepeat = false) {
 }
 
 window.addEventListener("keydown", (e) => {
+  if (joined && selectedGameMode === "Build" && !pendingKeyBindingAction && !e.repeat) {
+    if (e.code === "KeyQ") { selectBuildType("wall"); e.preventDefault(); return; }
+    if (e.code === "KeyE") { selectBuildType("floor"); e.preventDefault(); return; }
+    if (e.code === "KeyF") { placeBuildStructure(); e.preventDefault(); return; }
+  }
   if (pendingKeyBindingAction) {
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -5271,6 +5407,7 @@ function animate(now) {
   updateAimAssist();
   sendInput(now);
   updateCamera();
+  updateBuildPreview();
   updateLaserSight();
   // 広いマップでは遠景の壁を簡易マテリアルに切り替え、グリッドも粗くして描画負荷を抑える。
   if (worldData?.world && Math.max(worldData.world.maxX - worldData.world.minX, worldData.world.maxZ - worldData.world.minZ) > 150 && now - lastWorldLodUpdate >= 250) {
