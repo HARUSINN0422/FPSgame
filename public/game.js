@@ -1391,12 +1391,19 @@ function updateBuildPreview() {
         const center = new THREE.Vector3(x, y + (isWall ? 2 : 0.04), z);
         const cameraDistance = center.distanceTo(camera.position);
         const toCandidate = new THREE.Vector3(x - myState.x, 0, z - myState.z);
-        const forwardDot = toCandidate.lengthSq() > 0
-          ? toCandidate.normalize().dot(aimDirection)
-          : -1;
-        // 前方を優先しつつ、水平視点でも近くの有効候補を残す。
-        const forwardPenalty = (1 - forwardDot) * 1.8;
-        candidates.push({ item, score: cameraDistance + forwardPenalty });
+        const playerDistance = toCandidate.length();
+        if (playerDistance <= 0.001) continue;
+        const forwardDistance = toCandidate.dot(aimDirection);
+        // 視点の後方や真横には候補を出さない。前方の範囲だけを設置対象にする。
+        if (forwardDistance <= 0.35) continue;
+        const lateralDistance = Math.sqrt(Math.max(0,
+          playerDistance * playerDistance - forwardDistance * forwardDistance
+        ));
+        // 視線の延長に近い候補を優先し、左右に大きく外れた候補は後回しにする。
+        candidates.push({
+          item,
+          score: forwardDistance + lateralDistance * 2.5 + cameraDistance * 0.05
+        });
         break;
       }
     }
