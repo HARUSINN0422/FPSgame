@@ -836,7 +836,7 @@ function buildStructuresTouch(a, b) {
   const aTop = (Number(a.y) || 0) + (a.type === "wall" ? (Number(a.h) || 4) : 0.08);
   const bTop = (Number(b.y) || 0) + (b.type === "wall" ? (Number(b.h) || 4) : 0.08);
   const verticalTouch = (Math.abs(aTop - (Number(b.y) || 0)) < 0.12 ||
-    Math.abs(bTop - (Number(a.y) || 0)) < 0.12) && overlapX > 0.08 && overlapZ > 0.08;
+    Math.abs(bTop - (Number(a.y) || 0)) < 0.12) && overlapX > 0.02 && overlapZ > 0.02;
   return horizontalTouch && Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 || verticalTouch;
 }
 
