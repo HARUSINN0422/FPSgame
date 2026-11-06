@@ -311,7 +311,8 @@ const DEFAULT_SETTINGS = {
     areaHud: { x: 0, y: 0, size: 100 },
     fullscreenButton: { x: 0, y: 0 },
     settingsButton: { x: 0, y: 0 },
-    reloadButton: { x: 0, y: 0 }
+    reloadButton: { x: 0, y: 0 },
+    buildToolbar: { x: 0, y: 0 }
   }
 };
 
@@ -376,7 +377,8 @@ function loadGameSettings() {
         areaHud: { ...DEFAULT_SETTINGS.layout.areaHud, ...(saved.layout?.areaHud || {}) },
         fullscreenButton: { ...DEFAULT_SETTINGS.layout.fullscreenButton, ...(saved.layout?.fullscreenButton || {}) },
         settingsButton: { ...DEFAULT_SETTINGS.layout.settingsButton, ...(saved.layout?.settingsButton || {}) },
-        reloadButton: { ...DEFAULT_SETTINGS.layout.reloadButton, ...(saved.layout?.reloadButton || {}) }
+        reloadButton: { ...DEFAULT_SETTINGS.layout.reloadButton, ...(saved.layout?.reloadButton || {}) },
+        buildToolbar: { ...DEFAULT_SETTINGS.layout.buildToolbar, ...(saved.layout?.buildToolbar || {}) }
       }
     };
   } catch (_) {
@@ -426,7 +428,8 @@ function applyButtonLayout() {
     ["areaHud", gameSettings.layout.areaHud],
     ["fullscreenButton", gameSettings.layout.fullscreenButton],
     ["settingsButton", gameSettings.layout.settingsButton],
-    ["ammoHud", gameSettings.layout.reloadButton]
+    ["ammoHud", gameSettings.layout.reloadButton],
+    ["buildToolbar", gameSettings.layout.buildToolbar]
   ];
 
   for (const [id, cfg] of offsetTargets) {
@@ -434,11 +437,13 @@ function applyButtonLayout() {
     if (!el) continue;
     const x = Number(cfg?.x) || 0;
     const y = Number(cfg?.y) || 0;
-    if (id === "areaHud") {
+    if (id === "areaHud" || id === "buildToolbar") {
       el.style.setProperty("--layout-x", x + "px");
       el.style.setProperty("--layout-y", y + "px");
-      const scale = THREE.MathUtils.clamp(Number(cfg?.size) || 100, 60, 150) / 100;
-      el.style.setProperty("--area-hud-scale", String(scale));
+      if (id === "areaHud") {
+        const scale = THREE.MathUtils.clamp(Number(cfg?.size) || 100, 60, 150) / 100;
+        el.style.setProperty("--area-hud-scale", String(scale));
+      }
     } else {
       el.style.transform = "translate(" + x + "px, " + y + "px)";
     }
@@ -692,7 +697,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "buildToolbar"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -1017,7 +1022,7 @@ function setupDraggableOffset(id, settingKey) {
 
     cfg.x = Math.round(startOffsetX + e.clientX - startX);
     cfg.y = Math.round(startOffsetY + e.clientY - startY);
-    if (id === "areaHud") {
+    if (id === "areaHud" || id === "buildToolbar") {
       el.style.setProperty("--layout-x", cfg.x + "px");
       el.style.setProperty("--layout-y", cfg.y + "px");
     } else {
@@ -1173,7 +1178,8 @@ const modePlayerCountElements = {
   freeForAll: document.getElementById("freeForAllPlayerCount"),
   area: document.getElementById("areaPlayerCount"),
   payload: document.getElementById("payloadPlayerCount"),
-  duel: document.getElementById("duelPlayerCount")
+  duel: document.getElementById("duelPlayerCount"),
+  build: document.getElementById("buildPlayerCount")
 };
 const topNoticeList = document.getElementById("topNoticeList");
 const lobbyApiBase = location.hostname === "test-gamma-two-87.vercel.app"
@@ -1280,7 +1286,7 @@ function updateBuildPreview() {
       buildPreviewMesh.material.dispose();
     }
     buildPreviewMesh = new THREE.Mesh(
-      isWall ? new THREE.BoxGeometry(1, 2, 0.16) : new THREE.BoxGeometry(1, 0.08, 1),
+      isWall ? new THREE.BoxGeometry(4, 4, 0.16) : new THREE.BoxGeometry(4, 0.08, 4),
       new THREE.MeshBasicMaterial({
         color: isWall ? 0x80d6ff : 0x8ee5a8,
         transparent: true,
@@ -1292,14 +1298,14 @@ function updateBuildPreview() {
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(x, isWall ? 1 : 0.04, z);
+  buildPreviewMesh.position.set(x, isWall ? 2 : 0.04, z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
 
-document.getElementById("buildWallButton")?.addEventListener("click", () => selectBuildType("wall"));
-document.getElementById("buildFloorButton")?.addEventListener("click", () => selectBuildType("floor"));
-document.getElementById("buildPlaceButton")?.addEventListener("click", placeBuildStructure);
+document.getElementById("buildWallButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("wall"); });
+document.getElementById("buildFloorButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("floor"); });
+document.getElementById("buildPlaceButton")?.addEventListener("click", () => { if (!layoutEditing) placeBuildStructure(); });
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
@@ -5040,6 +5046,7 @@ setupDraggableOffset("areaHud", "areaHud");
 setupDraggableOffset("fullscreenButton", "fullscreenButton");
 setupDraggableOffset("settingsButton", "settingsButton");
 setupDraggableOffset("ammoHud", "reloadButton");
+setupDraggableOffset("buildToolbar", "buildToolbar");
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
