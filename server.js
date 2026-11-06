@@ -660,6 +660,7 @@ const MAP_MODE = "Melee";
 const AREA_MODE = "Area";
 const PAYLOAD_MODE = "Payload";
 const TRAINING_MODE = "Training";
+const BUILD_MODE = "Build";
 const MAP_ROTATION_INTERVAL_MS = 10 * 60 * 1000;
 const MAP_CHANGE_COUNTDOWN_MS = 5 * 1000;
 const AREA_QUEUE_DURATION_MS = 20 * 1000;
@@ -813,8 +814,18 @@ function finishRiftDuel(loser) {
   if(loserClient)loserClient.emit("riftDuelResult",{won:false});
   return true;
 }
+function createBuildMap() {
+  return {
+    id: "build-world", name: "ビルドマップ", description: "32×32の建築マップ",
+    world: { minX: -16, maxX: 16, minZ: -16, maxZ: 16 },
+    spawnPoints: [[0, 0, 8]], obstacles: [], ramps: [], elevatedPlatforms: [],
+    floorTiles: [], bridges: [], bridgeSupports: [], buildStructures: []
+  };
+}
+
 function getMapForPlayer(player) {
   if (player?.riftMap) return player.riftMap;
+  if (player?.mode === BUILD_MODE) return player.buildMap || createBuildMap();
   if (player?.mode === AREA_MODE) return areaMap;
   if (player?.mode === PAYLOAD_MODE) return payloadMap;
   if (player?.mode === "Duel") return player.duelMap || activeMap;
@@ -840,6 +851,7 @@ function getWorldPayloadForMap(map, mode) {
     ramps: map.ramps || [],
     elevatedPlatforms: map.elevatedPlatforms || [],
     floorTiles: map.floorTiles || [],
+    buildStructures: map.buildStructures || [],
     bridges: map.bridges || [],
     bridgeSupports: map.bridgeSupports || [],
     world: map.world,
@@ -1080,7 +1092,7 @@ function isSameGame(a, b) {
   const modeA = a.mode || MAP_MODE;
   const modeB = b.mode || MAP_MODE;
   if (modeA !== modeB) return false;
-  if (isTeamMatchMode(modeA) || modeA === TRAINING_MODE || modeA === "Duel") return Boolean(a.matchId && a.matchId === b.matchId);
+  if (isTeamMatchMode(modeA) || modeA === TRAINING_MODE || modeA === BUILD_MODE || modeA === "Duel") return Boolean(a.matchId && a.matchId === b.matchId);
   return true;
 }
 
@@ -2455,6 +2467,52 @@ function directionFromAngles(yaw, pitch) {
   };
 }
 
+function buildStructureWorldPayload(map) {
+  return { ...(map || {}), buildStructures: map?.buildStructures || [] };
+}
+
+function rayBuildStructureDistance(origin, direction, structure, maxDistance) {
+  const minX = structure.x - (structure.w || 1) / 2;
+  const maxX = structure.x + (structure.w || 1) / 2;
+  const minY = structure.type === "floor" ? 0 : 0;
+  const maxY = structure.type === "floor" ? 0.14 : 1;
+  const minZ = structure.z - (structure.d || 1) / 2;
+  const maxZ = structure.z + (structure.d || 1) / 2;
+  let tMin = 0, tMax = maxDistance;
+  for (const [o, d, lo, hi] of [
+    [origin.x, direction.x, minX, maxX],
+    [origin.y, direction.y, minY, maxY],
+    [origin.z, direction.z, minZ, maxZ]
+  ]) {
+    if (Math.abs(d) < 1e-8) { if (o < lo || o > hi) return null; continue; }
+    let a = (lo - o) / d, b = (hi - o) / d;
+    if (a > b) [a, b] = [b, a];
+    tMin = Math.max(tMin, a); tMax = Math.min(tMax, b);
+    if (tMin > tMax) return null;
+  }
+  return tMin >= 0 && tMin <= maxDistance ? tMin : null;
+}
+
+function damageBuildStructureOnRay(player, origin, direction, maxDistance, damage) {
+  if (player?.mode !== BUILD_MODE || !player.buildMap || !(damage > 0)) return null;
+  const map = player.buildMap;
+  let nearest = null;
+  for (const structure of map.buildStructures || []) {
+    const distance = rayBuildStructureDistance(origin, direction, structure, maxDistance);
+    if (distance !== null && (!nearest || distance < nearest.distance)) nearest = { structure, distance };
+  }
+  if (!nearest) return null;
+  nearest.structure.hp = Math.max(0, (Number(nearest.structure.hp) || 50) - damage);
+  if (nearest.structure.hp <= 0) {
+    map.buildStructures = (map.buildStructures || []).filter(item => item.id !== nearest.structure.id);
+    map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== nearest.structure.id);
+    map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== nearest.structure.id);
+  }
+  const payload = getWorldPayloadForMap(map, BUILD_MODE);
+  broadcastGameEvent(player, "buildStructureUpdate", payload);
+  return nearest;
+}
+
 function rayHitsObstacle(origin, direction, maxDistance, player = null) {
   let nearest = Infinity;
   const mapObstacles = getMapForPlayer(player).obstacles || [];
@@ -2654,6 +2712,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const eyeY = shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15;
     // 画面中央（視点の中心）から照準方向へ発射する。
     const origin = { x: shooter.x, y: eyeY, z: shooter.z };
+    damageBuildStructureOnRay(shooter, origin, dir, 150, 50);
     let best = null;
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
@@ -2789,7 +2848,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       const distance = Math.hypot(dx, dz);
       const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
       if (verticalDiff > 1.6) continue;
-      const wallDistance = rayHitsObstacle(origin, {x: dx / distance, y: 0, z: dz / distance}, distance, shooter);
+      const meleeDirection = {x: dx / distance, y: 0, z: dz / distance};
+      damageBuildStructureOnRay(shooter, origin, meleeDirection, Math.min(distance, weapon.range * 1.8), weapon.damage);
+      const wallDistance = rayHitsObstacle(origin, meleeDirection, distance, shooter);
       if (wallDistance !== null && wallDistance < distance - 0.35) continue;
       if (!best || distance < best.distance) best = {target, distance};
     }
@@ -2821,6 +2882,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
 
     const dir = directionFromAngles(yaw, pitch);
+    damageBuildStructureOnRay(shooter, origin, dir, weapon.range, weapon.damage || 10);
     const cartDistance = rayHitsPayloadCart(origin, dir, weapon.range, shooter);
     let bestHit = null;
 
@@ -3775,13 +3837,14 @@ io.on("connection", (socket) => {
     const skin = sanitizeSkin(data.skin);
     const duelRoom=data.mode==="Duel"?duelRooms.get(String(data.duelRoomId||"")):null;
     if(data.mode==="Duel"&&(!duelRoom||!duelRoom.playerIds.includes(socket.id))){socket.emit("duel:error",{message:"タイマン部屋が見つかりません。"});return;}
-    const requestedMode = data.mode === "Duel" ? "Duel" : data.mode === TRAINING_MODE ? TRAINING_MODE : data.mode === "Wander" ? "Wander" : MAP_MODE;
+    const requestedMode = data.mode === "Duel" ? "Duel" : data.mode === TRAINING_MODE ? TRAINING_MODE : data.mode === BUILD_MODE ? BUILD_MODE : data.mode === "Wander" ? "Wander" : MAP_MODE;
     const duelMap=requestedMode==="Duel"?[...availableMaps,...areaMaps].find(m=>m.id===duelRoom.mapId)||activeMap:null;
     const trainingMap = requestedMode === TRAINING_MODE ? createTrainingMap() : null;
+    const buildMap = requestedMode === BUILD_MODE ? createBuildMap() : null;
     const wanderMap = requestedMode === "Wander"
       ? (data.mapId === "shooting-range" ? createTrainingMap() : [...availableMaps, ...areaMaps, ...payloadMaps].find((map) => map.id === data.mapId) || activeMap)
       : null;
-    const chosenMap = duelMap || trainingMap || wanderMap;
+    const chosenMap = duelMap || trainingMap || buildMap || wanderMap;
     const spawnIndex=requestedMode==="Duel"?Math.max(0,duelRoom.playerIds.indexOf(socket.id)):0;
     const spawn = chosenMap ? (chosenMap.spawnPoints[spawnIndex%chosenMap.spawnPoints.length]||chosenMap.spawnPoints[0]) : pickSpawn();
     socket.emit("world", chosenMap ? getWorldPayloadForMap(chosenMap, requestedMode) : getWorldPayload());
@@ -3792,10 +3855,11 @@ io.on("connection", (socket) => {
       skin,
       mode: requestedMode,
       team: null,
-      matchId: requestedMode === "Duel" ? duelRoom.id : requestedMode === TRAINING_MODE || requestedMode === "Wander" ? socket.id : null,
+      matchId: requestedMode === "Duel" ? duelRoom.id : requestedMode === TRAINING_MODE || requestedMode === "Wander" || requestedMode === BUILD_MODE ? socket.id : null,
       duelRoomId: requestedMode === "Duel" ? duelRoom.id : null,
       duelMap, duelFirstTo: requestedMode === "Duel" ? duelRoom.firstTo : null,
       trainingMap,
+      buildMap,
       wanderMap,
       finished: false,
       isBot: false,
@@ -3850,9 +3914,29 @@ io.on("connection", (socket) => {
   socket.on("requestWorld", () => {
     const player = players.get(socket.id);
     if (!player || player.isBot) return;
-    const map = player.duelMap || player.trainingMap || player.wanderMap ||
+    const map = player.duelMap || player.trainingMap || player.buildMap || player.wanderMap ||
       (player.mode === AREA_MODE ? areaMap : player.mode === PAYLOAD_MODE ? payloadMap : activeMap);
     socket.emit("world", getWorldPayloadForMap(map, player.mode || MAP_MODE));
+  });
+
+  socket.on("buildPlace", (data = {}) => {
+    const player = players.get(socket.id);
+    if (!player || player.mode !== BUILD_MODE || !player.buildMap || player.health <= 0) return;
+    const type = data.type === "floor" ? "floor" : data.type === "wall" ? "wall" : null;
+    const x = Number(data.x), z = Number(data.z);
+    const rotation = Number(data.rotation) || 0;
+    if (!type || !Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 15.5 || Math.abs(z) > 15.5 ||
+        ![0, Math.PI / 2, Math.PI, -Math.PI / 2].some(value => Math.abs(Math.atan2(Math.sin(rotation - value), Math.cos(rotation - value))) < 0.01)) return;
+    const map = player.buildMap;
+    if ((map.buildStructures || []).length >= 512) return;
+    const occupied = (map.buildStructures || []).some(item => Math.abs(item.x - x) < 0.45 && Math.abs(item.z - z) < 0.45 && (item.type === type || type === "wall" || item.type === "wall"));
+    if (occupied) return;
+    const id = "build-" + player.id + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+    const structure = { id, type, x, z, rotation, w: 1, d: type === "wall" ? 0.16 : 1, h: type === "wall" ? 1 : 0.14, hp: 50 };
+    map.buildStructures.push(structure);
+    if (type === "wall") map.obstacles.push({ x, z, w: 1, d: 0.16, h: 1, buildStructureId: id });
+    else map.floorTiles.push({ id, buildStructureId: id, type: "build", x, z, w: 1, d: 1 });
+    broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
   });
 
   socket.on("updateSkin", (skinDataUrl, acknowledge) => {
