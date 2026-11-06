@@ -1271,14 +1271,18 @@ function updateBuildPreview() {
   const x = Math.floor(point.x) + 0.5;
   const z = Math.floor(point.z) + 0.5;
   const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
-  if (x < bounds.minX + 0.5 || x > bounds.maxX - 0.5 || z < bounds.minZ + 0.5 || z > bounds.maxZ - 0.5) {
+  const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
+  const isWall = selectedBuildType === "wall";
+  const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
+  const halfW = isWall ? (isSideways ? 0.08 : 2) : 2;
+  const halfD = isWall ? (isSideways ? 2 : 0.08) : 2;
+  if (x - halfW < bounds.minX || x + halfW > bounds.maxX ||
+      z - halfD < bounds.minZ || z + halfD > bounds.maxZ) {
     if (buildPreviewMesh) buildPreviewMesh.visible = false;
     buildPreviewPosition = null;
     return;
   }
-  const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
   buildPreviewPosition = { x, z, rotation };
-  const isWall = selectedBuildType === "wall";
   if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType) {
     if (buildPreviewMesh) {
       scene.remove(buildPreviewMesh);
