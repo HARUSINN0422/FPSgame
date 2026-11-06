@@ -1254,52 +1254,85 @@ function updateBuildToolbar() {
   else if (buildPreviewMesh) buildPreviewMesh.visible = false;
 }
 
+function buildPreviewTouches(a, b) {
+  const overlapX = Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2);
+  const overlapZ = Math.min(a.z + a.d / 2, b.z + b.d / 2) - Math.max(a.z - a.d / 2, b.z - b.d / 2);
+  const horizontalTouch = overlapX >= -0.08 && overlapZ >= -0.08 &&
+    (overlapX > 0.08 || overlapZ > 0.08) && Math.abs(a.y - b.y) < 0.12;
+  const aTop = a.y + a.h, bTop = b.y + b.h;
+  const verticalTouch = (Math.abs(aTop - b.y) < 0.12 || Math.abs(bTop - a.y) < 0.12) &&
+    overlapX > 0.08 && overlapZ > 0.08;
+  return horizontalTouch || verticalTouch;
+}
+
 function updateBuildPreview() {
   if (selectedGameMode !== "Build" || !joined || !buildPreviewActive || !worldData?.map || worldData.map.id !== "build-world") {
     if (buildPreviewMesh) buildPreviewMesh.visible = false;
     buildPreviewPosition = null;
     return;
   }
+
+  // 視線の先を基準に、4mグリッド上の「正面の隣接位置」を探す。
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   raycaster.far = 12;
   const supportMeshes = worldGroup.children.filter(mesh => mesh.userData?.buildSupportSurface);
   const hits = raycaster.intersectObjects(supportMeshes, false);
-  const topHit = hits.find(hit => {
-    const normal = hit.face?.normal;
-    return normal && normal.y > 0.5;
-  });
-  let hitPoint = topHit ? topHit.point.clone() : null;
-  if (!hitPoint) {
+  let target = hits[0]?.point?.clone() || null;
+  if (!target) {
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    hitPoint = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(ground, hitPoint) || hitPoint.distanceTo(raycaster.ray.origin) > 12) {
-      if (buildPreviewMesh) buildPreviewMesh.visible = false;
-      buildPreviewPosition = null;
-      return;
+    target = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(ground, target) || target.distanceTo(raycaster.ray.origin) > 12) {
+      target.set(myState.x - Math.sin(yaw) * 4, 0, myState.z - Math.cos(yaw) * 4);
     }
   }
+
   const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
   const isWall = selectedBuildType === "wall";
   const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
   const x = isWall
-    ? (isSideways ? Math.round(hitPoint.x / 4) * 4 : Math.floor(hitPoint.x / 4) * 4 + 2)
-    : Math.floor(hitPoint.x / 4) * 4 + 2;
+    ? (isSideways ? Math.round(target.x / 4) * 4 : Math.floor(target.x / 4) * 4 + 2)
+    : Math.floor(target.x / 4) * 4 + 2;
   const z = isWall
-    ? (isSideways ? Math.floor(hitPoint.z / 4) * 4 + 2 : Math.round(hitPoint.z / 4) * 4)
-    : Math.floor(hitPoint.z / 4) * 4 + 2;
-  const y = Math.max(0, hitPoint.y);
+    ? (isSideways ? Math.floor(target.z / 4) * 4 + 2 : Math.round(target.z / 4) * 4)
+    : Math.floor(target.z / 4) * 4 + 2;
+  const w = isWall ? (isSideways ? 0.16 : 4) : 4;
+  const d = isWall ? (isSideways ? 4 : 0.16) : 4;
   const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
-  const halfW = isWall ? (isSideways ? 0.08 : 2) : 2;
-  const halfD = isWall ? (isSideways ? 2 : 0.08) : 2;
   const inRange = myState && Math.hypot(x - myState.x, z - myState.z) <= 6;
-  if (!inRange || x - halfW < bounds.minX || x + halfW > bounds.maxX ||
-      z - halfD < bounds.minZ || z + halfD > bounds.maxZ) {
+  if (!inRange || x - w / 2 < bounds.minX || x + w / 2 > bounds.maxX ||
+      z - d / 2 < bounds.minZ || z + d / 2 > bounds.maxZ) {
     if (buildPreviewMesh) buildPreviewMesh.visible = false;
     buildPreviewPosition = null;
     return;
   }
-  buildPreviewPosition = { x, y, z, rotation };
+
+  const structures = Array.isArray(worldData.buildStructures) ? worldData.buildStructures : [];
+  const heights = new Set([0]);
+  for (const item of structures) {
+    const top = Number(item.y || 0) + Number(item.h || (item.type === "wall" ? 4 : 0.08));
+    if (item.type === "wall") {
+      heights.add(Number(item.y) || 0);
+      heights.add(top);
+    } else {
+      heights.add(Number(item.y) || 0);
+    }
+  }
+  const possible = [...heights].sort((a, b) => a - b).map(y => ({
+    type: selectedBuildType, x, y, z, rotation, w, d, h: isWall ? 4 : 0.08
+  }));
+  const candidate = possible.find(item => item.y >= 0 && item.y <= 40 &&
+    (item.y <= 0.02 || structures.some(other => buildPreviewTouches(item, {
+      ...other, w: Number(other.w) || 4, d: Number(other.d) || 4,
+      h: Number(other.h) || (other.type === "wall" ? 4 : 0.08)
+    }))));
+  if (!candidate) {
+    if (buildPreviewMesh) buildPreviewMesh.visible = false;
+    buildPreviewPosition = null;
+    return;
+  }
+  buildPreviewPosition = { x, y: candidate.y, z, rotation };
+
   if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType) {
     if (buildPreviewMesh) {
       scene.remove(buildPreviewMesh);
@@ -1319,7 +1352,7 @@ function updateBuildPreview() {
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(x, isWall ? y + 2 : y + 0.04, z);
+  buildPreviewMesh.position.set(x, isWall ? candidate.y + 2 : candidate.y + 0.04, z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
