@@ -2504,33 +2504,33 @@ function damageBuildStructureOnRay(player, origin, direction, maxDistance, damag
   }
   if (!nearest) return null;
   nearest.structure.hp = Math.max(0, (Number(nearest.structure.hp) || 50) - damage);
-  if (nearest.structure.hp <= 0) {
+  const destroyed = nearest.structure.hp <= 0;
+  if (destroyed) {
     map.buildStructures = (map.buildStructures || []).filter(item => item.id !== nearest.structure.id);
     map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== nearest.structure.id);
     map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== nearest.structure.id);
     map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => item.buildStructureId !== nearest.structure.id);
   }
-  const payload = getWorldPayloadForMap(map, BUILD_MODE);
-  broadcastGameEvent(player, "buildStructureUpdate", payload);
+  if (destroyed) broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
   return nearest;
 }
 
 function damageBuildStructuresInRadius(player, position, radius, damage) {
   if (player?.mode !== BUILD_MODE || !player.buildMap || !(damage > 0)) return;
   const map = player.buildMap;
-  let changed = false;
+  let destroyedAny = false;
   for (const structure of [...(map.buildStructures || [])]) {
     if (Math.hypot(structure.x - position.x, structure.z - position.z) > radius + 0.75) continue;
     structure.hp = Math.max(0, (Number(structure.hp) || 50) - damage);
-    changed = true;
     if (structure.hp <= 0) {
+      destroyedAny = true;
       map.buildStructures = map.buildStructures.filter(item => item.id !== structure.id);
       map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== structure.id);
       map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== structure.id);
       map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => item.buildStructureId !== structure.id);
     }
   }
-  if (changed) broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
+  if (destroyedAny) broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
 }
 
 function rayHitsObstacle(origin, direction, maxDistance, player = null) {
@@ -4089,7 +4089,7 @@ io.on("connection", (socket) => {
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
       const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?9:10.5;
-      damageBuildStructureOnRay(a, origin, dir, range, a.weapon === "laserBeam" ? 4 : 5);
+      damageBuildStructureOnRay(a, origin, dir, range, (a.weapon === "laserBeam" || a.weapon === "freezeCannon") ? 4 : 5);
       const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/4:0;
       const fanCos=Math.cos(fanHalfAngle);
       for(const q of players.values()){
