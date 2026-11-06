@@ -831,28 +831,59 @@ function buildStructuresTouch(a, b) {
   const bz = b.z - b.d / 2, bb = b.z + b.d / 2;
   const overlapX = Math.min(ar, br) - Math.max(ax, bx);
   const overlapZ = Math.min(ab, bb) - Math.max(az, bz);
-  const edgeEpsilon = 0.025;
-
-  // 同じ高さの構造物は、片方の辺が一致し、もう片方に十分な長さの重なりがある場合だけ接続。
-  // 角だけの接触、わずかな隙間、面が重なっているだけの配置は接続扱いにしない。
+  const edgeEpsilon = 0.06;
   const edgeTouchX = (Math.abs(ar - bx) <= edgeEpsilon || Math.abs(br - ax) <= edgeEpsilon) &&
     overlapZ > 0.08;
   const edgeTouchZ = (Math.abs(ab - bz) <= edgeEpsilon || Math.abs(bb - az) <= edgeEpsilon) &&
     overlapX > 0.08;
-  const sameLevelEdgeTouch = Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 &&
-    (edgeTouchX || edgeTouchZ);
-
-  // 上下に積む場合は、下側の上面と上側の下面が接し、 footprint が面で重なる必要がある。
+  const aY = Number(a.y) || 0;
+  const bY = Number(b.y) || 0;
   const aHeight = a.type === "wall" || a.type === "ramp" ? (Number(a.h) || 4) : 0.08;
   const bHeight = b.type === "wall" || b.type === "ramp" ? (Number(b.h) || 4) : 0.08;
-  const aTop = (Number(a.y) || 0) + aHeight;
-  const bTop = (Number(b.y) || 0) + bHeight;
+  const sameLevelEdgeTouch = Math.abs(aY - bY) < 0.12 && (edgeTouchX || edgeTouchZ);
   const verticalTouch = (
-    Math.abs(aTop - (Number(b.y) || 0)) <= edgeEpsilon ||
-    Math.abs(bTop - (Number(a.y) || 0)) <= edgeEpsilon
+    Math.abs(aY + aHeight - bY) <= edgeEpsilon ||
+    Math.abs(bY + bHeight - aY) <= edgeEpsilon
   ) && overlapX > 0.08 && overlapZ > 0.08;
 
-  return sameLevelEdgeTouch || verticalTouch;
+  // 階段の高い端と、次の階段の低い端（または床の辺）が高さ・位置とも一致すれば接続。
+  const rampLowEdge = ramp => {
+    const halfW = ramp.w / 2, halfD = ramp.d / 2;
+    if (ramp.direction === "east") return { axis: "x", edge: ramp.x - halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "west") return { axis: "x", edge: ramp.x + halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "north") return { axis: "z", edge: ramp.z - halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+    return { axis: "z", edge: ramp.z + halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+  };
+  const rampHighEdge = ramp => {
+    const halfW = ramp.w / 2, halfD = ramp.d / 2;
+    if (ramp.direction === "east") return { axis: "x", edge: ramp.x + halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "west") return { axis: "x", edge: ramp.x - halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "north") return { axis: "z", edge: ramp.z + halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+    return { axis: "z", edge: ramp.z - halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+  };
+  const rampEdgeConnects = (ramp, other, otherIsRampLow) => {
+    const high = rampHighEdge(ramp);
+    let low;
+    if (otherIsRampLow) {
+      low = rampLowEdge(other);
+    } else {
+      const halfW = other.w / 2, halfD = other.d / 2;
+      low = high.axis === "x"
+        ? { axis: "x", edge: Math.abs(high.edge - (other.x - halfW)) < Math.abs(high.edge - (other.x + halfW)) ? other.x - halfW : other.x + halfW, min: other.z - halfD, max: other.z + halfD }
+        : { axis: "z", edge: Math.abs(high.edge - (other.z - halfD)) < Math.abs(high.edge - (other.z + halfD)) ? other.z - halfD : other.z + halfD, min: other.x - halfW, max: other.x + halfW };
+    }
+    const overlap = Math.min(high.max, low.max) - Math.max(high.min, low.min);
+    return high.axis === low.axis &&
+      Math.abs(high.edge - low.edge) <= edgeEpsilon &&
+      overlap > 0.08 &&
+      Math.abs(aY + (Number(ramp.h) || 4) - bY) <= edgeEpsilon;
+  };
+  const rampToRamp = a.type === "ramp" && b.type === "ramp" &&
+    (rampEdgeConnects(a, b, true) ||
+     rampEdgeConnects(b, a, true));
+  const rampToFloor = (a.type === "ramp" && b.type === "floor" && rampEdgeConnects(a, b, false)) ||
+    (b.type === "ramp" && a.type === "floor" && rampEdgeConnects(b, a, false));
+  return sameLevelEdgeTouch || verticalTouch || rampToRamp || rampToFloor;
 }
 
 function pruneUnsupportedBuildStructures(map) {
@@ -2098,8 +2129,15 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   const bodyBottom = y;
   const bodyTop = y + height;
 
-  // 階段は斜めの板だけで下側は開放されているため、内部・側面の衝突壁は作らない。
-  // 上面への着地は getGroundHeight() の斜面高さ判定で処理する。
+  // 階段は薄い斜め板として扱う。板の下に十分な高さがあれば通過できるが、
+  // プレイヤーの体が板の面を横切る場合は、下からでもすり抜けない。
+  for (const ramp of map.ramps || []) {
+    const rampSurface = getRampHeight(ramp, x, z);
+    if (rampSurface === null) continue;
+    const isStandingOnTop = bodyBottom >= rampSurface - 0.08;
+    const isFullyBelow = bodyTop <= rampSurface + 0.04;
+    if (!isStandingOnTop && !isFullyBelow) return true;
+  }
 
   const cartInfo = getPayloadCartCollisionInfo(player, x, z);
   if (cartInfo) {
@@ -4062,7 +4100,7 @@ io.on("connection", (socket) => {
       map.obstacles.push({ x, y, z, w: wallW, d: wallD, h: 4, ceiling: y > 0.02, buildStructureId: id });
     } else if (type === "floor") {
       map.floorTiles.push({ id, buildStructureId: id, type: "build", x, y, z, w: 4, d: 4 });
-      map.elevatedPlatforms.push({ x, z, w: 4, d: 4, h: y + 0.08, buildStructureId: id });
+      map.elevatedPlatforms.push({ x, z, w: 4, d: 4, h: y, buildStructureId: id });
     } else {
       map.ramps.push({ x, y, z, w: 4, d: 4, h: 4, direction: rampDirection, buildStructureId: id });
     }
