@@ -1263,22 +1263,59 @@ function buildPreviewTouches(a, b) {
   const bz = b.z - b.d / 2, bb = b.z + b.d / 2;
   const overlapX = Math.min(ar, br) - Math.max(ax, bx);
   const overlapZ = Math.min(ab, bb) - Math.max(az, bz);
-  const edgeEpsilon = 0.025;
+  const edgeEpsilon = 0.06;
   const edgeTouchX = (Math.abs(ar - bx) <= edgeEpsilon || Math.abs(br - ax) <= edgeEpsilon) &&
     overlapZ > 0.08;
   const edgeTouchZ = (Math.abs(ab - bz) <= edgeEpsilon || Math.abs(bb - az) <= edgeEpsilon) &&
     overlapX > 0.08;
-  const sameLevelEdgeTouch = Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 &&
-    (edgeTouchX || edgeTouchZ);
+  const aY = Number(a.y) || 0;
+  const bY = Number(b.y) || 0;
   const aHeight = a.type === "wall" || a.type === "ramp" ? (Number(a.h) || 4) : 0.08;
   const bHeight = b.type === "wall" || b.type === "ramp" ? (Number(b.h) || 4) : 0.08;
-  const aTop = (Number(a.y) || 0) + aHeight;
-  const bTop = (Number(b.y) || 0) + bHeight;
+  const sameLevelEdgeTouch = Math.abs(aY - bY) < 0.12 && (edgeTouchX || edgeTouchZ);
   const verticalTouch = (
-    Math.abs(aTop - (Number(b.y) || 0)) <= edgeEpsilon ||
-    Math.abs(bTop - (Number(a.y) || 0)) <= edgeEpsilon
+    Math.abs(aY + aHeight - bY) <= edgeEpsilon ||
+    Math.abs(bY + bHeight - aY) <= edgeEpsilon
   ) && overlapX > 0.08 && overlapZ > 0.08;
-  return sameLevelEdgeTouch || verticalTouch;
+
+  // 階段の高い端と、次の階段の低い端（または床の辺）が高さ・位置とも一致すれば接続。
+  const rampLowEdge = ramp => {
+    const halfW = ramp.w / 2, halfD = ramp.d / 2;
+    if (ramp.direction === "east") return { axis: "x", edge: ramp.x - halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "west") return { axis: "x", edge: ramp.x + halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "north") return { axis: "z", edge: ramp.z - halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+    return { axis: "z", edge: ramp.z + halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+  };
+  const rampHighEdge = ramp => {
+    const halfW = ramp.w / 2, halfD = ramp.d / 2;
+    if (ramp.direction === "east") return { axis: "x", edge: ramp.x + halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "west") return { axis: "x", edge: ramp.x - halfW, min: ramp.z - halfD, max: ramp.z + halfD };
+    if (ramp.direction === "north") return { axis: "z", edge: ramp.z + halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+    return { axis: "z", edge: ramp.z - halfD, min: ramp.x - halfW, max: ramp.x + halfW };
+  };
+  const rampEdgeConnects = (ramp, other, otherIsRampLow) => {
+    const high = rampHighEdge(ramp);
+    let low;
+    if (otherIsRampLow) {
+      low = rampLowEdge(other);
+    } else {
+      const halfW = other.w / 2, halfD = other.d / 2;
+      low = high.axis === "x"
+        ? { axis: "x", edge: Math.abs(high.edge - (other.x - halfW)) < Math.abs(high.edge - (other.x + halfW)) ? other.x - halfW : other.x + halfW, min: other.z - halfD, max: other.z + halfD }
+        : { axis: "z", edge: Math.abs(high.edge - (other.z - halfD)) < Math.abs(high.edge - (other.z + halfD)) ? other.z - halfD : other.z + halfD, min: other.x - halfW, max: other.x + halfW };
+    }
+    const overlap = Math.min(high.max, low.max) - Math.max(high.min, low.min);
+    return high.axis === low.axis &&
+      Math.abs(high.edge - low.edge) <= edgeEpsilon &&
+      overlap > 0.08 &&
+      Math.abs(aY + (Number(ramp.h) || 4) - bY) <= edgeEpsilon;
+  };
+  const rampToRamp = a.type === "ramp" && b.type === "ramp" &&
+    (rampEdgeConnects(a, b, true) ||
+     rampEdgeConnects(b, a, true));
+  const rampToFloor = (a.type === "ramp" && b.type === "floor" && rampEdgeConnects(a, b, false)) ||
+    (b.type === "ramp" && a.type === "floor" && rampEdgeConnects(b, a, false));
+  return sameLevelEdgeTouch || verticalTouch || rampToRamp || rampToFloor;
 }
 
 function updateBuildPreview() {
@@ -1783,7 +1820,9 @@ function buildWorld(data) {
         toneMapped: false
       })
     );
-    tileMesh.position.set(tile.x, (Number(tile.y) || 0) + tileHeight / 2 - 0.005, tile.z);
+    tileMesh.position.set(tile.x, tile.type === "build"
+      ? (Number(tile.y) || 0) - tileHeight / 2
+      : (Number(tile.y) || 0) + tileHeight / 2 - 0.005, tile.z);
     if (tile.buildStructureId) tileMesh.userData.buildSupportSurface = true;
     tileMesh.renderOrder = 2;
     worldGroup.add(tileMesh);
