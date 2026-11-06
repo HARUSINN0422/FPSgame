@@ -1366,7 +1366,9 @@ function updateBuildPreview() {
       if (x - w / 2 < bounds.minX || x + w / 2 > bounds.maxX ||
           z - d / 2 < bounds.minZ || z + d / 2 > bounds.maxZ) continue;
       const playerDistance = Math.hypot(x - myState.x, z - myState.z);
-      if (playerDistance < 1.8 || playerDistance > 6.05) continue;
+      // 壁は従来どおりプレイヤーから一定距離を保つ。床は真下・真上にも置けるよう
+      // 水平距離の下限を設けず、上下方向の候補も検索する。
+      if (playerDistance > 6.05 || (isWall && playerDistance < 1.8)) continue;
 
       const possibleHeights = [...heights]
         .filter(y => y >= 0 && y <= 40)
@@ -1390,20 +1392,35 @@ function updateBuildPreview() {
         if (!supported) continue;
         const center = new THREE.Vector3(x, y + (isWall ? 2 : 0.04), z);
         const cameraDistance = center.distanceTo(camera.position);
-        const toCandidate = new THREE.Vector3(x - myState.x, 0, z - myState.z);
-        const playerDistance = toCandidate.length();
-        if (playerDistance <= 0.001) continue;
-        const forwardDistance = toCandidate.dot(aimDirection);
-        // 視点の後方や真横には候補を出さない。前方の範囲だけを設置対象にする。
-        if (forwardDistance <= 0.35) continue;
-        const lateralDistance = Math.sqrt(Math.max(0,
-          playerDistance * playerDistance - forwardDistance * forwardDistance
-        ));
-        // 視線の延長に近い候補を優先し、左右に大きく外れた候補は後回しにする。
-        candidates.push({
-          item,
-          score: forwardDistance + lateralDistance * 2.5 + cameraDistance * 0.05
-        });
+        if (isWall) {
+          const toCandidate = new THREE.Vector3(x - myState.x, 0, z - myState.z);
+          const horizontalDistance = toCandidate.length();
+          if (horizontalDistance <= 0.001) continue;
+          const forwardDistance = toCandidate.dot(aimDirection);
+          // 壁は視点の前方だけを候補にする。
+          if (forwardDistance <= 0.35) continue;
+          const lateralDistance = Math.sqrt(Math.max(0,
+            horizontalDistance * horizontalDistance - forwardDistance * forwardDistance
+          ));
+          candidates.push({
+            item,
+            score: forwardDistance + lateralDistance * 2.5 + cameraDistance * 0.05
+          });
+        } else {
+          // 床はカメラの3D視線方向で判定する。真上・真下を向いた場合も
+          // 視線の先にある支持済みの床候補を選べるようにする。
+          const viewDirection = new THREE.Vector3();
+          camera.getWorldDirection(viewDirection);
+          const toCandidate = center.clone().sub(camera.position);
+          const forwardDistance = toCandidate.dot(viewDirection);
+          if (forwardDistance <= 0.2) continue;
+          const lateralDistance = toCandidate.clone()
+            .addScaledVector(viewDirection, -forwardDistance).length();
+          candidates.push({
+            item,
+            score: forwardDistance + lateralDistance * 2.5 + cameraDistance * 0.02
+          });
+        }
         break;
       }
     }
