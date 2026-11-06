@@ -5051,7 +5051,6 @@ setupDraggableOffset("fullscreenButton", "fullscreenButton");
 setupDraggableOffset("settingsButton", "settingsButton");
 setupDraggableOffset("ammoHud", "reloadButton");
 setupDraggableOffset("buildToolbar", "buildToolbar");
-setupDraggableOffset("buildToolbar", "buildToolbar");
 
 const fireButton = document.getElementById("fireButton");
 fireButton.addEventListener("pointerdown", (e) => {
