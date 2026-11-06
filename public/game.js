@@ -1255,15 +1255,28 @@ function updateBuildToolbar() {
 }
 
 function buildPreviewTouches(a, b) {
-  const overlapX = Math.min(a.x + a.w / 2, b.x + b.w / 2) - Math.max(a.x - a.w / 2, b.x - b.w / 2);
-  const overlapZ = Math.min(a.z + a.d / 2, b.z + b.d / 2) - Math.max(a.z - a.d / 2, b.z - b.d / 2);
-  const horizontalTouch = overlapX >= -0.08 && overlapZ >= -0.08 &&
-    (overlapX > 0.08 || overlapZ > 0.08) && Math.abs(a.y - b.y) < 0.12;
-  const aTop = a.y + a.h, bTop = b.y + b.h;
-  // 壁の厚み0.16mの上端に床を載せる場合も接触として扱う。
-  const verticalTouch = (Math.abs(aTop - b.y) < 0.12 || Math.abs(bTop - a.y) < 0.12) &&
-    overlapX > 0.02 && overlapZ > 0.02;
-  return horizontalTouch || verticalTouch;
+  const ax = a.x - a.w / 2, ar = a.x + a.w / 2;
+  const az = a.z - a.d / 2, ab = a.z + a.d / 2;
+  const bx = b.x - b.w / 2, br = b.x + b.w / 2;
+  const bz = b.z - b.d / 2, bb = b.z + b.d / 2;
+  const overlapX = Math.min(ar, br) - Math.max(ax, bx);
+  const overlapZ = Math.min(ab, bb) - Math.max(az, bz);
+  const edgeEpsilon = 0.025;
+  const edgeTouchX = (Math.abs(ar - bx) <= edgeEpsilon || Math.abs(br - ax) <= edgeEpsilon) &&
+    overlapZ > 0.08;
+  const edgeTouchZ = (Math.abs(ab - bz) <= edgeEpsilon || Math.abs(bb - az) <= edgeEpsilon) &&
+    overlapX > 0.08;
+  const sameLevelEdgeTouch = Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 &&
+    (edgeTouchX || edgeTouchZ);
+  const aHeight = a.type === "wall" ? (Number(a.h) || 4) : 0.08;
+  const bHeight = b.type === "wall" ? (Number(b.h) || 4) : 0.08;
+  const aTop = (Number(a.y) || 0) + aHeight;
+  const bTop = (Number(b.y) || 0) + bHeight;
+  const verticalTouch = (
+    Math.abs(aTop - (Number(b.y) || 0)) <= edgeEpsilon ||
+    Math.abs(bTop - (Number(a.y) || 0)) <= edgeEpsilon
+  ) && overlapX > 0.08 && overlapZ > 0.08;
+  return sameLevelEdgeTouch || verticalTouch;
 }
 
 function updateBuildPreview() {
