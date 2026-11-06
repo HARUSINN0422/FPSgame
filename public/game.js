@@ -1318,7 +1318,7 @@ function updateBuildPreview() {
       heights.add(Number(item.y) || 0);
     }
   }
-  const possible = [...heights].sort((a, b) => a - b).map(y => ({
+  const possible = [...heights].sort((a, b) => Math.abs(a - target.y) - Math.abs(b - target.y)).map(y => ({
     type: selectedBuildType, x, y, z, rotation, w, d, h: isWall ? 4 : 0.08
   }));
   const candidate = possible.find(item => item.y >= 0 && item.y <= 40 &&
