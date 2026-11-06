@@ -4032,8 +4032,29 @@ io.on("connection", (socket) => {
     });
     if (occupied) return;
     const structures = map.buildStructures || [];
-    // 地面、同じ高さで辺が接する構造物、または壁の上端に接する位置だけ許可する。
-    const supported = y <= 0.02 || structures.some(item => buildStructuresTouch(candidate, item));
+    // 地面から接続をたどって到達できる構造物だけを土台として認める。
+    // 浮いている構造物に接続した建築物が設置直後に連鎖破壊されるのを防ぐ。
+    const groundedStructures = new Set(
+      structures.filter(item => (Number(item.y) || 0) <= 0.02).map(item => item.id)
+    );
+    let supportChanged = true;
+    while (supportChanged) {
+      supportChanged = false;
+      for (const item of structures) {
+        if (groundedStructures.has(item.id)) continue;
+        const connectedToGround = structures.some(other =>
+          groundedStructures.has(other.id) && buildStructuresTouch(item, other)
+        );
+        if (connectedToGround) {
+          groundedStructures.add(item.id);
+          supportChanged = true;
+        }
+      }
+    }
+    // 地面への直接設置、または地面につながった構造物への接続だけ許可する。
+    const supported = y <= 0.02 || structures.some(item =>
+      groundedStructures.has(item.id) && buildStructuresTouch(candidate, item)
+    );
     if (!supported) return;
     const id = "build-" + player.id + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
     const structure = { id, ...candidate, hp: 50 };
