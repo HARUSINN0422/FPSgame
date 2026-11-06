@@ -1512,7 +1512,7 @@ function buildWorld(data) {
 
   // Buildモードは1m単位の32×32グリッドを表示する。
   if (data.map?.id !== "payload-fractured-district") {
-    const gridSize = Math.max(worldWidth, worldDepth);
+    const gridSize = data.map?.id === "build-world" ? 32 : Math.max(worldWidth, worldDepth);
     const gridDivisions = data.map?.id === "build-world" ? 32 : Math.max(1, Math.round(gridSize / (Math.max(worldWidth, worldDepth) > 150 ? 8 : 2)));
     const grid = new THREE.GridHelper(gridSize, gridDivisions, 0x879487, 0x6b756b);
     grid.position.set(centerX, 0.01, centerZ);
