@@ -1265,7 +1265,11 @@ function updateBuildPreview() {
   raycaster.far = 12;
   const supportMeshes = worldGroup.children.filter(mesh => mesh.userData?.buildSupportSurface);
   const hits = raycaster.intersectObjects(supportMeshes, false);
-  let hitPoint = hits.length ? hits[0].point.clone() : null;
+  const topHit = hits.find(hit => {
+    const normal = hit.face?.normal;
+    return normal && normal.y > 0.5;
+  });
+  let hitPoint = topHit ? topHit.point.clone() : null;
   if (!hitPoint) {
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     hitPoint = new THREE.Vector3();
