@@ -4117,6 +4117,8 @@ socket.on("returnedToLobby", () => {
   reconnecting = false;
   areaResultOpen = false;
   selectedGameMode = "Melee";
+  updateBuildToolbar();
+  buildPreviewActive = true;
   myId = null;
   myState = null;
   stopAllControls();
