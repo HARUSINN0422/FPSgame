@@ -1459,29 +1459,27 @@ function updateBuildPreview() {
     if (isWall) {
       previewGeometry = new THREE.BoxGeometry(4, 4, 0.16);
     } else if (isRamp) {
-      const rampPreview = { w: 4, d: 4, h: 4, direction: rampDirection };
-      const halfW = 2, halfD = 2;
-      const highAtXHigh = rampPreview.direction === "east";
-      const highAtZHigh = rampPreview.direction === "north";
       let vertices;
-      if (rampPreview.direction === "east" || rampPreview.direction === "west") {
-        const aY = highAtXHigh ? 0 : 4;
-        const bY = highAtXHigh ? 4 : 0;
+      if (rampDirection === "east" || rampDirection === "west") {
+        const lowAtXLow = rampDirection === "west";
+        const yAtXLow = lowAtXLow ? 4 : 0;
+        const yAtXHigh = lowAtXLow ? 0 : 4;
         vertices = [
-          -2,0,-2, -2,0,2, 2,0,-2, 2,0,2,
-          -2,aY,-2, -2,aY,2, 2,bY,-2, 2,bY,2
+          -2,yAtXLow,-2, -2,yAtXLow,2,
+          2,yAtXHigh,-2, 2,yAtXHigh,2
         ];
       } else {
-        const aY = highAtZHigh ? 0 : 4;
-        const bY = highAtZHigh ? 4 : 0;
+        const lowAtZLow = rampDirection === "north";
+        const yAtZLow = lowAtZLow ? 0 : 4;
+        const yAtZHigh = lowAtZLow ? 4 : 0;
         vertices = [
-          -2,0,-2, 2,0,-2, -2,0,2, 2,0,2,
-          -2,aY,-2, 2,aY,-2, -2,bY,2, 2,bY,2
+          -2,yAtZLow,-2, 2,yAtZLow,-2,
+          -2,yAtZHigh,2, 2,yAtZHigh,2
         ];
       }
       previewGeometry = new THREE.BufferGeometry();
       previewGeometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-      previewGeometry.setIndex([0,4,5,0,5,1, 2,3,7,2,7,6, 0,2,6,0,6,4, 1,5,7,1,7,3, 4,6,7,4,7,5]);
+      previewGeometry.setIndex([0,1,2,2,1,3]);
       previewGeometry.computeVertexNormals();
     } else {
       previewGeometry = new THREE.BoxGeometry(4, 0.08, 4);
@@ -1500,7 +1498,7 @@ function updateBuildPreview() {
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(candidate.x, (isWall || isRamp) ? candidate.y : candidate.y + 0.04, candidate.z);
+  buildPreviewMesh.position.set(candidate.x, isWall ? candidate.y + 2 : isRamp ? candidate.y : candidate.y + 0.04, candidate.z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
@@ -1527,63 +1525,40 @@ function makeBox(w, h, d, x, y, z, color = 0x647080) {
 function makeRamp(ramp, color = 0x71808d) {
   const halfW = ramp.w / 2;
   const halfD = ramp.d / 2;
-  const xLow = -halfW;
-  const xHigh = halfW;
-  const zLow = -halfD;
-  const zHigh = halfD;
-  const yLow = 0;
-  const yHigh = ramp.h;
-
   let vertices;
+
+  // 階段は中身のない斜めの長方形板。下側を塞がず、下を通り抜けられる。
   if (ramp.direction === "east" || ramp.direction === "west") {
-    const highAtXHigh = ramp.direction === "east";
-    const aY = highAtXHigh ? yLow : yHigh;
-    const bY = highAtXHigh ? yHigh : yLow;
+    const yAtXLow = ramp.direction === "west" ? ramp.h : 0;
+    const yAtXHigh = ramp.direction === "west" ? 0 : ramp.h;
     vertices = new Float32Array([
-      xLow, yLow, zLow,   xLow, yLow, zHigh,
-      xHigh, yLow, zLow,  xHigh, yLow, zHigh,
-      xLow, aY, zLow,     xLow, aY, zHigh,
-      xHigh, bY, zLow,    xHigh, bY, zHigh
+      -halfW, yAtXLow, -halfD,
+      -halfW, yAtXLow, halfD,
+      halfW, yAtXHigh, -halfD,
+      halfW, yAtXHigh, halfD
     ]);
   } else {
-    const highAtZHigh = ramp.direction === "north";
-    const aY = highAtZHigh ? yLow : yHigh;
-    const bY = highAtZHigh ? yHigh : yLow;
+    const yAtZLow = ramp.direction === "north" ? 0 : ramp.h;
+    const yAtZHigh = ramp.direction === "north" ? ramp.h : 0;
     vertices = new Float32Array([
-      xLow, yLow, zLow,   xHigh, yLow, zLow,
-      xLow, yLow, zHigh,  xHigh, yLow, zHigh,
-      xLow, aY, zLow,     xHigh, aY, zLow,
-      xLow, bY, zHigh,    xHigh, bY, zHigh
+      -halfW, yAtZLow, -halfD,
+      halfW, yAtZLow, -halfD,
+      -halfW, yAtZHigh, halfD,
+      halfW, yAtZHigh, halfD
     ]);
   }
 
-  // 底面は地面と同一平面になりZ-fightingを起こすため生成しない。
-  const indices = [
-    0,4,5, 0,5,1,
-    2,3,7, 2,7,6,
-    0,2,6, 0,6,4,
-    1,5,7, 1,7,3,
-    4,6,7, 4,7,5
-  ];
-
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
-  geometry.setIndex(indices);
+  geometry.setIndex([0, 1, 2, 2, 1, 3]);
   geometry.computeVertexNormals();
 
-  geometry.clearGroups();
-  geometry.addGroup(0, indices.length - 6, 0);
-  geometry.addGroup(indices.length - 6, 6, 1);
-
-  // スロープ側面は照明・影の影響を受けないようにする。
-  const sideMaterial = new THREE.MeshBasicMaterial({ color });
-  const topMaterial = new THREE.MeshBasicMaterial({
+  const material = new THREE.MeshBasicMaterial({
     color,
     side: THREE.DoubleSide,
     depthWrite: true
   });
-
-  const mesh = new THREE.Mesh(geometry, [sideMaterial, topMaterial]);
+  const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(ramp.x, Number(ramp.y) || 0, ramp.z);
   mesh.castShadow = false;
   mesh.receiveShadow = false;
