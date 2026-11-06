@@ -4013,9 +4013,7 @@ io.on("connection", (socket) => {
       const overlapX = Math.min(x + halfW, item.x + item.w / 2) - Math.max(x - halfW, item.x - item.w / 2);
       const overlapZ = Math.min(z + halfD, item.z + item.d / 2) - Math.max(z - halfD, item.z - item.d / 2);
       const sameHeight = Math.abs((Number(item.y) || 0) - y) < 0.12;
-      const verticalStack = Math.abs(((Number(item.y) || 0) + (item.type === "wall" ? item.h : 0.08)) - y) < 0.12;
-      return sameHeight && overlapX > 0.12 && overlapZ > 0.12 ||
-        verticalStack && overlapX > 0.12 && overlapZ > 0.12;
+      return item.type === type && sameHeight && overlapX > 0.12 && overlapZ > 0.12;
     });
     if (occupied) return;
     const structures = map.buildStructures || [];
