@@ -1589,15 +1589,16 @@ function buildWorld(data) {
   };
   for (const tile of data.floorTiles || []) {
     const style = floorStyles[tile.type] || floorStyles.safe;
+    const tileHeight = tile.type === "build" ? 0.08 : 0.06;
     const tileMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(tile.w, 0.06, tile.d),
+      new THREE.BoxGeometry(tile.w, tileHeight, tile.d),
       new THREE.MeshBasicMaterial({
         color: style.color,
         side: THREE.DoubleSide,
         toneMapped: false
       })
     );
-    tileMesh.position.set(tile.x, 0.025, tile.z);
+    tileMesh.position.set(tile.x, tileHeight / 2 - 0.005, tile.z);
     tileMesh.renderOrder = 2;
     worldGroup.add(tileMesh);
   }
