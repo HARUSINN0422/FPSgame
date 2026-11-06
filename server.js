@@ -577,7 +577,8 @@ app.get("/api/lobby-info", (_req, res) => {
     freeForAll: connectedHumans.filter(player => (player.mode || MAP_MODE) === MAP_MODE).length,
     area: connectedHumans.filter(player => player.mode === AREA_MODE).length,
     payload: connectedHumans.filter(player => player.mode === PAYLOAD_MODE).length,
-    duel: connectedHumans.filter(player => player.mode === "Duel").length
+    duel: connectedHumans.filter(player => player.mode === "Duel").length,
+    build: connectedHumans.filter(player => player.mode === BUILD_MODE).length
   };
   const onlinePlayers = connectedHumans.length;
   res.setHeader("Cache-Control", "no-store");
@@ -3945,23 +3946,32 @@ io.on("connection", (socket) => {
     const type = data.type === "floor" ? "floor" : data.type === "wall" ? "wall" : null;
     const x = Number(data.x), z = Number(data.z);
     const rotation = Number(data.rotation) || 0;
-    if (!type || !Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 15.5 || Math.abs(z) > 15.5 ||
+    if (!type || !Number.isFinite(x) || !Number.isFinite(z) ||
         Math.abs((x - 0.5) - Math.round(x - 0.5)) > 0.001 || Math.abs((z - 0.5) - Math.round(z - 0.5)) > 0.001 ||
         ![0, Math.PI / 2, Math.PI, -Math.PI / 2].some(value => Math.abs(Math.atan2(Math.sin(rotation - value), Math.cos(rotation - value))) < 0.01)) return;
     const map = player.buildMap;
     if ((map.buildStructures || []).length >= 512) return;
-    const occupied = (map.buildStructures || []).some(item => Math.abs(item.x - x) < 0.45 && Math.abs(item.z - z) < 0.45 && (item.type === type || type === "wall" || item.type === "wall"));
+    const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
+    const wallW = isSideways ? 0.16 : 4;
+    const wallD = isSideways ? 4 : 0.16;
+    const newW = type === "wall" ? wallW : 4;
+    const newD = type === "wall" ? wallD : 4;
+    const halfW = newW / 2, halfD = newD / 2;
+    const bounds = map.world;
+    if (x - halfW < bounds.minX || x + halfW > bounds.maxX ||
+        z - halfD < bounds.minZ || z + halfD > bounds.maxZ) return;
+    const occupied = (map.buildStructures || []).some(item =>
+      Math.abs(item.x - x) < (newW + item.w) / 2 - 0.02 &&
+      Math.abs(item.z - z) < (newD + item.d) / 2 - 0.02
+    );
     if (occupied) return;
     const id = "build-" + player.id + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
-    const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
-    const wallW = isSideways ? 0.16 : 1;
-    const wallD = isSideways ? 1 : 0.16;
-    const structure = { id, type, x, z, rotation, w: type === "wall" ? wallW : 1, d: type === "wall" ? wallD : 1, h: type === "wall" ? 2 : 0.08, hp: 50 };
+    const structure = { id, type, x, z, rotation, w: newW, d: newD, h: type === "wall" ? 4 : 0.08, hp: 50 };
     map.buildStructures.push(structure);
-    if (type === "wall") map.obstacles.push({ x, z, w: wallW, d: wallD, h: 2, buildStructureId: id });
+    if (type === "wall") map.obstacles.push({ x, z, w: wallW, d: wallD, h: 4, buildStructureId: id });
     else {
-      map.floorTiles.push({ id, buildStructureId: id, type: "build", x, z, w: 1, d: 1 });
-      map.elevatedPlatforms.push({ x, z, w: 1, d: 1, h: 0.08, buildStructureId: id });
+      map.floorTiles.push({ id, buildStructureId: id, type: "build", x, z, w: 4, d: 4 });
+      map.elevatedPlatforms.push({ x, z, w: 4, d: 4, h: 0.08, buildStructureId: id });
     }
     broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
   });
