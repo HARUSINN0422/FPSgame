@@ -1260,19 +1260,23 @@ function buildPreviewTouches(a, b) {
   const horizontalTouch = overlapX >= -0.08 && overlapZ >= -0.08 &&
     (overlapX > 0.08 || overlapZ > 0.08) && Math.abs(a.y - b.y) < 0.12;
   const aTop = a.y + a.h, bTop = b.y + b.h;
+  // 壁の厚み0.16mの上端に床を載せる場合も接触として扱う。
   const verticalTouch = (Math.abs(aTop - b.y) < 0.12 || Math.abs(bTop - a.y) < 0.12) &&
-    overlapX > 0.08 && overlapZ > 0.08;
+    overlapX > 0.02 && overlapZ > 0.02;
   return horizontalTouch || verticalTouch;
 }
 
 function updateBuildPreview() {
-  if (selectedGameMode !== "Build" || !joined || !buildPreviewActive || !worldData?.map || worldData.map.id !== "build-world") {
+  const hidePreview = () => {
     if (buildPreviewMesh) buildPreviewMesh.visible = false;
     buildPreviewPosition = null;
+  };
+  if (selectedGameMode !== "Build" || !joined || !buildPreviewActive ||
+      !worldData?.map || worldData.map.id !== "build-world" || !myState) {
+    hidePreview();
     return;
   }
 
-  // 視線の先を基準に、4mグリッド上の「正面の隣接位置」を探す。
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
   raycaster.far = 12;
@@ -1282,57 +1286,85 @@ function updateBuildPreview() {
   if (!target) {
     const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     target = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(ground, target) || target.distanceTo(raycaster.ray.origin) > 12) {
-      target.set(myState.x - Math.sin(yaw) * 4, 0, myState.z - Math.cos(yaw) * 4);
+    if (!raycaster.ray.intersectPlane(ground, target) ||
+        target.distanceTo(raycaster.ray.origin) > 12) {
+      target.copy(camera.position).addScaledVector(raycaster.ray.direction, 4);
+      target.y = 0;
     }
   }
 
   const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
   const isWall = selectedBuildType === "wall";
   const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
-  const x = isWall
-    ? (isSideways ? Math.round(target.x / 4) * 4 : Math.floor(target.x / 4) * 4 + 2)
-    : Math.floor(target.x / 4) * 4 + 2;
-  const z = isWall
-    ? (isSideways ? Math.floor(target.z / 4) * 4 + 2 : Math.round(target.z / 4) * 4)
-    : Math.floor(target.z / 4) * 4 + 2;
   const w = isWall ? (isSideways ? 0.16 : 4) : 4;
   const d = isWall ? (isSideways ? 4 : 0.16) : 4;
   const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
-  const inRange = myState && Math.hypot(x - myState.x, z - myState.z) <= 6;
-  if (!inRange || x - w / 2 < bounds.minX || x + w / 2 > bounds.maxX ||
-      z - d / 2 < bounds.minZ || z + d / 2 > bounds.maxZ) {
-    if (buildPreviewMesh) buildPreviewMesh.visible = false;
-    buildPreviewPosition = null;
-    return;
-  }
+
+  // 視線が当たったグリッドだけでなく、その周囲の隣接グリッドも調べる。
+  // 既存の壁に重なる候補を飛ばし、プレイヤーに近い設置可能位置を優先する。
+  const baseX = isWall
+    ? (isSideways ? Math.round(target.x / 4) * 4 : Math.floor(target.x / 4) * 4 + 2)
+    : Math.floor(target.x / 4) * 4 + 2;
+  const baseZ = isWall
+    ? (isSideways ? Math.floor(target.z / 4) * 4 + 2 : Math.round(target.z / 4) * 4)
+    : Math.floor(target.z / 4) * 4 + 2;
 
   const structures = Array.isArray(worldData.buildStructures) ? worldData.buildStructures : [];
   const heights = new Set([0]);
   for (const item of structures) {
-    const top = Number(item.y || 0) + Number(item.h || (item.type === "wall" ? 4 : 0.08));
-    if (item.type === "wall") {
-      heights.add(Number(item.y) || 0);
-      heights.add(top);
-    } else {
-      heights.add(Number(item.y) || 0);
+    const y = Number(item.y) || 0;
+    const h = Number(item.h) || (item.type === "wall" ? 4 : 0.08);
+    heights.add(y);
+    heights.add(y + h);
+  }
+
+  const candidates = [];
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dz = -1; dz <= 1; dz++) {
+      const x = baseX + dx * 4;
+      const z = baseZ + dz * 4;
+      if (x - w / 2 < bounds.minX || x + w / 2 > bounds.maxX ||
+          z - d / 2 < bounds.minZ || z + d / 2 > bounds.maxZ) continue;
+      const playerDistance = Math.hypot(x - myState.x, z - myState.z);
+      if (playerDistance < 1.8 || playerDistance > 6.05) continue;
+
+      const possibleHeights = [...heights]
+        .filter(y => y >= 0 && y <= 40)
+        .sort((a, b) => Math.abs(a - target.y) - Math.abs(b - target.y));
+      for (const y of possibleHeights) {
+        const item = { type: selectedBuildType, x, y, z, rotation, w, d, h: isWall ? 4 : 0.08 };
+        const occupied = structures.some(other => {
+          const overlapX = Math.min(x + w / 2, other.x + other.w / 2) - Math.max(x - w / 2, other.x - other.w / 2);
+          const overlapZ = Math.min(z + d / 2, other.z + other.d / 2) - Math.max(z - d / 2, other.z - other.d / 2);
+          return other.type === selectedBuildType &&
+            Math.abs((Number(other.y) || 0) - y) < 0.12 &&
+            overlapX > 0.12 && overlapZ > 0.12;
+        });
+        if (occupied) continue;
+        const supported = y <= 0.02 || structures.some(other => buildPreviewTouches(item, {
+          ...other,
+          w: Number(other.w) || 4,
+          d: Number(other.d) || 4,
+          h: Number(other.h) || (other.type === "wall" ? 4 : 0.08)
+        }));
+        if (!supported) continue;
+        const center = new THREE.Vector3(x, y + (isWall ? 2 : 0.04), z);
+        const aimDistance = center.distanceTo(target);
+        const cameraDistance = center.distanceTo(camera.position);
+        candidates.push({ item, score: cameraDistance * 0.7 + aimDistance * 0.3 });
+        break;
+      }
     }
   }
-  const possible = [...heights].sort((a, b) => Math.abs(a - target.y) - Math.abs(b - target.y)).map(y => ({
-    type: selectedBuildType, x, y, z, rotation, w, d, h: isWall ? 4 : 0.08
-  }));
-  const candidate = possible.find(item => item.y >= 0 && item.y <= 40 &&
-    (item.y <= 0.02 || structures.some(other => buildPreviewTouches(item, {
-      ...other, w: Number(other.w) || 4, d: Number(other.d) || 4,
-      h: Number(other.h) || (other.type === "wall" ? 4 : 0.08)
-    }))));
+
+  candidates.sort((a, b) => a.score - b.score);
+  const candidate = candidates[0]?.item;
   if (!candidate) {
-    if (buildPreviewMesh) buildPreviewMesh.visible = false;
-    buildPreviewPosition = null;
+    hidePreview();
     return;
   }
-  buildPreviewPosition = { x, y: candidate.y, z, rotation };
 
+  buildPreviewPosition = { x: candidate.x, y: candidate.y, z: candidate.z, rotation };
   if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType) {
     if (buildPreviewMesh) {
       scene.remove(buildPreviewMesh);
@@ -1344,7 +1376,7 @@ function updateBuildPreview() {
       new THREE.MeshBasicMaterial({
         color: isWall ? 0x80d6ff : 0x8ee5a8,
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.38,
         depthWrite: false
       })
     );
@@ -1352,11 +1384,10 @@ function updateBuildPreview() {
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(x, isWall ? candidate.y + 2 : candidate.y + 0.04, z);
+  buildPreviewMesh.position.set(candidate.x, isWall ? candidate.y + 2 : candidate.y + 0.04, candidate.z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
-
 document.getElementById("buildWallButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("wall"); });
 document.getElementById("buildFloorButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("floor"); });
 document.getElementById("buildPlaceButton")?.addEventListener("click", () => { if (!layoutEditing) placeBuildStructure(); });
