@@ -1589,6 +1589,7 @@ function makeRamp(ramp, color = 0x71808d) {
   mesh.receiveShadow = false;
   mesh.frustumCulled = false;
   mesh.renderOrder = 1;
+  if (ramp.buildStructureId) mesh.userData.buildSupportSurface = true;
   worldGroup.add(mesh);
   return mesh;
 }
