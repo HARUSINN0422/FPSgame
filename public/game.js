@@ -1021,7 +1021,7 @@ function setupDraggableOffset(id, settingKey) {
     if (!cfg) return;
 
     cfg.x = Math.round(startOffsetX + e.clientX - startX);
-    cfg.y = Math.round(startOffsetY + e.clientY - startY);
+    cfg.y = Math.round(startOffsetY + (id === "buildToolbar" ? startY - e.clientY : e.clientY - startY));
     if (id === "areaHud" || id === "buildToolbar") {
       el.style.setProperty("--layout-x", cfg.x + "px");
       el.style.setProperty("--layout-y", cfg.y + "px");
