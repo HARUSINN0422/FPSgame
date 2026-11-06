@@ -1280,7 +1280,7 @@ function updateBuildPreview() {
       buildPreviewMesh.material.dispose();
     }
     buildPreviewMesh = new THREE.Mesh(
-      isWall ? new THREE.BoxGeometry(1, 1, 0.16) : new THREE.BoxGeometry(1, 0.12, 1),
+      isWall ? new THREE.BoxGeometry(1, 2, 0.16) : new THREE.BoxGeometry(1, 0.08, 1),
       new THREE.MeshBasicMaterial({
         color: isWall ? 0x80d6ff : 0x8ee5a8,
         transparent: true,
@@ -1292,7 +1292,7 @@ function updateBuildPreview() {
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(x, isWall ? 0.5 : 0.06, z);
+  buildPreviewMesh.position.set(x, isWall ? 1 : 0.04, z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
@@ -3989,6 +3989,8 @@ socket.on("payloadReturnToModeSelect", () => {
   areaResultOpen = false;
   payloadRole = null;
   selectedGameMode = "Melee";
+  updateBuildToolbar();
+  buildPreviewActive = true;
   myId = null;
   myState = null;
   stopAllControls();
@@ -4354,7 +4356,7 @@ socket.on("connect", () => {
       reconnectToken: payloadReconnectToken,
       charm: selectedCharm,
       ultimateType: selectedUltimate,
-      mode: selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
+      mode: selectedGameMode === "Build" ? "Build" : selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
     if (selectedGameMode === "Payload") {
@@ -4385,6 +4387,7 @@ function leaveGameForBackground() {
   backgroundLeavePending = true;
   joined = false;
   wasJoinedBeforeDisconnect = false;
+  updateBuildToolbar();
   stopAllControls();
   if (backgroundDisconnectTimer) clearTimeout(backgroundDisconnectTimer);
   backgroundDisconnectTimer = setTimeout(() => {
@@ -4427,9 +4430,9 @@ socket.on("disconnect", () => {
   setConnectionStatus("接続中…", false);
 
   if (joined || (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden")) || (selectedGameMode === "Payload" && payloadQueuePanel && !payloadQueuePanel.classList.contains("hidden"))) {
-    updateBuildToolbar();
     wasJoinedBeforeDisconnect = true;
     joined = false;
+    updateBuildToolbar();
     stopAllControls();
     showMessage("サーバーとの接続が切れました。再接続しています…");
   }
