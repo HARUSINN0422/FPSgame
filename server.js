@@ -843,8 +843,8 @@ function buildStructuresTouch(a, b) {
     (edgeTouchX || edgeTouchZ);
 
   // 上下に積む場合は、下側の上面と上側の下面が接し、 footprint が面で重なる必要がある。
-  const aHeight = a.type === "wall" ? (Number(a.h) || 4) : 0.08;
-  const bHeight = b.type === "wall" ? (Number(b.h) || 4) : 0.08;
+  const aHeight = a.type === "wall" || a.type === "ramp" ? (Number(a.h) || 4) : 0.08;
+  const bHeight = b.type === "wall" || b.type === "ramp" ? (Number(b.h) || 4) : 0.08;
   const aTop = (Number(a.y) || 0) + aHeight;
   const bTop = (Number(b.y) || 0) + bHeight;
   const verticalTouch = (
@@ -875,6 +875,7 @@ function pruneUnsupportedBuildStructures(map) {
   map.obstacles = (map.obstacles || []).filter(item => !removed.has(item.buildStructureId));
   map.floorTiles = (map.floorTiles || []).filter(item => !removed.has(item.buildStructureId));
   map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => !removed.has(item.buildStructureId));
+  map.ramps = (map.ramps || []).filter(item => !removed.has(item.buildStructureId));
   return true;
 }
 
@@ -2565,6 +2566,7 @@ function damageBuildStructureOnRay(player, origin, direction, maxDistance, damag
     map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== nearest.structure.id);
     map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== nearest.structure.id);
     map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => item.buildStructureId !== nearest.structure.id);
+    map.ramps = (map.ramps || []).filter(item => item.buildStructureId !== nearest.structure.id);
     pruneUnsupportedBuildStructures(map);
   }
   if (destroyed) broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
@@ -2584,6 +2586,7 @@ function damageBuildStructuresInRadius(player, position, radius, damage) {
       map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== structure.id);
       map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== structure.id);
       map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => item.buildStructureId !== structure.id);
+      map.ramps = (map.ramps || []).filter(item => item.buildStructureId !== structure.id);
     }
   }
   if (destroyedAny) {
@@ -4001,7 +4004,7 @@ io.on("connection", (socket) => {
   socket.on("buildPlace", (data = {}) => {
     const player = players.get(socket.id);
     if (!player || player.mode !== BUILD_MODE || !player.buildMap || player.health <= 0) return;
-    const type = data.type === "floor" ? "floor" : data.type === "wall" ? "wall" : null;
+    const type = data.type === "floor" ? "floor" : data.type === "wall" ? "wall" : data.type === "ramp" ? "ramp" : null;
     const x = Number(data.x), z = Number(data.z), y = Number(data.y) || 0;
     const rotation = Number(data.rotation) || 0;
     if (!type || !Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(y) || y < 0 || y > 40 ||
@@ -4017,13 +4020,17 @@ io.on("connection", (socket) => {
     const bounds = map.world;
     if (x - halfW < bounds.minX || x + halfW > bounds.maxX ||
         z - halfD < bounds.minZ || z + halfD > bounds.maxZ) return;
-    const gridAligned = type === "floor"
+    const gridAligned = type === "floor" || type === "ramp"
       ? Math.abs((x - 2) / 4 - Math.round((x - 2) / 4)) < 0.001 && Math.abs((z - 2) / 4 - Math.round((z - 2) / 4)) < 0.001
       : (isSideways
           ? Math.abs(x / 4 - Math.round(x / 4)) < 0.001 && Math.abs((z - 2) / 4 - Math.round((z - 2) / 4)) < 0.001
           : Math.abs((x - 2) / 4 - Math.round((x - 2) / 4)) < 0.001 && Math.abs(z / 4 - Math.round(z / 4)) < 0.001);
     if (!gridAligned) return;
-    const candidate = { type, x, z, y, rotation, w: newW, d: newD, h: type === "wall" ? 4 : 0.08 };
+    const rampDirection = Math.abs(rotation) < 0.1 ? "south"
+      : Math.abs(rotation - Math.PI / 2) < 0.1 ? "west"
+      : Math.abs(Math.abs(rotation) - Math.PI) < 0.1 ? "north" : "east";
+    const candidate = { type, x, z, y, rotation, direction: type === "ramp" ? rampDirection : undefined,
+      w: newW, d: newD, h: type === "wall" || type === "ramp" ? 4 : 0.08 };
     const occupied = (map.buildStructures || []).some(item => {
       const overlapX = Math.min(x + halfW, item.x + item.w / 2) - Math.max(x - halfW, item.x - item.w / 2);
       const overlapZ = Math.min(z + halfD, item.z + item.d / 2) - Math.max(z - halfD, item.z - item.d / 2);
@@ -4061,9 +4068,11 @@ io.on("connection", (socket) => {
     map.buildStructures.push(structure);
     if (type === "wall") {
       map.obstacles.push({ x, y, z, w: wallW, d: wallD, h: 4, ceiling: y > 0.02, buildStructureId: id });
-    } else {
+    } else if (type === "floor") {
       map.floorTiles.push({ id, buildStructureId: id, type: "build", x, y, z, w: 4, d: 4 });
       map.elevatedPlatforms.push({ x, z, w: 4, d: 4, h: y + 0.08, buildStructureId: id });
+    } else {
+      map.ramps.push({ x, y, z, w: 4, d: 4, h: 4, direction: rampDirection, buildStructureId: id });
     }
     broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
   });
