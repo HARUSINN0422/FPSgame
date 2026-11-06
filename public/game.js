@@ -1323,6 +1323,31 @@ function updateBuildPreview() {
     : Math.floor(target.z / 4) * 4 + 2;
 
   const structures = Array.isArray(worldData.buildStructures) ? worldData.buildStructures : [];
+  // 地面から接続をたどって到達できる建築物だけを有効な土台にする。
+  // 浮いている建築物に接しているだけの候補は、設置後に連鎖破壊されるため除外する。
+  const groundedStructures = new Set(
+    structures.filter(item => (Number(item.y) || 0) <= 0.02).map(item => item.id)
+  );
+  let supportChanged = true;
+  while (supportChanged) {
+    supportChanged = false;
+    for (const item of structures) {
+      if (groundedStructures.has(item.id)) continue;
+      const connectedToGround = structures.some(other =>
+        groundedStructures.has(other.id) && buildPreviewTouches(item, {
+          ...other,
+          w: Number(other.w) || 4,
+          d: Number(other.d) || 4,
+          h: Number(other.h) || (other.type === "wall" ? 4 : 0.08)
+        })
+      );
+      if (connectedToGround) {
+        groundedStructures.add(item.id);
+        supportChanged = true;
+      }
+    }
+  }
+  const groundedSupports = structures.filter(item => groundedStructures.has(item.id));
   const heights = new Set([0]);
   for (const item of structures) {
     const y = Number(item.y) || 0;
@@ -1354,7 +1379,7 @@ function updateBuildPreview() {
             overlapX > 0.12 && overlapZ > 0.12;
         });
         if (occupied) continue;
-        const supported = y <= 0.02 || structures.some(other => buildPreviewTouches(item, {
+        const supported = y <= 0.02 || groundedSupports.some(other => buildPreviewTouches(item, {
           ...other,
           w: Number(other.w) || 4,
           d: Number(other.d) || 4,
