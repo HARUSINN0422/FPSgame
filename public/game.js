@@ -1301,8 +1301,9 @@ function updateBuildPreview() {
     target = new THREE.Vector3();
     if (!raycaster.ray.intersectPlane(ground, target) ||
         target.distanceTo(raycaster.ray.origin) > 12) {
+      // 上下を向いていて地面との交点がない場合も、視線上の仮ターゲットを使う。
+      // y=0に固定すると天井方向の候補が地面側へ引っ張られる。
       target.copy(camera.position).addScaledVector(raycaster.ray.direction, 4);
-      target.y = 0;
     }
   }
 
@@ -1409,16 +1410,24 @@ function updateBuildPreview() {
         } else {
           // 床はカメラの3D視線方向で判定する。真上・真下を向いた場合も
           // 視線の先にある支持済みの床候補を選べるようにする。
-          const viewDirection = new THREE.Vector3();
-          camera.getWorldDirection(viewDirection);
+          const viewDirection = raycaster.ray.direction.clone().normalize();
           const toCandidate = center.clone().sub(camera.position);
           const forwardDistance = toCandidate.dot(viewDirection);
-          if (forwardDistance <= 0.2) continue;
+          // カメラから前方12m以内、かつ照準線から大きく外れない床だけを候補にする。
+          if (forwardDistance <= 0.2 || forwardDistance > 12) continue;
           const lateralDistance = toCandidate.clone()
             .addScaledVector(viewDirection, -forwardDistance).length();
+          if (lateralDistance > 4.5) continue;
+          const targetAlongRay = target.clone().sub(camera.position).dot(viewDirection);
+          const targetDistance = center.distanceTo(target);
+          // 視線との横ずれを最重視し、その次に照準先との距離を評価する。
+          // プレイヤーから近いだけの床や、視線の後方・大きく外れた床は選ばない。
           candidates.push({
             item,
-            score: forwardDistance + lateralDistance * 2.5 + cameraDistance * 0.02
+            score: lateralDistance * 5
+              + Math.abs(forwardDistance - targetAlongRay) * 0.8
+              + targetDistance * 0.35
+              + forwardDistance * 0.03
           });
         }
         break;
