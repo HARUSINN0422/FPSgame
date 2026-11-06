@@ -1270,8 +1270,8 @@ function buildPreviewTouches(a, b) {
     overlapX > 0.08;
   const sameLevelEdgeTouch = Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 &&
     (edgeTouchX || edgeTouchZ);
-  const aHeight = a.type === "wall" ? (Number(a.h) || 4) : 0.08;
-  const bHeight = b.type === "wall" ? (Number(b.h) || 4) : 0.08;
+  const aHeight = a.type === "wall" || a.type === "ramp" ? (Number(a.h) || 4) : 0.08;
+  const bHeight = b.type === "wall" || b.type === "ramp" ? (Number(b.h) || 4) : 0.08;
   const aTop = (Number(a.y) || 0) + aHeight;
   const bTop = (Number(b.y) || 0) + bHeight;
   const verticalTouch = (
