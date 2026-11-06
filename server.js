@@ -865,6 +865,7 @@ function buildStructuresTouch(a, b) {
     const high = rampHighEdge(ramp);
     let low;
     if (otherIsRampLow) {
+      if (ramp.direction !== other.direction) return false;
       low = rampLowEdge(other);
     } else {
       const halfW = other.w / 2, halfD = other.d / 2;
@@ -873,16 +874,15 @@ function buildStructuresTouch(a, b) {
         : { axis: "z", edge: Math.abs(high.edge - (other.z - halfD)) < Math.abs(high.edge - (other.z + halfD)) ? other.z - halfD : other.z + halfD, min: other.x - halfW, max: other.x + halfW };
     }
     const overlap = Math.min(high.max, low.max) - Math.max(high.min, low.min);
-    const rampBaseY = Number(ramp.y) || 0;
+    const rampTopY = (Number(ramp.y) || 0) + (Number(ramp.h) || 4);
     const otherBaseY = Number(other.y) || 0;
     return high.axis === low.axis &&
       Math.abs(high.edge - low.edge) <= edgeEpsilon &&
-      overlap > 0.08 &&
-      Math.abs(rampBaseY + (Number(ramp.h) || 4) - otherBaseY) <= edgeEpsilon;
+      overlap >= 0.5 &&
+      Math.abs(rampTopY - otherBaseY) <= 0.025;
   };
   const rampToRamp = a.type === "ramp" && b.type === "ramp" &&
-    (rampEdgeConnects(a, b, true) ||
-     rampEdgeConnects(b, a, true));
+    (rampEdgeConnects(a, b, true) || rampEdgeConnects(b, a, true));
   const rampToFloor = (a.type === "ramp" && b.type === "floor" && rampEdgeConnects(a, b, false)) ||
     (b.type === "ramp" && a.type === "floor" && rampEdgeConnects(b, a, false));
   return sameLevelEdgeTouch || verticalTouch || rampToRamp || rampToFloor;
@@ -2475,6 +2475,32 @@ function movePlayer(p, dt) {
   if (!p.grounded) {
     p.velocityY -= GRAVITY * dt;
     p.y += p.velocityY * dt;
+  }
+
+  // 階段の斜面は薄い板として上下両面を衝突面にする。
+  // 下からジャンプして頭が板の下面を横切る場合は下面で止め、
+  // 上から落ちる場合は斜面上面に着地させる。
+  if (p.y !== previousY) {
+    for (const ramp of getMapForPlayer(p).ramps || []) {
+      const surfaceY = getRampHeight(ramp, p.x, p.z);
+      if (surfaceY === null) continue;
+      if (p.velocityY > 0) {
+        const previousHead = previousY + currentHeight;
+        const nextHead = p.y + currentHeight;
+        if (previousHead <= surfaceY + 0.025 && nextHead > surfaceY + 0.025) {
+          p.y = surfaceY - currentHeight - 0.025;
+          p.velocityY = 0;
+          p.grounded = false;
+          break;
+        }
+      } else if (p.velocityY <= 0 && previousY >= surfaceY - 0.025 && p.y <= surfaceY) {
+        p.y = surfaceY;
+        p.velocityY = 0;
+        p.grounded = true;
+        p.lastGroundedAt = now;
+        break;
+      }
+    }
   }
 
   // 台の上からゆっくり降りるときに、1tickの間に台を突き抜けないようにする。
