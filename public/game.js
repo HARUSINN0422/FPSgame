@@ -861,7 +861,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "buildToolbar"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
@@ -5046,6 +5046,7 @@ setupDraggableOffset("areaHud", "areaHud");
 setupDraggableOffset("fullscreenButton", "fullscreenButton");
 setupDraggableOffset("settingsButton", "settingsButton");
 setupDraggableOffset("ammoHud", "reloadButton");
+setupDraggableOffset("buildToolbar", "buildToolbar");
 setupDraggableOffset("buildToolbar", "buildToolbar");
 
 const fireButton = document.getElementById("fireButton");
