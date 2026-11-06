@@ -831,13 +831,28 @@ function buildStructuresTouch(a, b) {
   const bz = b.z - b.d / 2, bb = b.z + b.d / 2;
   const overlapX = Math.min(ar, br) - Math.max(ax, bx);
   const overlapZ = Math.min(ab, bb) - Math.max(az, bz);
-  const horizontalTouch = overlapX >= -0.08 && overlapZ >= -0.08 &&
-    (overlapX > 0.08 || overlapZ > 0.08);
-  const aTop = (Number(a.y) || 0) + (a.type === "wall" ? (Number(a.h) || 4) : 0.08);
-  const bTop = (Number(b.y) || 0) + (b.type === "wall" ? (Number(b.h) || 4) : 0.08);
-  const verticalTouch = (Math.abs(aTop - (Number(b.y) || 0)) < 0.12 ||
-    Math.abs(bTop - (Number(a.y) || 0)) < 0.12) && overlapX > 0.02 && overlapZ > 0.02;
-  return horizontalTouch && Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 || verticalTouch;
+  const edgeEpsilon = 0.025;
+
+  // 同じ高さの構造物は、片方の辺が一致し、もう片方に十分な長さの重なりがある場合だけ接続。
+  // 角だけの接触、わずかな隙間、面が重なっているだけの配置は接続扱いにしない。
+  const edgeTouchX = (Math.abs(ar - bx) <= edgeEpsilon || Math.abs(br - ax) <= edgeEpsilon) &&
+    overlapZ > 0.08;
+  const edgeTouchZ = (Math.abs(ab - bz) <= edgeEpsilon || Math.abs(bb - az) <= edgeEpsilon) &&
+    overlapX > 0.08;
+  const sameLevelEdgeTouch = Math.abs((Number(a.y) || 0) - (Number(b.y) || 0)) < 0.12 &&
+    (edgeTouchX || edgeTouchZ);
+
+  // 上下に積む場合は、下側の上面と上側の下面が接し、 footprint が面で重なる必要がある。
+  const aHeight = a.type === "wall" ? (Number(a.h) || 4) : 0.08;
+  const bHeight = b.type === "wall" ? (Number(b.h) || 4) : 0.08;
+  const aTop = (Number(a.y) || 0) + aHeight;
+  const bTop = (Number(b.y) || 0) + bHeight;
+  const verticalTouch = (
+    Math.abs(aTop - (Number(b.y) || 0)) <= edgeEpsilon ||
+    Math.abs(bTop - (Number(a.y) || 0)) <= edgeEpsilon
+  ) && overlapX > 0.08 && overlapZ > 0.08;
+
+  return sameLevelEdgeTouch || verticalTouch;
 }
 
 function pruneUnsupportedBuildStructures(map) {
