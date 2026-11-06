@@ -1240,6 +1240,7 @@ function placeBuildStructure() {
   socket.emit("buildPlace", {
     type: selectedBuildType,
     x: buildPreviewPosition.x,
+    y: buildPreviewPosition.y,
     z: buildPreviewPosition.z,
     rotation: buildPreviewPosition.rotation
   });
@@ -1261,28 +1262,40 @@ function updateBuildPreview() {
   }
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const point = new THREE.Vector3();
-  if (!raycaster.ray.intersectPlane(ground, point)) {
-    if (buildPreviewMesh) buildPreviewMesh.visible = false;
-    buildPreviewPosition = null;
-    return;
+  raycaster.far = 12;
+  const supportMeshes = worldGroup.children.filter(mesh => mesh.userData?.buildSupportSurface);
+  const hits = raycaster.intersectObjects(supportMeshes, false);
+  let hitPoint = hits.length ? hits[0].point.clone() : null;
+  if (!hitPoint) {
+    const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    hitPoint = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(ground, hitPoint) || hitPoint.distanceTo(raycaster.ray.origin) > 12) {
+      if (buildPreviewMesh) buildPreviewMesh.visible = false;
+      buildPreviewPosition = null;
+      return;
+    }
   }
-  const x = Math.floor(point.x) + 0.5;
-  const z = Math.floor(point.z) + 0.5;
-  const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
   const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
   const isWall = selectedBuildType === "wall";
   const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
+  const x = isWall
+    ? (isSideways ? Math.round(hitPoint.x / 4) * 4 : Math.floor(hitPoint.x / 4) * 4 + 2)
+    : Math.floor(hitPoint.x / 4) * 4 + 2;
+  const z = isWall
+    ? (isSideways ? Math.floor(hitPoint.z / 4) * 4 + 2 : Math.round(hitPoint.z / 4) * 4)
+    : Math.floor(hitPoint.z / 4) * 4 + 2;
+  const y = Math.max(0, hitPoint.y);
+  const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
   const halfW = isWall ? (isSideways ? 0.08 : 2) : 2;
   const halfD = isWall ? (isSideways ? 2 : 0.08) : 2;
-  if (x - halfW < bounds.minX || x + halfW > bounds.maxX ||
+  const inRange = myState && Math.hypot(x - myState.x, z - myState.z) <= 6;
+  if (!inRange || x - halfW < bounds.minX || x + halfW > bounds.maxX ||
       z - halfD < bounds.minZ || z + halfD > bounds.maxZ) {
     if (buildPreviewMesh) buildPreviewMesh.visible = false;
     buildPreviewPosition = null;
     return;
   }
-  buildPreviewPosition = { x, z, rotation };
+  buildPreviewPosition = { x, y, z, rotation };
   if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType) {
     if (buildPreviewMesh) {
       scene.remove(buildPreviewMesh);
@@ -1302,7 +1315,7 @@ function updateBuildPreview() {
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(x, isWall ? 2 : 0.04, z);
+  buildPreviewMesh.position.set(x, isWall ? y + 2 : y + 0.04, z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
@@ -1585,7 +1598,8 @@ function buildWorld(data) {
       payloadGateMeshes.push(gate);
       worldGroup.add(gate);
     } else {
-      makeBox(o.w, o.h, o.d, o.x, o.ceiling ? o.y + o.h / 2 : o.h / 2, o.z, 0x687582);
+      const obstacleMesh = makeBox(o.w, o.h, o.d, o.x, o.ceiling ? o.y + o.h / 2 : o.h / 2, o.z, 0x687582);
+      if (o.buildStructureId) obstacleMesh.userData.buildSupportSurface = true;
     }
   }
 
@@ -1608,7 +1622,8 @@ function buildWorld(data) {
         toneMapped: false
       })
     );
-    tileMesh.position.set(tile.x, tileHeight / 2 - 0.005, tile.z);
+    tileMesh.position.set(tile.x, (Number(tile.y) || 0) + tileHeight / 2 - 0.005, tile.z);
+    if (tile.buildStructureId) tileMesh.userData.buildSupportSurface = true;
     tileMesh.renderOrder = 2;
     worldGroup.add(tileMesh);
   }
