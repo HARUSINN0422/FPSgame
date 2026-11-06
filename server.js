@@ -842,7 +842,7 @@ function buildStructuresTouch(a, b) {
 
 function pruneUnsupportedBuildStructures(map) {
   const structures = map.buildStructures || [];
-  const supported = new Set(structures.filter(item => (Number(item.y) || 0) <= 0.12).map(item => item.id));
+  const supported = new Set(structures.filter(item => (Number(item.y) || 0) <= 0.02).map(item => item.id));
   let changed = true;
   while (changed) {
     changed = false;
@@ -4019,7 +4019,7 @@ io.on("connection", (socket) => {
     });
     if (occupied) return;
     const structures = map.buildStructures || [];
-    const supported = y <= 0.12 || structures.some(item => buildStructuresTouch(candidate, item) &&
+    const supported = y <= 0.02 || structures.some(item => buildStructuresTouch(candidate, item) &&
       ((Number(item.y) || 0) <= y + 0.12 && ((Number(item.y) || 0) + (item.type === "wall" ? item.h : 0.08)) >= y - 0.12 ||
        Math.abs((Number(item.y) || 0) - y) < 0.12));
     if (!supported) return;
@@ -4027,7 +4027,7 @@ io.on("connection", (socket) => {
     const structure = { id, ...candidate, hp: 50 };
     map.buildStructures.push(structure);
     if (type === "wall") {
-      map.obstacles.push({ x, y, z, w: wallW, d: wallD, h: 4, ceiling: y > 0.12, buildStructureId: id });
+      map.obstacles.push({ x, y, z, w: wallW, d: wallD, h: 4, ceiling: y > 0.02, buildStructureId: id });
     } else {
       map.floorTiles.push({ id, buildStructureId: id, type: "build", x, y, z, w: 4, d: 4 });
       map.elevatedPlatforms.push({ x, z, w: 4, d: 4, h: y + 0.08, buildStructureId: id });
