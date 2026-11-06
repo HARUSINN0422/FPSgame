@@ -1297,6 +1297,7 @@ function buildPreviewTouches(a, b) {
     const high = rampHighEdge(ramp);
     let low;
     if (otherIsRampLow) {
+      if (ramp.direction !== other.direction) return false;
       low = rampLowEdge(other);
     } else {
       const halfW = other.w / 2, halfD = other.d / 2;
@@ -1305,16 +1306,15 @@ function buildPreviewTouches(a, b) {
         : { axis: "z", edge: Math.abs(high.edge - (other.z - halfD)) < Math.abs(high.edge - (other.z + halfD)) ? other.z - halfD : other.z + halfD, min: other.x - halfW, max: other.x + halfW };
     }
     const overlap = Math.min(high.max, low.max) - Math.max(high.min, low.min);
-    const rampBaseY = Number(ramp.y) || 0;
+    const rampTopY = (Number(ramp.y) || 0) + (Number(ramp.h) || 4);
     const otherBaseY = Number(other.y) || 0;
     return high.axis === low.axis &&
       Math.abs(high.edge - low.edge) <= edgeEpsilon &&
-      overlap > 0.08 &&
-      Math.abs(rampBaseY + (Number(ramp.h) || 4) - otherBaseY) <= edgeEpsilon;
+      overlap >= 0.5 &&
+      Math.abs(rampTopY - otherBaseY) <= 0.025;
   };
   const rampToRamp = a.type === "ramp" && b.type === "ramp" &&
-    (rampEdgeConnects(a, b, true) ||
-     rampEdgeConnects(b, a, true));
+    (rampEdgeConnects(a, b, true) || rampEdgeConnects(b, a, true));
   const rampToFloor = (a.type === "ramp" && b.type === "floor" && rampEdgeConnects(a, b, false)) ||
     (b.type === "ramp" && a.type === "floor" && rampEdgeConnects(b, a, false));
   return sameLevelEdgeTouch || verticalTouch || rampToRamp || rampToFloor;
