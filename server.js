@@ -2098,17 +2098,8 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   const bodyBottom = y;
   const bodyTop = y + height;
 
-  // スロープは上面だけでなく内部・側面も立体として扱う。
-  // 頭上に十分な空間がある下通路は通過でき、斜面の側面から内部へ侵入することはできない。
-  for (const ramp of map.ramps || []) {
-    const rampSurface = getRampHeight(ramp, x, z);
-    // 斜面の低い入口では登り始められるようにし、側面の高い部分だけを塞ぐ。
-    const rampBaseY = Number(ramp.y) || 0;
-    if (rampSurface !== null && rampSurface > rampBaseY + 0.28 &&
-        bodyBottom < rampSurface - 0.04 && bodyTop > rampBaseY + 0.05) {
-      return true;
-    }
-  }
+  // 階段は斜めの板だけで下側は開放されているため、内部・側面の衝突壁は作らない。
+  // 上面への着地は getGroundHeight() の斜面高さ判定で処理する。
 
   const cartInfo = getPayloadCartCollisionInfo(player, x, z);
   if (cartInfo) {
