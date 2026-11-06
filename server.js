@@ -1352,6 +1352,7 @@ function applyShockwave(projectile, position, now = Date.now()) {
 
 function explodeGrenade(projectile, position, now = Date.now()) {
   const radius = 5.2;
+  damageBuildStructuresInRadius(projectile.owner, position, radius, 60);
   const id = "grenade-explosion-" + (++smokeSequence);
   broadcastGameEvent(projectile.owner, "grenadeExplosion", {
     id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 420
@@ -2475,7 +2476,7 @@ function rayBuildStructureDistance(origin, direction, structure, maxDistance) {
   const minX = structure.x - (structure.w || 1) / 2;
   const maxX = structure.x + (structure.w || 1) / 2;
   const minY = structure.type === "floor" ? 0 : 0;
-  const maxY = structure.type === "floor" ? 0.14 : 1;
+  const maxY = structure.type === "floor" ? 0.08 : (Number(structure.h) || 2);
   const minZ = structure.z - (structure.d || 1) / 2;
   const maxZ = structure.z + (structure.d || 1) / 2;
   let tMin = 0, tMax = maxDistance;
@@ -2507,10 +2508,29 @@ function damageBuildStructureOnRay(player, origin, direction, maxDistance, damag
     map.buildStructures = (map.buildStructures || []).filter(item => item.id !== nearest.structure.id);
     map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== nearest.structure.id);
     map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== nearest.structure.id);
+    map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => item.buildStructureId !== nearest.structure.id);
   }
   const payload = getWorldPayloadForMap(map, BUILD_MODE);
   broadcastGameEvent(player, "buildStructureUpdate", payload);
   return nearest;
+}
+
+function damageBuildStructuresInRadius(player, position, radius, damage) {
+  if (player?.mode !== BUILD_MODE || !player.buildMap || !(damage > 0)) return;
+  const map = player.buildMap;
+  let changed = false;
+  for (const structure of [...(map.buildStructures || [])]) {
+    if (Math.hypot(structure.x - position.x, structure.z - position.z) > radius + 0.75) continue;
+    structure.hp = Math.max(0, (Number(structure.hp) || 50) - damage);
+    changed = true;
+    if (structure.hp <= 0) {
+      map.buildStructures = map.buildStructures.filter(item => item.id !== structure.id);
+      map.obstacles = (map.obstacles || []).filter(item => item.buildStructureId !== structure.id);
+      map.floorTiles = (map.floorTiles || []).filter(item => item.buildStructureId !== structure.id);
+      map.elevatedPlatforms = (map.elevatedPlatforms || []).filter(item => item.buildStructureId !== structure.id);
+    }
+  }
+  if (changed) broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
 }
 
 function rayHitsObstacle(origin, direction, maxDistance, player = null) {
@@ -2830,6 +2850,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   // ツルハシは弾丸を生成せず、正面の近距離にいる相手だけを近接判定する。
   if (weapon.melee) {
     const forward = directionFromAngles(shooter.yaw, shooter.pitch);
+    damageBuildStructureOnRay(shooter, { x: shooter.x, y: shooter.y + 0.8, z: shooter.z }, { x: forward.x, y: 0, z: forward.z }, weapon.range * 1.8, weapon.damage);
     let best = null;
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
@@ -2849,7 +2870,6 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
       if (verticalDiff > 1.6) continue;
       const meleeDirection = {x: dx / distance, y: 0, z: dz / distance};
-      damageBuildStructureOnRay(shooter, origin, meleeDirection, Math.min(distance, weapon.range * 1.8), weapon.damage);
       const wallDistance = rayHitsObstacle(origin, meleeDirection, distance, shooter);
       if (wallDistance !== null && wallDistance < distance - 0.35) continue;
       if (!best || distance < best.distance) best = {target, distance};
@@ -3905,7 +3925,7 @@ io.on("connection", (socket) => {
       duelRoom.roundResolved = false;
     }
     if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
-    else if (requestedMode !== "Wander") syncBots();
+    else if (requestedMode !== "Wander" && requestedMode !== BUILD_MODE) syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
     broadcastPlayers();
   });
@@ -3932,10 +3952,16 @@ io.on("connection", (socket) => {
     const occupied = (map.buildStructures || []).some(item => Math.abs(item.x - x) < 0.45 && Math.abs(item.z - z) < 0.45 && (item.type === type || type === "wall" || item.type === "wall"));
     if (occupied) return;
     const id = "build-" + player.id + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
-    const structure = { id, type, x, z, rotation, w: 1, d: type === "wall" ? 0.16 : 1, h: type === "wall" ? 1 : 0.14, hp: 50 };
+    const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
+    const wallW = isSideways ? 0.16 : 1;
+    const wallD = isSideways ? 1 : 0.16;
+    const structure = { id, type, x, z, rotation, w: type === "wall" ? wallW : 1, d: type === "wall" ? wallD : 1, h: type === "wall" ? 2 : 0.08, hp: 50 };
     map.buildStructures.push(structure);
-    if (type === "wall") map.obstacles.push({ x, z, w: 1, d: 0.16, h: 1, buildStructureId: id });
-    else map.floorTiles.push({ id, buildStructureId: id, type: "build", x, z, w: 1, d: 1 });
+    if (type === "wall") map.obstacles.push({ x, z, w: wallW, d: wallD, h: 2, buildStructureId: id });
+    else {
+      map.floorTiles.push({ id, buildStructureId: id, type: "build", x, z, w: 1, d: 1 });
+      map.elevatedPlatforms.push({ x, z, w: 1, d: 1, h: 0.08, buildStructureId: id });
+    }
     broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
   });
 
@@ -4063,6 +4089,7 @@ io.on("connection", (socket) => {
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
       const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?9:10.5;
+      damageBuildStructureOnRay(a, origin, dir, range, a.weapon === "laserBeam" ? 4 : 5);
       const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/4:0;
       const fanCos=Math.cos(fanHalfAngle);
       for(const q of players.values()){
