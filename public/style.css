@@ -1909,11 +1909,10 @@ body.controller-mode #settingsButton {
 
 
 /* Build mode construction controls */
-.build-mode-card { border-color: rgba(108, 190, 150, .42); }
 .build-toolbar {
-  position: fixed; z-index: 60; left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
-  transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
-  padding: 9px 12px; border: 1px solid rgba(255,255,255,.28); border-radius: 13px;
+  position: fixed; z-index: 60; left: calc(50% + var(--layout-x, 0px)); bottom: calc(max(16px, env(safe-area-inset-bottom)) + var(--layout-y, 0px));
+  transform: translateX(-50%); display: flex; align-items: center; gap: 7px;
+  padding: 8px 9px; border: 1px solid rgba(255,255,255,.28); border-radius: 13px;
   background: rgba(9,15,22,.92); color: #fff; box-shadow: 0 5px 22px rgba(0,0,0,.4);
   pointer-events: auto; touch-action: manipulation; white-space: nowrap;
 }
@@ -1922,9 +1921,9 @@ body.controller-mode #settingsButton {
 .build-toolbar button { min-width: 58px; min-height: 42px; padding: 7px 13px; border: 1px solid rgba(255,255,255,.22); border-radius: 9px; color: #fff; background: #263647; font: inherit; font-size: 13px; font-weight: 850; }
 .build-toolbar button.active { border-color: #8ce0b2; background: #246343; }
 .build-toolbar .build-place-button { background: #176a9e; border-color: #83cfff; }
-.build-help { color: rgba(255,255,255,.68); font-size: 10px; margin-left: 4px; }
 @media (max-width: 620px) {
   .build-toolbar { bottom: max(12px, env(safe-area-inset-bottom)); gap: 5px; padding: 7px; }
   .build-toolbar button { min-width: 48px; min-height: 40px; padding: 6px 9px; }
-  .build-help { display: none; }
 }
+
+.build-toolbar.layout-editing-target { cursor: move !important; outline: 2px dashed rgba(110,190,255,.9); outline-offset: 4px; touch-action: none !important; user-select: none !important; -webkit-user-select: none !important; }
