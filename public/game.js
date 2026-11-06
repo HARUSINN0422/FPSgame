@@ -1313,14 +1313,16 @@ function updateBuildPreview() {
   const d = isWall ? (isSideways ? 4 : 0.16) : 4;
   const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
 
-  // 視線が当たったグリッドだけでなく、その周囲の隣接グリッドも調べる。
-  // 既存の壁に重なる候補を飛ばし、プレイヤーに近い設置可能位置を優先する。
+  // 視線が水平に近い場合はレイが設置面を捉えず、照準位置を基準にすると
+  // 候補が消えることがある。候補グリッドは常にプレイヤー位置を基準に周囲を検索し、
+  // 照準方向は候補の優先順位にだけ使う。
   const baseX = isWall
-    ? (isSideways ? Math.round(target.x / 4) * 4 : Math.floor(target.x / 4) * 4 + 2)
-    : Math.floor(target.x / 4) * 4 + 2;
+    ? (isSideways ? Math.round(myState.x / 4) * 4 : Math.floor(myState.x / 4) * 4 + 2)
+    : Math.floor(myState.x / 4) * 4 + 2;
   const baseZ = isWall
-    ? (isSideways ? Math.floor(target.z / 4) * 4 + 2 : Math.round(target.z / 4) * 4)
-    : Math.floor(target.z / 4) * 4 + 2;
+    ? (isSideways ? Math.floor(myState.z / 4) * 4 + 2 : Math.round(myState.z / 4) * 4)
+    : Math.floor(myState.z / 4) * 4 + 2;
+  const aimDirection = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
 
   const structures = Array.isArray(worldData.buildStructures) ? worldData.buildStructures : [];
   // 地面から接続をたどって到達できる建築物だけを有効な土台にする。
@@ -1357,8 +1359,8 @@ function updateBuildPreview() {
   }
 
   const candidates = [];
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dz = -1; dz <= 1; dz++) {
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -2; dz <= 2; dz++) {
       const x = baseX + dx * 4;
       const z = baseZ + dz * 4;
       if (x - w / 2 < bounds.minX || x + w / 2 > bounds.maxX ||
@@ -1387,9 +1389,14 @@ function updateBuildPreview() {
         }));
         if (!supported) continue;
         const center = new THREE.Vector3(x, y + (isWall ? 2 : 0.04), z);
-        const aimDistance = center.distanceTo(target);
         const cameraDistance = center.distanceTo(camera.position);
-        candidates.push({ item, score: cameraDistance * 0.7 + aimDistance * 0.3 });
+        const toCandidate = new THREE.Vector3(x - myState.x, 0, z - myState.z);
+        const forwardDot = toCandidate.lengthSq() > 0
+          ? toCandidate.normalize().dot(aimDirection)
+          : -1;
+        // 前方を優先しつつ、水平視点でも近くの有効候補を残す。
+        const forwardPenalty = (1 - forwardDot) * 1.8;
+        candidates.push({ item, score: cameraDistance + forwardPenalty });
         break;
       }
     }
