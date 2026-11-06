@@ -3946,6 +3946,7 @@ io.on("connection", (socket) => {
     const x = Number(data.x), z = Number(data.z);
     const rotation = Number(data.rotation) || 0;
     if (!type || !Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 15.5 || Math.abs(z) > 15.5 ||
+        Math.abs((x - 0.5) - Math.round(x - 0.5)) > 0.001 || Math.abs((z - 0.5) - Math.round(z - 0.5)) > 0.001 ||
         ![0, Math.PI / 2, Math.PI, -Math.PI / 2].some(value => Math.abs(Math.atan2(Math.sin(rotation - value), Math.cos(rotation - value))) < 0.01)) return;
     const map = player.buildMap;
     if ((map.buildStructures || []).length >= 512) return;
