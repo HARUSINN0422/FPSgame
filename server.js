@@ -4017,9 +4017,8 @@ io.on("connection", (socket) => {
     });
     if (occupied) return;
     const structures = map.buildStructures || [];
-    const supported = y <= 0.02 || structures.some(item => buildStructuresTouch(candidate, item) &&
-      ((Number(item.y) || 0) <= y + 0.12 && ((Number(item.y) || 0) + (item.type === "wall" ? item.h : 0.08)) >= y - 0.12 ||
-       Math.abs((Number(item.y) || 0) - y) < 0.12));
+    // 地面、同じ高さで辺が接する構造物、または壁の上端に接する位置だけ許可する。
+    const supported = y <= 0.02 || structures.some(item => buildStructuresTouch(candidate, item));
     if (!supported) return;
     const id = "build-" + player.id + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
     const structure = { id, ...candidate, hp: 50 };
