@@ -2103,8 +2103,9 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   for (const ramp of map.ramps || []) {
     const rampSurface = getRampHeight(ramp, x, z);
     // 斜面の低い入口では登り始められるようにし、側面の高い部分だけを塞ぐ。
-    if (rampSurface !== null && rampSurface > 0.28 &&
-        bodyBottom < rampSurface - 0.04 && bodyTop > 0.05) {
+    const rampBaseY = Number(ramp.y) || 0;
+    if (rampSurface !== null && rampSurface > rampBaseY + 0.28 &&
+        bodyBottom < rampSurface - 0.04 && bodyTop > rampBaseY + 0.05) {
       return true;
     }
   }
@@ -2148,7 +2149,7 @@ function getRampHeight(ramp, x, z) {
   } else {
     t = 1 - (x - (ramp.x - halfW)) / ramp.w;
   }
-  return clamp(t, 0, 1) * ramp.h;
+  return (Number(ramp.y) || 0) + clamp(t, 0, 1) * ramp.h;
 }
 
 function getGroundHeight(x, z, playerY = 0, player = null) {
