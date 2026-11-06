@@ -1225,13 +1225,15 @@ topSettingsButton?.addEventListener("click", () => document.getElementById("sett
 updateGamepadStatus();
 
 function selectBuildType(type) {
-  if (type !== "wall" && type !== "floor") return;
+  if (type !== "wall" && type !== "floor" && type !== "ramp") return;
   selectedBuildType = type;
   buildPreviewActive = true;
   document.getElementById("buildWallButton")?.classList.toggle("active", type === "wall");
   document.getElementById("buildFloorButton")?.classList.toggle("active", type === "floor");
+  document.getElementById("buildRampButton")?.classList.toggle("active", type === "ramp");
   document.getElementById("buildWallButton")?.setAttribute("aria-pressed", String(type === "wall"));
   document.getElementById("buildFloorButton")?.setAttribute("aria-pressed", String(type === "floor"));
+  document.getElementById("buildRampButton")?.setAttribute("aria-pressed", String(type === "ramp"));
   updateBuildPreview();
 }
 
@@ -1309,9 +1311,13 @@ function updateBuildPreview() {
 
   const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
   const isWall = selectedBuildType === "wall";
+  const isRamp = selectedBuildType === "ramp";
   const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
   const w = isWall ? (isSideways ? 0.16 : 4) : 4;
   const d = isWall ? (isSideways ? 4 : 0.16) : 4;
+  const rampDirection = Math.abs(rotation) < 0.1 ? "south"
+    : Math.abs(rotation - Math.PI / 2) < 0.1 ? "west"
+    : Math.abs(Math.abs(rotation) - Math.PI) < 0.1 ? "north" : "east";
   const bounds = worldData.world || { minX: -16, maxX: 16, minZ: -16, maxZ: 16 };
 
   // 視線が水平に近い場合はレイが設置面を捉えず、照準位置を基準にすると
@@ -1341,7 +1347,7 @@ function updateBuildPreview() {
           ...other,
           w: Number(other.w) || 4,
           d: Number(other.d) || 4,
-          h: Number(other.h) || (other.type === "wall" ? 4 : 0.08)
+          h: Number(other.h) || (other.type === "wall" || other.type === "ramp" ? 4 : 0.08)
         })
       );
       if (connectedToGround) {
@@ -1354,7 +1360,7 @@ function updateBuildPreview() {
   const heights = new Set([0]);
   for (const item of structures) {
     const y = Number(item.y) || 0;
-    const h = Number(item.h) || (item.type === "wall" ? 4 : 0.08);
+    const h = Number(item.h) || (item.type === "wall" || item.type === "ramp" ? 4 : 0.08);
     heights.add(y);
     heights.add(y + h);
   }
@@ -1375,7 +1381,7 @@ function updateBuildPreview() {
         .filter(y => y >= 0 && y <= 40)
         .sort((a, b) => Math.abs(a - target.y) - Math.abs(b - target.y));
       for (const y of possibleHeights) {
-        const item = { type: selectedBuildType, x, y, z, rotation, w, d, h: isWall ? 4 : 0.08 };
+        const item = { type: selectedBuildType, x, y, z, rotation, direction: rampDirection, w, d, h: (isWall || isRamp) ? 4 : 0.08 };
         const occupied = structures.some(other => {
           const overlapX = Math.min(x + w / 2, other.x + other.w / 2) - Math.max(x - w / 2, other.x - other.w / 2);
           const overlapZ = Math.min(z + d / 2, other.z + other.d / 2) - Math.max(z - d / 2, other.z - other.d / 2);
@@ -1388,10 +1394,10 @@ function updateBuildPreview() {
           ...other,
           w: Number(other.w) || 4,
           d: Number(other.d) || 4,
-          h: Number(other.h) || (other.type === "wall" ? 4 : 0.08)
+          h: Number(other.h) || (other.type === "wall" || other.type === "ramp" ? 4 : 0.08)
         }));
         if (!supported) continue;
-        const center = new THREE.Vector3(x, y + (isWall ? 2 : 0.04), z);
+        const center = new THREE.Vector3(x, y + ((isWall || isRamp) ? 2 : 0.04), z);
         const cameraDistance = center.distanceTo(camera.position);
         if (isWall) {
           const toCandidate = new THREE.Vector3(x - myState.x, 0, z - myState.z);
@@ -1408,7 +1414,7 @@ function updateBuildPreview() {
             score: forwardDistance + lateralDistance * 2.5 + cameraDistance * 0.05
           });
         } else {
-          // 床はカメラの3D視線方向で判定する。真上・真下を向いた場合も
+          // 床・階段はカメラの3D視線方向で候補を評価する。
           // 視線の先にある支持済みの床候補を選べるようにする。
           const viewDirection = raycaster.ray.direction.clone().normalize();
           const toCandidate = center.clone().sub(camera.position);
@@ -1449,25 +1455,58 @@ function updateBuildPreview() {
       buildPreviewMesh.geometry.dispose();
       buildPreviewMesh.material.dispose();
     }
+    let previewGeometry;
+    if (isWall) {
+      previewGeometry = new THREE.BoxGeometry(4, 4, 0.16);
+    } else if (isRamp) {
+      const rampPreview = { w: 4, d: 4, h: 4, direction: rampDirection };
+      const halfW = 2, halfD = 2;
+      const highAtXHigh = rampPreview.direction === "east";
+      const highAtZHigh = rampPreview.direction === "north";
+      let vertices;
+      if (rampPreview.direction === "east" || rampPreview.direction === "west") {
+        const aY = highAtXHigh ? 0 : 4;
+        const bY = highAtXHigh ? 4 : 0;
+        vertices = [
+          -2,0,-2, -2,0,2, 2,0,-2, 2,0,2,
+          -2,aY,-2, -2,aY,2, 2,bY,-2, 2,bY,2
+        ];
+      } else {
+        const aY = highAtZHigh ? 0 : 4;
+        const bY = highAtZHigh ? 4 : 0;
+        vertices = [
+          -2,0,-2, 2,0,-2, -2,0,2, 2,0,2,
+          -2,aY,-2, 2,aY,-2, -2,bY,2, 2,bY,2
+        ];
+      }
+      previewGeometry = new THREE.BufferGeometry();
+      previewGeometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+      previewGeometry.setIndex([0,4,5,0,5,1, 2,3,7,2,7,6, 0,2,6,0,6,4, 1,5,7,1,7,3, 4,6,7,4,7,5]);
+      previewGeometry.computeVertexNormals();
+    } else {
+      previewGeometry = new THREE.BoxGeometry(4, 0.08, 4);
+    }
     buildPreviewMesh = new THREE.Mesh(
-      isWall ? new THREE.BoxGeometry(4, 4, 0.16) : new THREE.BoxGeometry(4, 0.08, 4),
+      previewGeometry,
       new THREE.MeshBasicMaterial({
-        color: isWall ? 0x80d6ff : 0x8ee5a8,
+        color: isWall ? 0x80d6ff : isRamp ? 0xffc36b : 0x8ee5a8,
         transparent: true,
         opacity: 0.38,
-        depthWrite: false
+        depthWrite: false,
+        side: THREE.DoubleSide
       })
     );
     buildPreviewMesh.userData.buildType = selectedBuildType;
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
-  buildPreviewMesh.position.set(candidate.x, isWall ? candidate.y + 2 : candidate.y + 0.04, candidate.z);
+  buildPreviewMesh.position.set(candidate.x, (isWall || isRamp) ? candidate.y : candidate.y + 0.04, candidate.z);
   buildPreviewMesh.rotation.set(0, isWall ? rotation : 0, 0);
   buildPreviewMesh.visible = true;
 }
 document.getElementById("buildWallButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("wall"); });
 document.getElementById("buildFloorButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("floor"); });
+document.getElementById("buildRampButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("ramp"); });
 document.getElementById("buildPlaceButton")?.addEventListener("click", () => { if (!layoutEditing) placeBuildStructure(); });
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
@@ -1545,7 +1584,7 @@ function makeRamp(ramp, color = 0x71808d) {
   });
 
   const mesh = new THREE.Mesh(geometry, [sideMaterial, topMaterial]);
-  mesh.position.set(ramp.x, 0, ramp.z);
+  mesh.position.set(ramp.x, Number(ramp.y) || 0, ramp.z);
   mesh.castShadow = false;
   mesh.receiveShadow = false;
   mesh.frustumCulled = false;
