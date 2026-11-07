@@ -2157,6 +2157,23 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   }
 
   return mapObstacles.some((o) => {
+    // 階段の下に重ねた壁は、斜面上を歩くプレイヤーの進路を塞がない。
+    // 壁の足元が階段の範囲・高さと重なり、プレイヤーの足が斜面以上なら
+    // その壁の衝突だけを無効化する。階段外や斜面より下では通常どおり壁に当たる。
+    if (o.buildStructureId) {
+      const rampPassage = (map.ramps || []).some((ramp) => {
+        const rampSurface = getRampHeight(ramp, x, z);
+        if (rampSurface === null) return false;
+        const obstacleBottom = Number(o.y) || 0;
+        const obstacleTop = obstacleBottom + (Number(o.h) || 0);
+        const rampBase = Number(ramp.y) || 0;
+        return obstacleBottom <= rampBase + 0.12 &&
+          obstacleTop >= rampBase - 0.12 &&
+          bodyBottom >= rampSurface - 0.16;
+      });
+      if (rampPassage) return false;
+    }
+
     // リスポーン区画のゲートは、該当ロールのプレイヤーだけ通過できる。
     if (o.teamOnlyRole && player?.role === o.teamOnlyRole) return false;
     if (o.teamOnly && player?.team === o.teamOnly) return false;
