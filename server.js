@@ -2138,7 +2138,7 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
   for (const ramp of map.ramps || []) {
     const rampSurface = getRampHeight(ramp, x, z);
     if (rampSurface === null) continue;
-    const isStandingOnTop = bodyBottom >= rampSurface - 0.08;
+    const isStandingOnTop = bodyBottom >= rampSurface - 0.45;
     const isFullyBelow = bodyTop <= rampSurface + 0.04;
     if (!isStandingOnTop && !isFullyBelow) return true;
   }
@@ -2162,14 +2162,21 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
     // その壁の衝突だけを無効化する。階段外や斜面より下では通常どおり壁に当たる。
     if (o.buildStructureId) {
       const rampPassage = (map.ramps || []).some((ramp) => {
-        const rampSurface = getRampHeight(ramp, x, z);
+        const halfW = (Number(ramp.w) || 0) / 2;
+        const halfD = (Number(ramp.d) || 0) / 2;
+        if (halfW <= 0 || halfD <= 0) return false;
+        const closestX = clamp(x, ramp.x - halfW, ramp.x + halfW);
+        const closestZ = clamp(z, ramp.z - halfD, ramp.z + halfD);
+        if (Math.hypot(x - closestX, z - closestZ) > PLAYER_RADIUS + 0.45) return false;
+        const rampSurface = getRampHeight(ramp, closestX, closestZ);
         if (rampSurface === null) return false;
         const obstacleBottom = Number(o.y) || 0;
         const obstacleTop = obstacleBottom + (Number(o.h) || 0);
         const rampBase = Number(ramp.y) || 0;
-        return obstacleBottom <= rampBase + 0.12 &&
-          obstacleTop >= rampBase - 0.12 &&
-          bodyBottom >= rampSurface - 0.16;
+        const rampTop = rampBase + (Number(ramp.h) || 4);
+        const verticalOverlap = obstacleBottom <= rampTop + 0.15 &&
+          obstacleTop >= rampBase - 0.15;
+        return verticalOverlap && bodyBottom >= rampSurface - 0.45;
       });
       if (rampPassage) return false;
     }
@@ -2214,7 +2221,7 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
     const rampHeight = getRampHeight(map.ramps[i], x, z);
     // スロープ上に乗っている状態を維持しつつ、下の通路からは上面へ吸い上げない。
     if (rampHeight !== null &&
-        (playerY >= rampHeight - 0.18 || player?.rampContactId === i)) {
+        (playerY >= rampHeight - 0.45 || player?.rampContactId === i)) {
       height = Math.max(height, rampHeight);
     }
   }
@@ -4108,9 +4115,10 @@ io.on("connection", (socket) => {
           ? Math.abs(x / 4 - Math.round(x / 4)) < 0.001 && Math.abs((z - 2) / 4 - Math.round((z - 2) / 4)) < 0.001
           : Math.abs((x - 2) / 4 - Math.round((x - 2) / 4)) < 0.001 && Math.abs(z / 4 - Math.round(z / 4)) < 0.001);
     if (!gridAligned) return;
-    const rampDirection = Math.abs(rotation) < 0.1 ? "south"
-      : Math.abs(rotation - Math.PI / 2) < 0.1 ? "west"
-      : Math.abs(Math.abs(rotation) - Math.PI) < 0.1 ? "north" : "east";
+    const normalizedRotation = Math.atan2(Math.sin(rotation), Math.cos(rotation));
+    const rampDirection = Math.abs(normalizedRotation) < 0.1 ? "south"
+      : Math.abs(normalizedRotation - Math.PI / 2) < 0.1 ? "west"
+      : Math.abs(Math.abs(normalizedRotation) - Math.PI) < 0.1 ? "north" : "east";
     const candidate = { type, x, z, y, rotation, direction: type === "ramp" ? rampDirection : undefined,
       w: newW, d: newD, h: type === "wall" || type === "ramp" ? 4 : 0.08 };
     const occupied = (map.buildStructures || []).some(item => {
