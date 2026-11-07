@@ -825,6 +825,8 @@ function createBuildMap() {
 }
 
 function buildStructuresTouch(a, b) {
+  if (!a || !b || ![a.x,a.y,a.z,a.w,a.d,b.x,b.y,b.z,b.w,b.d].every(value => Number.isFinite(Number(value))) ||
+      Number(a.w) <= 0 || Number(a.d) <= 0 || Number(b.w) <= 0 || Number(b.d) <= 0) return false;
   const ax = a.x - a.w / 2, ar = a.x + a.w / 2;
   const az = a.z - a.d / 2, ab = a.z + a.d / 2;
   const bx = b.x - b.w / 2, br = b.x + b.w / 2;
@@ -2167,6 +2169,10 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
 }
 
 function getRampHeight(ramp, x, z) {
+  if (!ramp || !Number.isFinite(Number(ramp.x)) || !Number.isFinite(Number(ramp.z)) ||
+      !Number.isFinite(Number(ramp.w)) || !Number.isFinite(Number(ramp.d)) ||
+      !Number.isFinite(Number(ramp.h)) || Number(ramp.w) <= 0 || Number(ramp.d) <= 0 ||
+      !["north", "south", "east", "west"].includes(ramp.direction)) return null;
   const halfW = ramp.w / 2, halfD = ramp.d / 2;
   if (Math.abs(x - ramp.x) > halfW || Math.abs(z - ramp.z) > halfD) return null;
 
@@ -4060,6 +4066,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("buildPlace", (data = {}) => {
+    try {
     const player = players.get(socket.id);
     if (!player || player.mode !== BUILD_MODE || !player.buildMap || player.health <= 0) return;
     const type = data.type === "floor" ? "floor" : data.type === "wall" ? "wall" : data.type === "ramp" ? "ramp" : null;
@@ -4133,6 +4140,11 @@ io.on("connection", (socket) => {
       map.ramps.push({ x, y, z, w: 4, d: 4, h: 4, direction: rampDirection, buildStructureId: id });
     }
     broadcastGameEvent(player, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
+    } catch (error) {
+      // 建築処理の例外でSocket.IOイベント処理やサーバープロセス全体を停止させない。
+      console.error("[Build] 設置処理エラー:", error?.stack || error);
+      try { appendServerLog("BUILD-PLACE-ERROR", [String(error?.stack || error)]); } catch (_) {}
+    }
   });
 
   socket.on("updateSkin", (skinDataUrl, acknowledge) => {
@@ -4702,7 +4714,15 @@ setInterval(() => {
         p.damageSlowUntil = 0;
       }
       // BOTのAIは停止したまま、ノックバックと重力だけを適用する。
-      if (p.health > 0) movePlayer(p, dt);
+      if (p.health > 0) {
+        try { movePlayer(p, dt); }
+        catch (error) {
+          console.error("[Movement] プレイヤー移動エラー:", error?.stack || error);
+          try { appendServerLog("PLAYER-MOVE-ERROR", [p.id, p.mode, String(error?.stack || error)]); } catch (_) {}
+          p.input = { forward: 0, strafe: 0, crouch: false };
+          p.velocityY = 0;
+        }
+      }
       continue;
     }
     if (p.isBot && p.health <= 0 && p.respawnAt && now >= p.respawnAt) {
@@ -4711,7 +4731,13 @@ setInterval(() => {
     if (p.health > 0) {
       if (p.isBot) updateBot(p, now);
       finishReload(p, now);
-      movePlayer(p, dt);
+      try { movePlayer(p, dt); }
+      catch (error) {
+        console.error("[Movement] プレイヤー移動エラー:", error?.stack || error);
+        try { appendServerLog("PLAYER-MOVE-ERROR", [p.id, p.mode, String(error?.stack || error)]); } catch (_) {}
+        p.input = { forward: 0, strafe: 0, crouch: false };
+        p.velocityY = 0;
+      }
       // 燃える床は、接地中に500msごとに5ダメージ。床のお守りなら無効化する。
       const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
         getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
