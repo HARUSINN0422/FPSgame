@@ -1348,7 +1348,8 @@ function updateBuildPreview() {
     }
   }
 
-  const rotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
+  const snappedRotation = Math.round(yaw / (Math.PI / 2)) * (Math.PI / 2);
+  const rotation = Math.atan2(Math.sin(snappedRotation), Math.cos(snappedRotation));
   const isWall = selectedBuildType === "wall";
   const isRamp = selectedBuildType === "ramp";
   const isSideways = Math.abs(Math.sin(rotation)) > 0.5;
@@ -1488,7 +1489,8 @@ function updateBuildPreview() {
   }
 
   buildPreviewPosition = { x: candidate.x, y: candidate.y, z: candidate.z, rotation };
-  if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType) {
+  if (!buildPreviewMesh || buildPreviewMesh.userData.buildType !== selectedBuildType ||
+      (isRamp && buildPreviewMesh.userData.buildRampDirection !== rampDirection)) {
     if (buildPreviewMesh) {
       scene.remove(buildPreviewMesh);
       buildPreviewMesh.geometry.dispose();
@@ -1534,6 +1536,7 @@ function updateBuildPreview() {
       })
     );
     buildPreviewMesh.userData.buildType = selectedBuildType;
+    if (isRamp) buildPreviewMesh.userData.buildRampDirection = rampDirection;
     buildPreviewMesh.renderOrder = 20;
     scene.add(buildPreviewMesh);
   }
