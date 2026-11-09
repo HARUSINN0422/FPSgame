@@ -2354,7 +2354,11 @@ function createGrenadeProjectileVisual(data) {
     scene.add(mesh);
     grenadeProjectileMeshes.set(data.id, mesh);
   } else mesh.userData.targetPosition.copy(position);
-  if (data.type === "tornado") mesh.rotation.y += 0.22;
+  if (data.type === "tornado") {
+    const direction = new THREE.Vector3(Number(data.vx) || 0, Number(data.vy) || 0, Number(data.vz) || 0);
+    if (direction.lengthSq() > 1e-6) mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+    mesh.rotateY(0.22);
+  }
 }
 function removeGrenadeProjectileVisual(id) {
   const mesh = grenadeProjectileMeshes.get(id);
