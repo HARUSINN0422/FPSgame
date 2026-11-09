@@ -75,6 +75,11 @@
               <input id="areaHudSizeSlider" type="range" min="60" max="150" step="5" value="100">
               <p>エリア制圧の見出し・進行バー・パーセント表示をまとめて拡大／縮小します。</p>
             </div>
+            <div class="setting-section">
+              <strong>ビルドモードボタンのサイズ <span class="setting-value"><strong id="buildToolbarSizeValue">100%</strong></span></strong>
+              <input id="buildToolbarSizeSlider" type="range" min="60" max="160" step="5" value="100">
+              <p>ビルドモード中に表示される建築ボタン全体を拡大／縮小します。</p>
+            </div>
             <div class="settings-actions">
               <button id="layoutEditButton">UI編集</button>
               <button id="layoutResetButton">配置を初期化</button>
@@ -285,6 +290,7 @@
         <button type="button" class="charm-card ultimate-card" data-ultimate="aegis"><strong>蒼天障壁</strong><span>HPを最大値まで回復し、追加シールド50を展開する</span></button>
         <button type="button" class="charm-card ultimate-card" data-ultimate="invisible"><strong>幽影</strong><span>敵を1人倒すか10秒経過するまで、体と名前が透明になる（武器は見える）</span></button>
         <button type="button" class="charm-card ultimate-card" data-ultimate="rift"><strong>鏡界</strong><span>最も近い敵と16×16の異空間へ移動。中央の壁を挟んで決着まで戦う</span></button>
+        <button type="button" class="charm-card ultimate-card" data-ultimate="tornado"><strong>テンペスト・ヴォルテックス</strong><span>視点方向へ竜巻を発射。幅2m、命中すると999ダメージ</span></button>
       </div>
       <div class="weapon-grid">
         <button class="weapon-card" data-weapon="pickaxe">
