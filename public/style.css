@@ -1911,7 +1911,7 @@ body.controller-mode #settingsButton {
 /* Build mode construction controls */
 .build-toolbar {
   position: fixed; z-index: 60; left: calc(50% + var(--layout-x, 0px)); bottom: calc(max(16px, env(safe-area-inset-bottom)) + var(--layout-y, 0px));
-  transform: translateX(-50%); display: flex; align-items: center; gap: 7px;
+  transform: translateX(-50%) scale(var(--build-toolbar-scale, 1)); transform-origin: center bottom; display: flex; align-items: center; gap: 7px;
   padding: 8px 9px; border: 1px solid rgba(255,255,255,.28); border-radius: 13px;
   background: rgba(9,15,22,.92); color: #fff; box-shadow: 0 5px 22px rgba(0,0,0,.4);
   pointer-events: auto; touch-action: manipulation; white-space: nowrap;
