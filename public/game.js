@@ -312,7 +312,7 @@ const DEFAULT_SETTINGS = {
     fullscreenButton: { x: 0, y: 0 },
     settingsButton: { x: 0, y: 0 },
     reloadButton: { x: 0, y: 0 },
-    buildToolbar: { x: 0, y: 0 }
+    buildToolbar: { x: 0, y: 0, size: 100 }
   }
 };
 
@@ -443,6 +443,9 @@ function applyButtonLayout() {
       if (id === "areaHud") {
         const scale = THREE.MathUtils.clamp(Number(cfg?.size) || 100, 60, 150) / 100;
         el.style.setProperty("--area-hud-scale", String(scale));
+      } else {
+        const scale = THREE.MathUtils.clamp(Number(cfg?.size) || 100, 60, 160) / 100;
+        el.style.setProperty("--build-toolbar-scale", String(scale));
       }
     } else {
       el.style.transform = "translate(" + x + "px, " + y + "px)";
@@ -479,6 +482,13 @@ function updateSettingsUi() {
   gameSettings.layout.areaHud.size = Math.round(areaHudSize);
   if (areaHudSizeSlider) areaHudSizeSlider.value = String(areaHudSize);
   if (areaHudSizeValue) areaHudSizeValue.textContent = Math.round(areaHudSize) + "%";
+
+  const buildToolbarSizeSlider = document.getElementById("buildToolbarSizeSlider");
+  const buildToolbarSizeValue = document.getElementById("buildToolbarSizeValue");
+  const buildToolbarSize = THREE.MathUtils.clamp(Number(gameSettings.layout.buildToolbar.size) || 100, 60, 160);
+  gameSettings.layout.buildToolbar.size = Math.round(buildToolbarSize);
+  if (buildToolbarSizeSlider) buildToolbarSizeSlider.value = String(buildToolbarSize);
+  if (buildToolbarSizeValue) buildToolbarSizeValue.textContent = Math.round(buildToolbarSize) + "%";
 
   const movePadSizeSlider = document.getElementById("movePadSizeSlider");
   const movePadSizeValue = document.getElementById("movePadSizeValue");
@@ -796,6 +806,12 @@ function setupSettings() {
     applyButtonLayout();
     updateSettingsUi();
     saveGameSettings();
+  });
+
+  const buildToolbarSizeSlider = document.getElementById("buildToolbarSizeSlider");
+  buildToolbarSizeSlider?.addEventListener("input", () => {
+    gameSettings.layout.buildToolbar.size = Math.round(THREE.MathUtils.clamp(Number(buildToolbarSizeSlider.value) || 100, 60, 160));
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
   });
 
   const fireButtonSizeSlider = document.getElementById("fireButtonSizeSlider");
@@ -2295,11 +2311,27 @@ function createGrenadeProjectileVisual(data) {
   if (!mesh) {
     const isShockwave = data.type === "shockwave";
     const isGrapple = data.type === "grapple";
+    const isTornado = data.type === "tornado";
     const material = new THREE.MeshStandardMaterial({
-      color: isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : 0x8b7a43, roughness: 0.5, metalness: 0.25,
-      emissive: isGrapple ? 0x12545c : isShockwave ? 0x145b78 : 0x000000, emissiveIntensity: isGrapple || isShockwave ? 0.8 : 0
+      color: isTornado ? 0x8cecff : isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : 0x8b7a43,
+      roughness: 0.35, metalness: 0.2, transparent: isTornado, opacity: isTornado ? 0.68 : 1,
+      emissive: isTornado ? 0x1b8ab0 : isGrapple ? 0x12545c : isShockwave ? 0x145b78 : 0x000000,
+      emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : 0
     });
-    mesh = new THREE.Mesh(isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(0.16, 14, 10), material);
+    mesh = new THREE.Mesh(
+      isTornado ? new THREE.CylinderGeometry(0.35, 1, 5, 20, 1, true) :
+      isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(0.16, 14, 10),
+      material
+    );
+    if (isTornado) {
+      const swirl = new THREE.Mesh(
+        new THREE.TorusGeometry(0.72, 0.055, 6, 28),
+        new THREE.MeshBasicMaterial({ color: 0xd9f8ff, transparent: true, opacity: 0.85 })
+      );
+      swirl.rotation.x = Math.PI / 2;
+      swirl.position.y = -0.6;
+      mesh.add(swirl);
+    }
     if (isGrapple) {
       mesh.rotation.x = Math.PI / 2;
       const cup = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.035, 7, 16), new THREE.MeshStandardMaterial({ color: 0x4ce7f0, metalness: 0.25, roughness: 0.25 }));
@@ -2322,6 +2354,7 @@ function createGrenadeProjectileVisual(data) {
     scene.add(mesh);
     grenadeProjectileMeshes.set(data.id, mesh);
   } else mesh.userData.targetPosition.copy(position);
+  if (data.type === "tornado") mesh.rotation.y += 0.22;
 }
 function removeGrenadeProjectileVisual(id) {
   const mesh = grenadeProjectileMeshes.get(id);
@@ -4409,7 +4442,7 @@ socket.on("joined", ({ player }) => {
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
   selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(player.charm) ? player.charm : "none";
-  selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
+  selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
   myId = player.id;
@@ -4737,7 +4770,7 @@ document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEve
 }));
 document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
+  selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(card.dataset.ultimate) ? card.dataset.ultimate : "skyfall";
   updateLoadoutSelectionUi();
 }));
 document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
