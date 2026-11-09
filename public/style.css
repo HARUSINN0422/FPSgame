@@ -1921,7 +1921,6 @@ body.controller-mode #settingsButton {
 .build-toolbar button { min-width: 58px; min-height: 42px; padding: 7px 13px; border: 1px solid rgba(255,255,255,.22); border-radius: 9px; color: #fff; background: #263647; font: inherit; font-size: 13px; font-weight: 850; }
 .build-toolbar button.active { border-color: #8ce0b2; background: #246343; }
 .build-toolbar .build-place-button { background: #176a9e; border-color: #83cfff; }
-.build-toolbar .build-bot-button { background: #594477; border-color: #bca3e8; }
 @media (max-width: 620px) {
   .build-toolbar { bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--layout-y, 0px)); gap: 5px; padding: 7px; }
   .build-toolbar button { min-width: 48px; min-height: 40px; padding: 6px 9px; }
