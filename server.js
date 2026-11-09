@@ -1365,7 +1365,8 @@ function spawnTornadoProjectile(shooter, now = Date.now()) {
     id, type: "tornado", owner: shooter, ownerId: shooter.id,
     x: origin.x, y: origin.y, z: origin.z,
     vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
-    expiresAt: now + 8000
+    expiresAt: now + 120000,
+    hitPlayers: new Set()
   };
   grenadeProjectiles.set(id, projectile);
   broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
@@ -1519,7 +1520,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
 
 function updateSmokeProjectiles(dt, now = Date.now()) {
   for (const projectile of [...smokeProjectiles.values()]) {
-    if (now >= projectile.expiresAt) {
+    if (projectile.type !== "tornado" && now >= projectile.expiresAt) {
       smokeProjectiles.delete(projectile.id);
       broadcastGameEvent(projectile.owner, "smokeProjectileRemove", { id: projectile.id });
       continue;
@@ -1640,50 +1641,55 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     }
 
     if (projectile.type === "tornado") {
-      const next = { x: projectile.x + projectile.vx * dt, y: projectile.y + projectile.vy * dt, z: projectile.z + projectile.vz * dt };
-      const delta = { x: next.x - projectile.x, y: next.y - projectile.y, z: next.z - projectile.z };
-      const distance = Math.hypot(delta.x, delta.y, delta.z);
-      const direction = distance > 1e-6 ? { x: delta.x / distance, y: delta.y / distance, z: delta.z / distance } : { x: 0, y: 0, z: 0 };
-      let nearest = null;
-      if (distance > 1e-6) {
-        const wallDistance = rayHitsObstacle(projectile, direction, distance, projectile.owner);
-        if (wallDistance !== null) nearest = { t: wallDistance, target: null };
-        for (const target of players.values()) {
-          if (target.id === projectile.ownerId || target.health <= 0 || target.finished || !isSameGame(projectile.owner, target) ||
-              (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team)) continue;
-          const center = { x: target.x, y: target.y + (target.crouched ? 0.55 : 0.85), z: target.z };
-          const t = clamp((center.x - projectile.x) * direction.x + (center.y - projectile.y) * direction.y + (center.z - projectile.z) * direction.z, 0, distance);
-          const closest = { x: projectile.x + direction.x * t, y: projectile.y + direction.y * t, z: projectile.z + direction.z * t };
-          if (Math.hypot(center.x - closest.x, center.z - closest.z) <= 1.45 &&
-              Math.abs(center.y - closest.y) <= 2.7 && (!nearest || t < nearest.t)) nearest = { t, target };
-        }
-      }
-      if (nearest) {
-        if (nearest.target) {
-          const target = nearest.target;
-          if (target.invulnerableUntil <= now) {
-            const damage = 999;
-            const split = applyIncomingDamage(target, damage);
-            io.to(projectile.ownerId).emit("damageDealt", {
-              targetId: target.id, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage,
-              zone: "body", x: target.x, y: target.y + 0.85, z: target.z
-            });
-            io.to(target.id).emit("damageTaken", { damage, zone: "body" });
-            if (target.health <= 0) {
-              target.health = 0; target.respawnAt = now + 5000; target.deaths = (target.deaths || 0) + 1;
-              projectile.owner.health = Number(projectile.owner.maxHealth) || 100;
-              projectile.owner.kills = (projectile.owner.kills || 0) + 1;
-              if (target.mode === "Duel") resolveDuelRound(projectile.owner, target);
-              broadcastGameEvent(projectile.owner, "elimination", {
-                killerId: projectile.owner.id, killerName: projectile.owner.name,
-                victimId: target.id, victimName: target.name, killerKills: projectile.owner.kills, zone: "body"
-              });
-            }
-          }
-        }
+      const next = {
+        x: projectile.x + projectile.vx * dt,
+        y: projectile.y + projectile.vy * dt,
+        z: projectile.z + projectile.vz * dt
+      };
+      const bounds = getMapForPlayer(projectile.owner).world || WORLD;
+      // 地面・天井・マップ外周のいずれかを越えるまで、障害物を貫通して直進する。
+      const outside = next.x < bounds.minX || next.x > bounds.maxX ||
+        next.z < bounds.minZ || next.z > bounds.maxZ || next.y < 0 || next.y > 200;
+      if (outside) {
         grenadeProjectiles.delete(projectile.id);
         broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
         continue;
+      }
+
+      // 命中しても飛行は止めず、同じプレイヤーへの重複ダメージだけを防ぐ。
+      for (const target of players.values()) {
+        if (target.id === projectile.ownerId || target.health <= 0 || target.finished ||
+            !isSameGame(projectile.owner, target) ||
+            (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) ||
+            projectile.hitPlayers?.has(target.id)) continue;
+        const center = { x: target.x, y: target.y + (target.crouched ? 0.55 : 0.85), z: target.z };
+        const dx = next.x - projectile.x, dy = next.y - projectile.y, dz = next.z - projectile.z;
+        const lengthSq = dx * dx + dy * dy + dz * dz;
+        const t = lengthSq > 1e-8 ? clamp(((center.x - projectile.x) * dx + (center.y - projectile.y) * dy + (center.z - projectile.z) * dz) / lengthSq, 0, 1) : 0;
+        const closest = { x: projectile.x + dx * t, y: projectile.y + dy * t, z: projectile.z + dz * t };
+        if (Math.hypot(center.x - closest.x, center.z - closest.z) > 1.45 ||
+            Math.abs(center.y - closest.y) > 2.7) continue;
+        projectile.hitPlayers ||= new Set();
+        projectile.hitPlayers.add(target.id);
+        if (target.invulnerableUntil <= now) {
+          const damage = 999;
+          const split = applyIncomingDamage(target, damage);
+          io.to(projectile.ownerId).emit("damageDealt", {
+            targetId: target.id, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage,
+            zone: "body", x: target.x, y: target.y + 0.85, z: target.z
+          });
+          io.to(target.id).emit("damageTaken", { damage, zone: "body" });
+          if (target.health <= 0) {
+            target.health = 0; target.respawnAt = now + 5000; target.deaths = (target.deaths || 0) + 1;
+            projectile.owner.health = Number(projectile.owner.maxHealth) || 100;
+            projectile.owner.kills = (projectile.owner.kills || 0) + 1;
+            if (target.mode === "Duel") resolveDuelRound(projectile.owner, target);
+            broadcastGameEvent(projectile.owner, "elimination", {
+              killerId: projectile.owner.id, killerName: projectile.owner.name,
+              victimId: target.id, victimName: target.name, killerKills: projectile.owner.kills, zone: "body"
+            });
+          }
+        }
       }
       projectile.x = next.x; projectile.y = next.y; projectile.z = next.z;
       broadcastGameEvent(projectile.owner, "grenadeProjectileUpdate", {
