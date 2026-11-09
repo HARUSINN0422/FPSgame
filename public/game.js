@@ -2319,18 +2319,24 @@ function createGrenadeProjectileVisual(data) {
       emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : 0
     });
     mesh = new THREE.Mesh(
-      isTornado ? new THREE.CylinderGeometry(0.35, 1, 5, 20, 1, true) :
+      isTornado ? new THREE.CylinderGeometry(0.075, 0.075, 7, 10, 1, false) :
       isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(0.16, 14, 10),
       material
     );
     if (isTornado) {
-      const swirl = new THREE.Mesh(
-        new THREE.TorusGeometry(0.72, 0.055, 6, 28),
-        new THREE.MeshBasicMaterial({ color: 0xd9f8ff, transparent: true, opacity: 0.85 })
+      // 棒の先端を明るくし、上下方向と飛行方向を視認しやすくする。
+      const tip = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
-      swirl.rotation.x = Math.PI / 2;
-      swirl.position.y = -0.6;
-      mesh.add(swirl);
+      tip.position.y = 3.5;
+      mesh.add(tip);
+      const tail = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 10, 8),
+        new THREE.MeshBasicMaterial({ color: 0x168bb8 })
+      );
+      tail.position.y = -3.5;
+      mesh.add(tail);
     }
     if (isGrapple) {
       mesh.rotation.x = Math.PI / 2;
