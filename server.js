@@ -1760,9 +1760,14 @@ function syncBuildBots(matchId) {
   if (!spawn) return;
   const now = Date.now();
   const id = "bot:build:" + matchId;
+  const usedNames = new Set(humans.map(player => String(player.name || "").toLowerCase()));
+  const availableNames = AREA_BOT_NAMES.filter(name => !usedNames.has(name.toLowerCase()));
+  const botName = availableNames.length
+    ? availableNames[Math.floor(Math.random() * availableNames.length)]
+    : "BOT-" + (Math.floor(Math.random() * 900) + 100);
   const yaw = Math.atan2(-(owner.x - spawn[0]), -(owner.z - spawn[2]));
   players.set(id, {
-    id, name: "BUILD-BOT",
+    id, name: botName,
     mode: BUILD_MODE, team: null, matchId: owner.matchId, buildMap: owner.buildMap,
     isBot: true, finished: false, botSpawnPoint: [...spawn], botSpawnIndex: 0,
     botThinkAt: 0, botOffset: Math.random() * 1000, botTactic: "push",
@@ -1839,10 +1844,43 @@ function syncBots() {
 function tryBuildBotCover(bot, target, now) {
   const map = bot.buildMap;
   if (!map || (map.buildStructures || []).length >= 512 ||
-      (bot.botBuildCount || 0) >= 8 || now < (bot.botNextBuildAt || 0)) return false;
+      (bot.botBuildCount || 0) >= 12 || now < (bot.botNextBuildAt || 0)) return false;
   const dx = target.x - bot.x, dz = target.z - bot.z;
   const distance = Math.hypot(dx, dz);
   if (distance < 5 || distance > 25) return false;
+
+  // 敵へ直進するだけでなく、一定間隔でランプを作って高所から射線を作る。
+  // ランプは地面に接続し、上端に床を追加して登れる足場にする。
+  if ((bot.botBuildCount || 0) < 12 && distance >= 7 && distance <= 22 &&
+      now >= (bot.botNextRampAt || 0) && (bot.y || 0) < 1.2) {
+    const stepX = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) * 4 : 0;
+    const stepZ = Math.abs(dz) >= Math.abs(dx) ? Math.sign(dz) * 4 : 0;
+    const x = Math.round((bot.x - 2) / 4) * 4 + 2 + stepX;
+    const z = Math.round((bot.z - 2) / 4) * 4 + 2 + stepZ;
+    const direction = stepZ < 0 ? "north" : stepZ > 0 ? "south" : stepX > 0 ? "east" : "west";
+    const rotation = direction === "south" ? 0 : direction === "west" ? Math.PI / 2 :
+      direction === "north" ? Math.PI : -Math.PI / 2;
+    const insideBounds = x - 2 >= map.world.minX && x + 2 <= map.world.maxX &&
+      z - 2 >= map.world.minZ && z + 2 <= map.world.maxZ;
+    const occupied = (map.buildStructures || []).some(item =>
+      Math.abs(item.x - x) < 3.8 && Math.abs(item.z - z) < 3.8 &&
+      Math.abs((Number(item.y) || 0)) < 0.12
+    );
+    if (insideBounds && !occupied && Math.hypot(x - bot.x, z - bot.z) <= 6.05) {
+      const rampId = "build-" + bot.id + "-ramp-" + now.toString(36);
+      const ramp = { id: rampId, type: "ramp", x, y: 0, z, rotation, direction,
+        w: 4, d: 4, h: 4, hp: 50 };
+      map.buildStructures.push(ramp);
+      map.ramps.push({ x, y: 0, z, w: 4, d: 4, h: 4, direction, buildStructureId: rampId });
+      bot.botBuildCount = (bot.botBuildCount || 0) + 1;
+      bot.botNextRampAt = now + 9000 + Math.random() * 5000;
+      bot.botNextBuildAt = now + 1800;
+      bot.jumpQueuedUntil = Math.max(bot.jumpQueuedUntil || 0, now + 180);
+      broadcastGameEvent(bot, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
+      return true;
+    }
+    bot.botNextRampAt = now + 3500;
+  }
 
   const targetToBotYaw = Math.atan2(-(bot.x - target.x), -(bot.z - target.z));
   const yawError = Math.atan2(Math.sin(targetToBotYaw - target.yaw), Math.cos(targetToBotYaw - target.yaw));
