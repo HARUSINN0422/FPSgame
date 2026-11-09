@@ -1269,7 +1269,8 @@ let smokeSequence = 0;
 function smokeProjectilePayload(projectile) {
   return {
     id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z,
-    ownerId: projectile.ownerId, type: projectile.type || "grenade", expiresAt: projectile.expiresAt
+    ownerId: projectile.ownerId, type: projectile.type || "grenade", expiresAt: projectile.expiresAt,
+    vx: Number(projectile.vx) || 0, vy: Number(projectile.vy) || 0, vz: Number(projectile.vz) || 0
   };
 }
 
@@ -1685,7 +1686,10 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         continue;
       }
       projectile.x = next.x; projectile.y = next.y; projectile.z = next.z;
-      broadcastGameEvent(projectile.owner, "grenadeProjectileUpdate", { id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z });
+      broadcastGameEvent(projectile.owner, "grenadeProjectileUpdate", {
+        id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z,
+        vx: projectile.vx, vy: projectile.vy, vz: projectile.vz
+      });
       continue;
     }
 
