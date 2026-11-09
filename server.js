@@ -1736,6 +1736,53 @@ function broadcastState() {
   }
 }
 
+function syncBuildBots(matchId) {
+  const humans = Array.from(players.values()).filter(p =>
+    !p.isBot && p.mode === BUILD_MODE && p.matchId === matchId
+  );
+  const bots = Array.from(players.values()).filter(p =>
+    p.isBot && p.mode === BUILD_MODE && p.matchId === matchId
+  );
+  // 乱闘モードと同様、通常プレイヤーが1人だけの間はBOTを1体配置する。
+  // 同じビルドマッチに通常プレイヤーが複数参加したらBOTを撤去する。
+  if (humans.length !== 1) {
+    for (const bot of bots) players.delete(bot.id);
+    return;
+  }
+  if (bots.length) return;
+  const owner = humans[0];
+  const spawnCandidates = [[-8, 0, -8], [8, 0, -8], [0, 0, -12], [-12, 0, 0], [12, 0, 0]];
+  const spawn = spawnCandidates.find(point =>
+    !collides(point[0], point[2], point[1], PLAYER_HEIGHT, {
+      mode: BUILD_MODE, buildMap: owner.buildMap, matchId: owner.matchId
+    })
+  );
+  if (!spawn) return;
+  const now = Date.now();
+  const id = "bot:build:" + matchId;
+  const yaw = Math.atan2(-(owner.x - spawn[0]), -(owner.z - spawn[2]));
+  players.set(id, {
+    id, name: "BUILD-BOT",
+    mode: BUILD_MODE, team: null, matchId: owner.matchId, buildMap: owner.buildMap,
+    isBot: true, finished: false, botSpawnPoint: [...spawn], botSpawnIndex: 0,
+    botThinkAt: 0, botOffset: Math.random() * 1000, botTactic: "push",
+    botTacticUntil: 0, botStrafeSign: Math.random() < 0.5 ? -1 : 1,
+    botAggression: 0.8, botBuildCount: 0, botNextBuildAt: 0,
+    x: spawn[0], y: spawn[1], z: spawn[2], yaw, pitch: 0,
+    health: 100, maxHealth: 100, shield: 0, kills: 0, deaths: 0,
+    ultimateCharge: 0, ultimateType: "skyfall", ultimateActiveUntil: 0,
+    ultimateAnchor: null, skyfallImpactPending: false, skyfallImpactId: null,
+    weapon: "rifle", weaponSlots: ["rifle", "shotgun"], activeWeaponSlot: 0,
+    ammo: WEAPONS.rifle.magazineSize,
+    weaponAmmo: [WEAPONS.rifle.magazineSize, WEAPONS.shotgun.magazineSize],
+    reloadingUntil: 0, lastFire: 0,
+    velocityY: 0, grounded: true, lastGroundedAt: now, jumpQueuedUntil: 0,
+    input: { forward: 0, strafe: 0, crouch: false }, crouched: false,
+    respawnAt: 0, invulnerableUntil: now + 1200,
+    damageHitstopUntil: 0, damageSlowUntil: 0, fireFloorDamageAt: 0
+  });
+}
+
 function removeBuildBotsForMatch(matchId) {
   if (!matchId) return;
   for (const [id, player] of players) {
@@ -4114,9 +4161,9 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
-    if (player?.mode === BUILD_MODE) removeBuildBotsForMatch(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     if (player) players.delete(socket.id);
+    if (player?.mode === BUILD_MODE) syncBuildBots(player.matchId);
     syncBots();
     broadcastPlayers();
     socket.emit("returnedToLobby");
@@ -4209,7 +4256,8 @@ io.on("connection", (socket) => {
       duelRoom.roundResolved = false;
     }
     if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
-    else if (requestedMode !== "Wander" && requestedMode !== BUILD_MODE) syncBots();
+    else if (requestedMode === BUILD_MODE) syncBuildBots(socket.id);
+    else if (requestedMode !== "Wander") syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
     broadcastPlayers();
   });
@@ -4221,58 +4269,6 @@ io.on("connection", (socket) => {
     const map = player.duelMap || player.trainingMap || player.buildMap || player.wanderMap ||
       (player.mode === AREA_MODE ? areaMap : player.mode === PAYLOAD_MODE ? payloadMap : activeMap);
     socket.emit("world", getWorldPayloadForMap(map, player.mode || MAP_MODE));
-  });
-
-  socket.on("addBuildBot", (acknowledge) => {
-    const reply = typeof acknowledge === "function" ? acknowledge : () => {};
-    const owner = players.get(socket.id);
-    if (!owner || owner.isBot || owner.mode !== BUILD_MODE || !owner.buildMap || owner.health <= 0) {
-      reply({ ok: false, message: "ビルドモード中のみBOTを追加できます。" });
-      return;
-    }
-    const existing = Array.from(players.values()).filter(p =>
-      p.isBot && p.mode === BUILD_MODE && p.matchId === owner.matchId
-    );
-    if (existing.length >= 3) {
-      reply({ ok: false, message: "追加できるBOTは最大3体です。" });
-      return;
-    }
-    const spawnCandidates = [[-8, 0, -8], [8, 0, -8], [0, 0, -12], [-12, 0, 0], [12, 0, 0]];
-    const spawn = spawnCandidates.find(point =>
-      !collides(point[0], point[2], point[1], PLAYER_HEIGHT, {
-        mode: BUILD_MODE, buildMap: owner.buildMap, matchId: owner.matchId
-      })
-    );
-    if (!spawn) {
-      reply({ ok: false, message: "BOTの出現場所がありません。建築物を移動または破壊してください。" });
-      return;
-    }
-    const index = existing.length;
-    const now = Date.now();
-    const id = "bot:build:" + owner.id + ":" + (index + 1);
-    const yaw = Math.atan2(-(owner.x - spawn[0]), -(owner.z - spawn[2]));
-    players.set(id, {
-      id, name: "BUILD-BOT-" + (index + 1),
-      mode: BUILD_MODE, team: null, matchId: owner.matchId, buildMap: owner.buildMap,
-      isBot: true, finished: false, botSpawnPoint: [...spawn], botSpawnIndex: index,
-      botThinkAt: 0, botOffset: Math.random() * 1000, botTactic: "push",
-      botTacticUntil: 0, botStrafeSign: Math.random() < 0.5 ? -1 : 1,
-      botAggression: 0.8, botBuildCount: 0, botNextBuildAt: 0,
-      x: spawn[0], y: spawn[1], z: spawn[2], yaw, pitch: 0,
-      health: 100, maxHealth: 100, shield: 0, kills: 0, deaths: 0,
-      ultimateCharge: 0, ultimateType: "skyfall", ultimateActiveUntil: 0,
-      ultimateAnchor: null, skyfallImpactPending: false, skyfallImpactId: null,
-      weapon: "rifle", weaponSlots: ["rifle", "shotgun"], activeWeaponSlot: 0,
-      ammo: WEAPONS.rifle.magazineSize,
-      weaponAmmo: [WEAPONS.rifle.magazineSize, WEAPONS.shotgun.magazineSize],
-      reloadingUntil: 0, lastFire: 0,
-      velocityY: 0, grounded: true, lastGroundedAt: now, jumpQueuedUntil: 0,
-      input: { forward: 0, strafe: 0, crouch: false }, crouched: false,
-      respawnAt: 0, invulnerableUntil: now + 1200,
-      damageHitstopUntil: 0, damageSlowUntil: 0, fireFloorDamageAt: 0
-    });
-    broadcastPlayers();
-    reply({ ok: true, count: index + 1, max: 3 });
   });
 
   socket.on("buildPlace", (data = {}) => {
@@ -4780,9 +4776,9 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
-    if (player?.mode === BUILD_MODE) removeBuildBotsForMatch(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     players.delete(socket.id);
+    if (player?.mode === BUILD_MODE) syncBuildBots(player.matchId);
     syncBots();
     broadcastPlayers();
   });
