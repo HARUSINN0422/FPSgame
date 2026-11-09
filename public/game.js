@@ -1548,13 +1548,6 @@ document.getElementById("buildWallButton")?.addEventListener("click", () => { if
 document.getElementById("buildFloorButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("floor"); });
 document.getElementById("buildRampButton")?.addEventListener("click", () => { if (!layoutEditing) selectBuildType("ramp"); });
 document.getElementById("buildPlaceButton")?.addEventListener("click", () => { if (!layoutEditing) placeBuildStructure(); });
-document.getElementById("buildBotButton")?.addEventListener("click", () => {
-  if (layoutEditing || !joined || selectedGameMode !== "Build" || !socket.connected) return;
-  socket.emit("addBuildBot", (result = {}) => {
-    if (result.ok) showMessage("BOTを追加しました (" + result.count + "/" + result.max + ")");
-    else showMessage(result.message || "BOTを追加できませんでした。");
-  });
-});
 
 function makeBox(w, h, d, x, y, z, color = 0x647080) {
   const mesh = new THREE.Mesh(
