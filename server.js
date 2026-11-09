@@ -1736,6 +1736,13 @@ function broadcastState() {
   }
 }
 
+function removeBuildBotsForMatch(matchId) {
+  if (!matchId) return;
+  for (const [id, player] of players) {
+    if (player.isBot && player.mode === BUILD_MODE && player.matchId === matchId) players.delete(id);
+  }
+}
+
 function syncBots() {
   const humanPlayers = Array.from(players.values()).filter((p) => !p.isBot && (p.mode || MAP_MODE) === MAP_MODE);
   const bots = Array.from(players.values()).filter((p) => p.isBot && (p.mode || MAP_MODE) === MAP_MODE);
@@ -1782,6 +1789,125 @@ function syncBots() {
   });
 }
 
+function tryBuildBotCover(bot, target, now) {
+  const map = bot.buildMap;
+  if (!map || (map.buildStructures || []).length >= 512 ||
+      (bot.botBuildCount || 0) >= 8 || now < (bot.botNextBuildAt || 0)) return false;
+  const dx = target.x - bot.x, dz = target.z - bot.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance < 5 || distance > 25) return false;
+
+  const targetToBotYaw = Math.atan2(-(bot.x - target.x), -(bot.z - target.z));
+  const yawError = Math.atan2(Math.sin(targetToBotYaw - target.yaw), Math.cos(targetToBotYaw - target.yaw));
+  if (Math.abs(yawError) > 0.28) return false;
+  const targetOrigin = {
+    x: target.x, y: target.y + (target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15, z: target.z
+  };
+  const targetWall = rayHitsObstacle(targetOrigin, directionFromAngles(target.yaw, target.pitch || 0), distance, target);
+  if (targetWall !== null && targetWall < distance - 0.8) return false;
+
+  let x, z, rotation;
+  if (Math.abs(dx) > Math.abs(dz)) {
+    rotation = Math.PI / 2;
+    x = dx > 0 ? Math.ceil((bot.x + 1.15) / 4) * 4 : Math.floor((bot.x - 1.15) / 4) * 4;
+    z = Math.floor(bot.z / 4) * 4 + 2;
+  } else {
+    rotation = 0;
+    x = Math.floor(bot.x / 4) * 4 + 2;
+    z = dz > 0 ? Math.ceil((bot.z + 1.15) / 4) * 4 : Math.floor((bot.z - 1.15) / 4) * 4;
+  }
+  const sideways = Math.abs(Math.sin(rotation)) > 0.5;
+  const wallW = sideways ? 0.16 : 4, wallD = sideways ? 4 : 0.16;
+  const bounds = map.world;
+  if (x - wallW / 2 < bounds.minX || x + wallW / 2 > bounds.maxX ||
+      z - wallD / 2 < bounds.minZ || z + wallD / 2 > bounds.maxZ ||
+      Math.hypot(x - bot.x, z - bot.z) > 6.05) {
+    bot.botNextBuildAt = now + 650;
+    return false;
+  }
+  const towardX = dx / distance, towardZ = dz / distance;
+  const wallProgress = (x - bot.x) * towardX + (z - bot.z) * towardZ;
+  const targetPastWall = (target.x - x) * towardX + (target.z - z) * towardZ;
+  if (wallProgress < 0.8 || targetPastWall < 0.8) {
+    bot.botNextBuildAt = now + 900;
+    return false;
+  }
+  const overlapsWall = (map.buildStructures || []).some(item => {
+    if (item.type !== "wall" || Math.abs(Number(item.y) || 0) > 0.12) return false;
+    const overlapX = Math.min(x + wallW / 2, item.x + item.w / 2) - Math.max(x - wallW / 2, item.x - item.w / 2);
+    const overlapZ = Math.min(z + wallD / 2, item.z + item.d / 2) - Math.max(z - wallD / 2, item.z - item.d / 2);
+    return overlapX > 0.12 && overlapZ > 0.12;
+  });
+  if (overlapsWall) {
+    bot.botNextBuildAt = now + 1400;
+    return false;
+  }
+  const id = "build-" + bot.id + "-" + now.toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  map.buildStructures.push({ id, type: "wall", x, y: 0, z, rotation, w: wallW, d: wallD, h: 4, hp: 50 });
+  map.obstacles.push({ x, y: 0, z, w: wallW, d: wallD, h: 4, ceiling: false, buildStructureId: id });
+  bot.botBuildCount = (bot.botBuildCount || 0) + 1;
+  bot.botNextBuildAt = now + 1700 + Math.random() * 900;
+  broadcastGameEvent(bot, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
+  return true;
+}
+
+function updateBuildBot(bot, targets, now) {
+  const target = targets.slice().sort((a, b) =>
+    Math.hypot(a.x - bot.x, a.z - bot.z) - Math.hypot(b.x - bot.x, b.z - bot.z)
+  )[0];
+  if (!target) {
+    if (!bot.botWanderTurnAt || now >= bot.botWanderTurnAt) {
+      bot.yaw += (Math.random() - 0.5) * 1.1;
+      bot.botWanderTurnAt = now + 900 + Math.random() * 1200;
+    }
+    bot.pitch = 0;
+    bot.input.forward = 0.25;
+    bot.input.strafe = Math.sin(now / 850) * 0.3;
+    bot.input.crouch = false;
+    return;
+  }
+
+  const dx = target.x - bot.x, dz = target.z - bot.z;
+  const distance = Math.max(0.001, Math.hypot(dx, dz));
+  const targetYaw = Math.atan2(-dx, -dz);
+  const yawDelta = Math.atan2(Math.sin(targetYaw - bot.yaw), Math.cos(targetYaw - bot.yaw));
+  bot.yaw += clamp(yawDelta, -0.2, 0.2);
+  const targetY = target.y + (target.crouched ? 0.75 : 1.0);
+  bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance), -0.9, 0.9);
+
+  // 敵がこちらを狙っていて射線が通る場合、壁を建てて弾を受け止める。
+  tryBuildBotCover(bot, target, now);
+
+  const origin = { x: bot.x, y: bot.y + PLAYER_HEIGHT - 0.15, z: bot.z };
+  const direction = directionFromAngles(bot.yaw, bot.pitch);
+  const wallDistance = rayHitsObstacle(origin, direction, Math.min(distance, WEAPONS[bot.weapon].range), bot);
+  const visible = distance <= WEAPONS[bot.weapon].range &&
+    (wallDistance === null || wallDistance >= distance - 0.7);
+  const aligned = Math.abs(yawDelta) < 0.16;
+  if (!visible) {
+    const side = bot.botStrafeSign || 1;
+    bot.input.forward = distance > 4 ? 0.62 : 0.12;
+    bot.input.strafe = side * 0.82;
+    if (wallDistance !== null && wallDistance < 2.2) bot.yaw += side * 0.08;
+  } else if (distance > 5.5) {
+    bot.input.forward = 0.88;
+    bot.input.strafe = (bot.botStrafeSign || 1) * 0.22;
+  } else {
+    bot.input.forward = distance > 3.2 ? 0.22 : -0.12;
+    bot.input.strafe = (bot.botStrafeSign || 1) * 0.55;
+  }
+  bot.input.crouch = false;
+
+  if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval && Math.random() < 0.78) {
+    const oldYaw = bot.yaw, oldPitch = bot.pitch;
+    bot.yaw = targetYaw;
+    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance), -0.9, 0.9);
+    fireShot(bot);
+    bot.yaw = oldYaw;
+    bot.pitch = oldPitch;
+  }
+}
+
 function updateBot(p, now) {
   if (!p.isBot || p.health <= 0 || p.finished || now < p.botThinkAt) return;
   const botSkyfallActive = Boolean(p.skyfallImpactId && p.ultimateActiveUntil > now);
@@ -1815,6 +1941,11 @@ function updateBot(p, now) {
     isSameGame(p, other) &&
     (isObjectiveBot ? other.team !== p.team : !other.isBot)
   );
+
+  if (p.mode === BUILD_MODE) {
+    updateBuildBot(p, targets, now);
+    return;
+  }
 
   // BOTも浮上中に敵の位置を追い、発動1秒後から狙いに合わせて任意降下する。
   if (botSkyfallActive) {
@@ -2097,12 +2228,14 @@ function updateBot(p, now) {
 }
 
 function respawnBot(p, now) {
-  const spawn = pickSpawnForPlayer(p, p.botSpawnIndex || 0);
+  const spawn = p.mode === BUILD_MODE && Array.isArray(p.botSpawnPoint)
+    ? p.botSpawnPoint
+    : pickSpawnForPlayer(p, p.botSpawnIndex || 0);
   p.x = spawn[0]; p.y = 0; p.z = spawn[2];
   if (p.mode === PAYLOAD_MODE) {
     p.botHasLeftRespawnArea = !getPayloadRespawnZoneAt(getMapForPlayer(p), p.x, p.z);
   }
-  p.yaw = p.mode === PAYLOAD_MODE ? -Math.PI / 2 : 0; p.pitch = 0;
+  p.yaw = p.mode === PAYLOAD_MODE ? -Math.PI / 2 : p.mode === BUILD_MODE ? Math.PI : 0; p.pitch = 0;
   p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
   p.health = Number(p.maxHealth) || 100;
   p.ultimateActiveUntil = 0;
@@ -3981,6 +4114,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
+    if (player?.mode === BUILD_MODE) removeBuildBotsForMatch(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     if (player) players.delete(socket.id);
     syncBots();
@@ -4087,6 +4221,58 @@ io.on("connection", (socket) => {
     const map = player.duelMap || player.trainingMap || player.buildMap || player.wanderMap ||
       (player.mode === AREA_MODE ? areaMap : player.mode === PAYLOAD_MODE ? payloadMap : activeMap);
     socket.emit("world", getWorldPayloadForMap(map, player.mode || MAP_MODE));
+  });
+
+  socket.on("addBuildBot", (acknowledge) => {
+    const reply = typeof acknowledge === "function" ? acknowledge : () => {};
+    const owner = players.get(socket.id);
+    if (!owner || owner.isBot || owner.mode !== BUILD_MODE || !owner.buildMap || owner.health <= 0) {
+      reply({ ok: false, message: "ビルドモード中のみBOTを追加できます。" });
+      return;
+    }
+    const existing = Array.from(players.values()).filter(p =>
+      p.isBot && p.mode === BUILD_MODE && p.matchId === owner.matchId
+    );
+    if (existing.length >= 3) {
+      reply({ ok: false, message: "追加できるBOTは最大3体です。" });
+      return;
+    }
+    const spawnCandidates = [[-8, 0, -8], [8, 0, -8], [0, 0, -12], [-12, 0, 0], [12, 0, 0]];
+    const spawn = spawnCandidates.find(point =>
+      !collides(point[0], point[2], point[1], PLAYER_HEIGHT, {
+        mode: BUILD_MODE, buildMap: owner.buildMap, matchId: owner.matchId
+      })
+    );
+    if (!spawn) {
+      reply({ ok: false, message: "BOTの出現場所がありません。建築物を移動または破壊してください。" });
+      return;
+    }
+    const index = existing.length;
+    const now = Date.now();
+    const id = "bot:build:" + owner.id + ":" + (index + 1);
+    const yaw = Math.atan2(-(owner.x - spawn[0]), -(owner.z - spawn[2]));
+    players.set(id, {
+      id, name: "BUILD-BOT-" + (index + 1),
+      mode: BUILD_MODE, team: null, matchId: owner.matchId, buildMap: owner.buildMap,
+      isBot: true, finished: false, botSpawnPoint: [...spawn], botSpawnIndex: index,
+      botThinkAt: 0, botOffset: Math.random() * 1000, botTactic: "push",
+      botTacticUntil: 0, botStrafeSign: Math.random() < 0.5 ? -1 : 1,
+      botAggression: 0.8, botBuildCount: 0, botNextBuildAt: 0,
+      x: spawn[0], y: spawn[1], z: spawn[2], yaw, pitch: 0,
+      health: 100, maxHealth: 100, shield: 0, kills: 0, deaths: 0,
+      ultimateCharge: 0, ultimateType: "skyfall", ultimateActiveUntil: 0,
+      ultimateAnchor: null, skyfallImpactPending: false, skyfallImpactId: null,
+      weapon: "rifle", weaponSlots: ["rifle", "shotgun"], activeWeaponSlot: 0,
+      ammo: WEAPONS.rifle.magazineSize,
+      weaponAmmo: [WEAPONS.rifle.magazineSize, WEAPONS.shotgun.magazineSize],
+      reloadingUntil: 0, lastFire: 0,
+      velocityY: 0, grounded: true, lastGroundedAt: now, jumpQueuedUntil: 0,
+      input: { forward: 0, strafe: 0, crouch: false }, crouched: false,
+      respawnAt: 0, invulnerableUntil: now + 1200,
+      damageHitstopUntil: 0, damageSlowUntil: 0, fireFloorDamageAt: 0
+    });
+    broadcastPlayers();
+    reply({ ok: true, count: index + 1, max: 3 });
   });
 
   socket.on("buildPlace", (data = {}) => {
@@ -4594,6 +4780,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
+    if (player?.mode === BUILD_MODE) removeBuildBotsForMatch(player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     players.delete(socket.id);
     syncBots();
