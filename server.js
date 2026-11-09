@@ -1849,10 +1849,11 @@ function tryBuildBotCover(bot, target, now) {
   const distance = Math.hypot(dx, dz);
   if (distance < 5 || distance > 25) return false;
 
-  // 敵へ直進するだけでなく、一定間隔でランプを作って高所から射線を作る。
-  // ランプは地面に接続し、上端に床を追加して登れる足場にする。
+  // 敵へ直進するだけでなく、ランプと上段の床を連結して階段状に積み上げる。
+  // BOTが上段へ登れたら、さらに次の高さへ建築して敵の側面・上方を取る。
+  const buildLevel = Math.max(0, Math.min(36, Math.round((bot.y || 0) / 4) * 4));
   if ((bot.botBuildCount || 0) < 12 && distance >= 7 && distance <= 22 &&
-      now >= (bot.botNextRampAt || 0) && (bot.y || 0) < 1.2) {
+      now >= (bot.botNextRampAt || 0) && buildLevel <= 36) {
     const stepX = Math.abs(dx) > Math.abs(dz) ? Math.sign(dx) * 4 : 0;
     const stepZ = Math.abs(dz) >= Math.abs(dx) ? Math.sign(dz) * 4 : 0;
     const x = Math.round((bot.x - 2) / 4) * 4 + 2 + stepX;
@@ -1864,22 +1865,45 @@ function tryBuildBotCover(bot, target, now) {
       z - 2 >= map.world.minZ && z + 2 <= map.world.maxZ;
     const occupied = (map.buildStructures || []).some(item =>
       Math.abs(item.x - x) < 3.8 && Math.abs(item.z - z) < 3.8 &&
-      Math.abs((Number(item.y) || 0)) < 0.12
+      Math.abs((Number(item.y) || 0) - buildLevel) < 0.12
     );
-    if (insideBounds && !occupied && Math.hypot(x - bot.x, z - bot.z) <= 6.05) {
-      const rampId = "build-" + bot.id + "-ramp-" + now.toString(36);
-      const ramp = { id: rampId, type: "ramp", x, y: 0, z, rotation, direction,
-        w: 4, d: 4, h: 4, hp: 50 };
-      map.buildStructures.push(ramp);
-      map.ramps.push({ x, y: 0, z, w: 4, d: 4, h: 4, direction, buildStructureId: rampId });
-      bot.botBuildCount = (bot.botBuildCount || 0) + 1;
-      bot.botNextRampAt = now + 9000 + Math.random() * 5000;
+    const rampId = "build-" + bot.id + "-ramp-" + now.toString(36);
+    const floorId = rampId + "-top";
+    const ramp = { id: rampId, type: "ramp", x, y: buildLevel, z, rotation, direction,
+      w: 4, d: 4, h: 4, hp: 50 };
+    const grounded = new Set((map.buildStructures || [])
+      .filter(item => (Number(item.y) || 0) <= 0.02).map(item => item.id));
+    let supportChanged = true;
+    while (supportChanged) {
+      supportChanged = false;
+      for (const item of map.buildStructures || []) {
+        if (grounded.has(item.id)) continue;
+        if ((map.buildStructures || []).some(other =>
+          grounded.has(other.id) && buildStructuresTouch(item, other))) {
+          grounded.add(item.id);
+          supportChanged = true;
+        }
+      }
+    }
+    const supported = buildLevel <= 0.02 || (map.buildStructures || []).some(item =>
+      grounded.has(item.id) && buildStructuresTouch(ramp, item));
+    if (insideBounds && !occupied && supported &&
+        Math.hypot(x - bot.x, z - bot.z) <= 6.05 && buildLevel + 4 <= 40) {
+      const floor = { id: floorId, type: "floor", x, y: buildLevel + 4, z,
+        rotation: 0, w: 4, d: 4, h: 0.08, hp: 50 };
+      map.buildStructures.push(ramp, floor);
+      map.ramps.push({ x, y: buildLevel, z, w: 4, d: 4, h: 4, direction, buildStructureId: rampId });
+      map.floorTiles.push({ id: floorId, buildStructureId: floorId, type: "build",
+        x, y: buildLevel + 4, z, w: 4, d: 4 });
+      map.elevatedPlatforms.push({ x, z, w: 4, d: 4, h: buildLevel + 4, buildStructureId: floorId });
+      bot.botBuildCount = (bot.botBuildCount || 0) + 2;
+      bot.botNextRampAt = now + 6500 + Math.random() * 4500;
       bot.botNextBuildAt = now + 1800;
       bot.jumpQueuedUntil = Math.max(bot.jumpQueuedUntil || 0, now + 180);
       broadcastGameEvent(bot, "buildStructureUpdate", getWorldPayloadForMap(map, BUILD_MODE));
       return true;
     }
-    bot.botNextRampAt = now + 3500;
+    bot.botNextRampAt = now + 3000;
   }
 
   const targetToBotYaw = Math.atan2(-(bot.x - target.x), -(bot.z - target.z));
