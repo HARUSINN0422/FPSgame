@@ -3171,7 +3171,11 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   let multiplier = 1.0;
   let zone = "body";
 
-  if (hitY < 0.58) {
+  // レールガンなど頭部専用判定を使わない呼び出しでは、従来の高さ判定を維持する。
+  if (hitRadiusOverride !== null && hitY >= 1.42) {
+    multiplier = 2.0;
+    zone = "head";
+  } else if (hitY < 0.58) {
     multiplier = 0.75;
     zone = "legs";
   }
