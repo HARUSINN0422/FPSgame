@@ -273,26 +273,31 @@ try {
   // 初回起動時はserver.js内の標準設定を使用します。
 }
 
+// 武器説明は保存済みの古いdata/weapons.jsonに上書きされないよう、最新版を固定する。
+for (const [id, description] of Object.entries(DEFAULT_WEAPON_DESCRIPTIONS)) {
+  WEAPONS[id].description = description;
+}
+
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
 WEAPONS.sniper.magazineSize = 6;
-WEAPONS.sniper.description = "高威力 / 装弾数6発・連射は遅い";
+WEAPONS.sniper.description = DEFAULT_WEAPON_DESCRIPTIONS.sniper;
 WEAPONS.smg.fireInterval = 107 / 4.5;
 WEAPONS.rifle.damage = 30;
 WEAPONS.rifle.fireInterval = 160 / 1.5;
 WEAPONS.pickaxe.damage = 120;
 WEAPONS.grenadeLauncher.damage = 110;
-WEAPONS.rifle.description = "連射可能 / 胴体30ダメージ / 連射速度1.5倍";
+WEAPONS.rifle.description = DEFAULT_WEAPON_DESCRIPTIONS.rifle;
 WEAPONS.smg.magazineSize = 60;
-WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数60発";
+WEAPONS.smg.description = DEFAULT_WEAPON_DESCRIPTIONS.smg;
 WEAPONS.grappler.magazineSize = 0;
-WEAPONS.grappler.description = "吸盤付きの紐を発射 / 壁や床へのめり込みを抑えて着弾地点へ引き寄せる / リロード不要";
+WEAPONS.grappler.description = DEFAULT_WEAPON_DESCRIPTIONS.grappler;
 // 古いdata/weapons.jsonに空の説明が保存されていても、新武器の説明を必ず表示する。
 for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
   if (!String(WEAPONS[id].description || "").trim()) WEAPONS[id].description = DEFAULT_WEAPON_DESCRIPTIONS[id];
 }
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 140;
-WEAPONS.bow.description = "長押しで弓を引く / 胴体5〜140ダメージ / 0.1秒間隔 / リロード不要";
+WEAPONS.bow.description = DEFAULT_WEAPON_DESCRIPTIONS.bow;
 WEAPONS.marksman.fireInterval = 225 * 1.25;
 WEAPONS.marksman.magazineSize = 30;
 WEAPONS.pistol.magazineSize = 6;
