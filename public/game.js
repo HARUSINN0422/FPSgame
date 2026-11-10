@@ -3551,7 +3551,9 @@ function setScopeEnabled(enabled) {
   scopeEnabled = Boolean(enabled) && selectedWeapon === "sniper";
   camera.fov = scopeEnabled ? 24 : 76;
   camera.updateProjectionMatrix();
-  document.getElementById("scopeOverlay")?.classList.toggle("hidden", !scopeEnabled);
+  const scopeOverlay = document.getElementById("scopeOverlay");
+  scopeOverlay?.classList.toggle("hidden", !scopeEnabled);
+  if (scopeOverlay) scopeOverlay.style.opacity = scopeEnabled ? "1" : "0";
   updateScopeButton();
 }
 
