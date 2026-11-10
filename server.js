@@ -159,17 +159,17 @@ process.on("unhandledRejection", (reason) => {
 
 const WEAPONS = {
   pickaxe: {
-    name: "Pickaxe", damage: 70, fireInterval: 650, range: 3.2, spread: 0,
+    name: "Pickaxe", damage: 120, fireInterval: 650, range: 3.2, spread: 0,
     falloffStart: 3.2, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true
   },
   pistol: {
     name: "Pistol",
-    damage: 50,
+    damage: 70,
     fireInterval: 400,
     range: 68,
     spread: 0.018,
-    falloffStart: 11,
-    minDamageMultiplier: 0.32,
+    falloffStart: 22,
+    minDamageMultiplier: 0.55,
     magazineSize: 6,
     reloadTime: 1000,
     automatic: false
@@ -182,7 +182,7 @@ const WEAPONS = {
     spread: 0.045,
     falloffStart: 20,
     minDamageMultiplier: 0.45,
-    magazineSize: 80,
+    magazineSize: 60,
     reloadTime: 1300,
     automatic: true
   },
@@ -204,12 +204,12 @@ const WEAPONS = {
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
   grenadeLauncher: {
-    name: "Grenade", damage: 60, fireInterval: 900, range: 0, spread: 0,
+    name: "Grenade", damage: 110, fireInterval: 900, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 0, magazineSize: 6, reloadTime: 1700, automatic: false
   },
   marksman: {
-    name: "Marksman", damage: 35, fireInterval: 450, range: 100, spread: 0.006,
-    falloffStart: 55, minDamageMultiplier: 0.7, magazineSize: 20,
+    name: "Marksman", damage: 40, fireInterval: 450, range: 100, spread: 0.006,
+    falloffStart: 100, minDamageMultiplier: 1, magazineSize: 20,
     reloadTime: 1300, automatic: true
   },
   smoke: {
@@ -221,7 +221,7 @@ const WEAPONS = {
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
     reloadTime: 1900, automatic: false
   },
-  bow: { name: "Bow", damage: 110, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  bow: { name: "Bow", damage: 140, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
   minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
   shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
@@ -236,19 +236,19 @@ const WEAPON_LABELS = {
   shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
-  pickaxe: "近接攻撃 / 70ダメージ",
+  pickaxe: "近接攻撃 / 120ダメージ",
   smoke: "投擲 / リロード不要 / 1300ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
-  pistol: "単発 / 胴体50ダメージ / 装弾数6発・距離減衰はやや大きめ",
+  pistol: "単発 / 胴体70ダメージ / 装弾数6発・距離減衰を軽減",
   smg: "連射可能 / 胴体9ダメージ / 装弾数20発",
   rifle: "連射可能 / 胴体23ダメージ / 長射程・距離減衰が小さい",
   shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
-  grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
+  grenadeLauncher: "着弾地点で球状爆発 / 中心最大110ダメージ・外側ほど減衰 / 装弾数6発",
   shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
   grappler: "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要",
-  marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
+  marksman: "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数15発",
   sniper: "高威力 / 装弾数3発・連射は遅い",
-  bow: "長押しで弓を引く / 0.75秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
-  minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
+  bow: "長押しで弓を引く / 胴体5〜140ダメージ / 0.1秒間隔 / リロード不要",
+  minigun: "長押しで弾をチャージ / 最大1.5秒（チャージ速度2倍） / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
   railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
   flamethrower: "長押しで連続噴射 / 125msごとに10ダメージ / 半径2倍・壁越しに命中 / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要",
   laserBeam: "長押しで連続照射 / 同じ相手に0.5秒ごとに命中すると4→8→16→32→64→128ダメージ（最大128） / 弾薬・リロード不要 / 壁を貫通",
@@ -276,24 +276,31 @@ try {
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
 WEAPONS.smg.fireInterval = 107 / 4.5;
 WEAPONS.rifle.damage = 23;
+WEAPONS.rifle.fireInterval = 160 / 1.2;
+WEAPONS.pickaxe.damage = 120;
+WEAPONS.grenadeLauncher.damage = 110;
 WEAPONS.rifle.description = "連射可能 / 胴体23ダメージ / 長射程・距離減衰が小さい";
-WEAPONS.smg.magazineSize = 20;
-WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数20発";
+WEAPONS.smg.magazineSize = 60;
+WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数60発";
 WEAPONS.grappler.magazineSize = 0;
-WEAPONS.grappler.description = "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要";
+WEAPONS.grappler.description = "吸盤付きの紐を発射 / 着弾地点へ3倍速で引き寄せる / リロード不要";
 // 古いdata/weapons.jsonに空の説明が保存されていても、新武器の説明を必ず表示する。
 for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
   if (!String(WEAPONS[id].description || "").trim()) WEAPONS[id].description = DEFAULT_WEAPON_DESCRIPTIONS[id];
 }
 WEAPONS.bow.fireInterval = 100;
-WEAPONS.bow.damage = 110;
-WEAPONS.bow.description = "長押しで弓を引く / 1.125秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要";
+WEAPONS.bow.damage = 140;
+WEAPONS.bow.description = "長押しで弓を引く / 胴体5〜140ダメージ / 0.1秒間隔 / リロード不要";
 WEAPONS.marksman.fireInterval = 225 * 1.25;
 WEAPONS.marksman.magazineSize = 15;
 WEAPONS.pistol.magazineSize = 6;
+WEAPONS.pistol.damage = 70;
+WEAPONS.pistol.falloffStart = 22;
+WEAPONS.pistol.minDamageMultiplier = 0.55;
 WEAPONS.marksman.falloffStart = WEAPONS.marksman.range;
-WEAPONS.marksman.minDamageMultiplier = 0.95;
-WEAPONS.marksman.description = "連射可能 / 胴体35ダメージ / 装弾数15発・中〜長距離向け";
+WEAPONS.marksman.damage = 40;
+WEAPONS.marksman.minDamageMultiplier = 1;
+WEAPONS.marksman.description = "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数15発";
 WEAPONS.shotgun.damage = 25;
 WEAPONS.shotgun.fireInterval = 750 * 1.25;
 WEAPONS.shotgun.magazineSize = 3;
@@ -1413,7 +1420,7 @@ function applyGrapplePull(projectile, position) {
   if (horizontal < 1.2 && Math.abs(dy) < 1.5) return;
   const directionX = horizontal > 0.001 ? dx / horizontal : 0;
   const directionZ = horizontal > 0.001 ? dz / horizontal : 0;
-  const pullSpeed = clamp(24 + horizontal * 0.12, 24, 34);
+  const pullSpeed = clamp(72 + horizontal * 0.36, 72, 102);
   owner.grapplePullTarget = {
     x: position.x,
     y: position.y - (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65,
@@ -1472,7 +1479,7 @@ function applyShockwave(projectile, position, now = Date.now()) {
 
 function explodeGrenade(projectile, position, now = Date.now()) {
   const radius = 5.2;
-  damageBuildStructuresInRadius(projectile.owner, position, radius, 60);
+  damageBuildStructuresInRadius(projectile.owner, position, radius, 110);
   const id = "grenade-explosion-" + (++smokeSequence);
   broadcastGameEvent(projectile.owner, "grenadeExplosion", {
     id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 420
@@ -1489,7 +1496,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     const dz = target.z - position.z;
     const distance = Math.hypot(dx, dy, dz);
     if (distance > radius) continue;
-    const damage = Math.round(20 + 40 * (1 - distance / radius));
+    const damage = Math.round(20 + 90 * (1 - distance / radius));
     if (damage <= 0) continue;
     const damageSplit = applyIncomingDamage(target, damage);
     if (projectile.owner && projectile.owner.id !== target.id) addUltimateCharge(projectile.owner, damage);
@@ -2771,7 +2778,7 @@ function movePlayer(p, dt) {
       p.knockbackVelocityZ = 0;
       if (pullHorizontal < 0.65) p.velocityY = Math.min(Number(p.velocityY) || 0, 0);
     } else {
-      const pullSpeed = clamp(24 + pullHorizontal * 0.12, 24, 34);
+      const pullSpeed = clamp(72 + pullHorizontal * 0.36, 72, 102);
       p.knockbackVelocityX = pullHorizontal > 0.001 ? pullX / pullHorizontal * pullSpeed : 0;
       p.knockbackVelocityZ = pullHorizontal > 0.001 ? pullZ / pullHorizontal * pullSpeed : 0;
       p.velocityY = clamp(pullY * 2.4 + GRAVITY * 0.05, -16, 16);
@@ -3441,7 +3448,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     if (!bestHit) continue;
 
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
-    const baseShotDamage = shooter.weapon === "bow" ? 5 + 105 * bowCharge : weapon.damage;
+    const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
     const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
     const split = applyIncomingDamage(bestHit.target, damage);
     addUltimateCharge(shooter, damage);
@@ -4830,7 +4837,7 @@ io.on("connection", (socket) => {
     const now = Date.now();
     if (!p || p.health <= 0 || p.finished || p.weapon !== "minigun" ||
         p.invulnerableUntil > now || p.frozenUntil > now || !p.minigunChargeStartedAt) return;
-    const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 3000);
+    const chargedMs = clamp(now - p.minigunChargeStartedAt, 0, 1500);
     p.minigunChargeStartedAt = 0;
     const shotCount = Math.floor(chargedMs / WEAPONS.minigun.fireInterval);
     if (!shotCount) return;
