@@ -3257,7 +3257,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     // レールガンは移動弾を生成せず、発射フレームで照準上の最初の相手に即着弾する。
     // 既存仕様どおり壁は貫通し、射程は150m。
     if (best) {
-      const damage = 50 * (best.multiplier || 1);
+      const damage = 50; // 頭部・胴体ともに固定50ダメージ
       const split = applyIncomingDamage(best.target, damage);
       addUltimateCharge(shooter, damage);
       const hitX = origin.x + dir.x * best.t;
