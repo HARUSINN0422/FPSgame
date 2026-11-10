@@ -218,7 +218,7 @@ const WEAPONS = {
   },
   sniper: {
     name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
-    falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 3,
+    falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 6,
     reloadTime: 1900, automatic: false
   },
   bow: { name: "Bow", damage: 140, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
@@ -246,7 +246,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
   grappler: "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要",
   marksman: "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数15発",
-  sniper: "高威力 / 装弾数3発・連射は遅い",
+  sniper: "高威力 / 装弾数6発・連射は遅い",
   bow: "長押しで弓を引く / 胴体5〜140ダメージ / 0.1秒間隔 / リロード不要",
   minigun: "長押しで弾をチャージ / 最大1.5秒（チャージ速度2倍） / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
   railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
@@ -274,6 +274,8 @@ try {
 }
 
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
+WEAPONS.sniper.magazineSize = 6;
+WEAPONS.sniper.description = "高威力 / 装弾数6発・連射は遅い";
 WEAPONS.smg.fireInterval = 107 / 4.5;
 WEAPONS.rifle.damage = 23;
 WEAPONS.rifle.fireInterval = 160 / 1.2;
@@ -1512,6 +1514,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
       const selfElimination = target.id === projectile.ownerId;
       if (!selfElimination) {
         projectile.owner.health = Number(projectile.owner.maxHealth) || 100;
+        clearBurnStatus(projectile.owner);
         projectile.owner.kills = (projectile.owner.kills || 0) + 1;
       }
       target.health = 0;
@@ -1696,6 +1699,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
           if (target.health <= 0) {
             target.health = 0; target.respawnAt = now + 5000; target.deaths = (target.deaths || 0) + 1;
             projectile.owner.health = Number(projectile.owner.maxHealth) || 100;
+        clearBurnStatus(projectile.owner);
             projectile.owner.kills = (projectile.owner.kills || 0) + 1;
             if (target.mode === "Duel") resolveDuelRound(projectile.owner, target);
             broadcastGameEvent(projectile.owner, "elimination", {
@@ -2662,6 +2666,7 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
       target.respawnAt = now + 5000;
       target.deaths += 1;
       attacker.health = Number(attacker.maxHealth) || 100;
+        clearBurnStatus(attacker);
       attacker.kills = (attacker.kills || 0) + 1;
       if (target.mode === "Duel") resolveDuelRound(attacker, target);
       broadcastGameEvent(attacker, "elimination", {
@@ -3286,6 +3291,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
       if (best.target.health <= 0) {
         shooter.health = Number(shooter.maxHealth) || 100;
+        clearBurnStatus(shooter);
         best.target.health = 0;
         best.target.respawnAt = now + 5000;
         best.target.kills = best.target.kills || 0;
@@ -3504,6 +3510,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     if (result.target.health <= 0) {
       shooter.health = Number(shooter.maxHealth) || 100;
+        clearBurnStatus(shooter);
       result.target.health = 0;
       result.target.respawnAt = Date.now() + 5000;
       result.target.kills = result.target.kills || 0;
@@ -3610,6 +3617,7 @@ setInterval(() => {
         if (p.riftDuelId) finishRiftDuel(p);
         if (attacker && attacker.id !== p.id) {
           attacker.health = Number(attacker.maxHealth) || 100;
+        clearBurnStatus(attacker);
           attacker.kills = (attacker.kills || 0) + 1;
           if (p.mode === "Duel") resolveDuelRound(attacker, p);
           if (attacker.invisibleUntil > Date.now()) attacker.invisibleUntil = 0;
@@ -3633,6 +3641,15 @@ setInterval(() => {
     }
   }
 },125).unref?.();
+
+function clearBurnStatus(player) {
+  if (!player) return;
+  player.burnUntil = 0;
+  player.burnExposure = 0;
+  player.burnNextAt = 0;
+  player.burnStartAt = 0;
+  player.burnSourceId = null;
+}
 
 function applyIncomingDamage(target, amount) {
   let damage = Math.max(0, Number(amount) || 0);
