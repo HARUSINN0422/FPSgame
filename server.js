@@ -250,7 +250,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   bow: "長押しで弓を引く / 0.75秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
   minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
   railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
-  flamethrower: "長押しで連続噴射 / 125msごとに5ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（毎秒3ダメージ） / 弾薬・リロード不要",
+  flamethrower: "長押しで連続噴射 / 125msごとに10ダメージ / 半径2倍・壁越しに命中 / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要",
   laserBeam: "長押しで連続照射 / 同じ相手に0.5秒ごとに命中すると4→8→16→32→64→128ダメージ（最大128） / 弾薬・リロード不要 / 壁を貫通",
   freezeCannon: "長押しで冷気を連続噴射 / 125msごとに4ダメージ / 命中ごとに凍結確率+2.5%（命中が途切れると毎秒20%低下） / 凍結すると3秒間移動・射撃不可 / 弾薬・リロード不要"
 };
@@ -3571,7 +3571,7 @@ setInterval(() => {
   }
   for (const p of players.values()) {
     if (p.burnUntil > now && (p.burnStartAt || 0) <= now && (p.burnNextAt || 0) <= now && p.health > 0) {
-      const burnDamage = 3;
+      const burnDamage = 8;
       const split = applyIncomingDamage(p, burnDamage);
       const attacker = players.get(p.burnSourceId);
       io.to(p.id).emit("damageTaken", { damage: Math.round(split.totalDamage), zone: "body" });
@@ -3610,7 +3610,7 @@ setInterval(() => {
           });
         }
       }
-      p.burnNextAt = now + 1000;
+      p.burnNextAt = now + 125;
     }
     if (p.burnUntil <= now) {
       p.burnExposure = 0;
@@ -3619,7 +3619,7 @@ setInterval(() => {
       p.burnSourceId = null;
     }
   }
-},250).unref?.();
+},125).unref?.();
 
 function applyIncomingDamage(target, amount) {
   let damage = Math.max(0, Number(amount) || 0);
@@ -4696,7 +4696,7 @@ io.on("connection", (socket) => {
     p.beamLastHitAt=new Map(); const beamTick=()=>{
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
-      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?9:10.5;
+      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?18:10.5;
       damageBuildStructureOnRay(a, origin, dir, range, (a.weapon === "laserBeam" || a.weapon === "freezeCannon") ? 4 : 5);
       const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/4:0;
       const fanCos=Math.cos(fanHalfAngle);
@@ -4717,7 +4717,7 @@ io.on("connection", (socket) => {
           const distance=Math.hypot(vx,vy,vz);
           const wallDir={x:vx/distance,y:vy/distance,z:vz/distance};
           const wall=rayHitsObstacle(origin,wallDir,distance,a);
-          if(wall!==null&&wall<distance-0.35)continue;
+          if(a.weapon!=="flamethrower"&&wall!==null&&wall<distance-0.35)continue;
         }else{
           const h=rayHitsPlayer(origin,dir,q,a.weapon==="laserBeam"?PLAYER_RADIUS*4:null);
           if(!h||h.t>range)continue;
@@ -4730,7 +4730,7 @@ io.on("connection", (socket) => {
             ? Math.min(6, (q.laserStreak || 1) + 1) : 1;
           beamDamage = 4 * Math.pow(2, q.laserStreak - 1);
         } else if (a.weapon === "flamethrower") {
-          beamDamage = 5;
+          beamDamage = 10;
           q.burnExposure = (q.burnExposure || 0) + 0.125;
           // 直接炎ダメージが止まってから500ms後に延焼ダメージを開始する。
           q.burnStartAt = t + 500;
