@@ -250,9 +250,9 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   bow: "長押しで弓を引く / 0.75秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
   minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
   railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
-  flamethrower: "長押しで連続噴射 / 炎に当たるたび0.5秒ごとに5ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（毎秒3ダメージ） / 弾薬・リロード不要",
+  flamethrower: "長押しで連続噴射 / 125msごとに5ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（毎秒3ダメージ） / 弾薬・リロード不要",
   laserBeam: "長押しで連続照射 / 同じ相手に0.5秒ごとに命中すると4→8→16→32→64→128ダメージ（最大128） / 弾薬・リロード不要 / 壁を貫通",
-  freezeCannon: "長押しで冷気を連続噴射 / 0.5秒ごとに4ダメージ / 命中ごとに凍結確率+5%（命中が途切れると毎秒10%低下） / 凍結すると2秒間移動・射撃不可 / 弾薬・リロード不要"
+  freezeCannon: "長押しで冷気を連続噴射 / 125msごとに4ダメージ / 命中ごとに凍結確率+2.5%（命中が途切れると毎秒20%低下） / 凍結すると3秒間移動・射撃不可 / 弾薬・リロード不要"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -2101,6 +2101,13 @@ function updateBuildBot(bot, targets, now) {
 
 function updateBot(p, now) {
   if (!p.isBot || p.health <= 0 || p.finished || now < p.botThinkAt) return;
+  // 凍結中のBOTは移動だけでなく、照準・射撃AIも停止する。
+  if (p.frozenUntil > now) {
+    p.input.forward = 0;
+    p.input.strafe = 0;
+    p.input.jump = false;
+    return;
+  }
   const botSkyfallActive = Boolean(p.skyfallImpactId && p.ultimateActiveUntil > now);
   if (p.ultimateActiveUntil > now && !botSkyfallActive) return;
   p.botThinkAt = now + (botSkyfallActive ? 80 : 100 + Math.random() * 80);
@@ -3117,6 +3124,30 @@ function rayHitsPayloadCart(origin, direction, maxDistance, player = null) {
 
 function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+
+  // 頭部は胴体の大きな球判定から独立させる。
+  // 先に頭部球との交点を調べることで、頭を通る弾が胴体側の判定に埋もれない。
+  if (hitRadiusOverride === null) {
+    const headCenter = {
+      x: target.x,
+      y: target.y + targetHeight * 0.88,
+      z: target.z
+    };
+    const headRadius = target.crouched ? 0.27 : 0.32;
+    const hx = origin.x - headCenter.x;
+    const hy = origin.y - headCenter.y;
+    const hz = origin.z - headCenter.z;
+    const hb = 2 * (hx * direction.x + hy * direction.y + hz * direction.z);
+    const hc = hx * hx + hy * hy + hz * hz - headRadius * headRadius;
+    const hd = hb * hb - 4 * hc;
+    if (hd >= 0) {
+      const nearHead = (-hb - Math.sqrt(hd)) / 2;
+      const farHead = (-hb + Math.sqrt(hd)) / 2;
+      const headT = nearHead >= 0 ? nearHead : farHead;
+      if (headT >= 0) return { t: headT, multiplier: 2.0, zone: "head" };
+    }
+  }
+
   const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
   const ox = origin.x - targetCenter.x;
   const oy = origin.y - targetCenter.y;
@@ -3140,10 +3171,7 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   let multiplier = 1.0;
   let zone = "body";
 
-  if (hitY >= 1.42) {
-    multiplier = 2.0;
-    zone = "head";
-  } else if (hitY < 0.58) {
+  if (hitY < 0.58) {
     multiplier = 0.75;
     zone = "legs";
   }
@@ -3197,8 +3225,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   const weapon = WEAPONS[shooter.weapon];
   const now = Date.now();
 
-  // リスポーン直後3秒間は攻撃できない。
-  if (shooter.invulnerableUntil > now) return;
+  // リスポーン直後3秒間・凍結中は、BOTを含めて射撃できない。
+  if (shooter.invulnerableUntil > now || shooter.frozenUntil > now) return;
   if (shooter.weapon === "railgun") {
     if (now - shooter.lastFire < 1000) return;
     shooter.lastFire = now;
@@ -4699,14 +4727,14 @@ io.on("connection", (socket) => {
           beamDamage = 4 * Math.pow(2, q.laserStreak - 1);
         } else if (a.weapon === "flamethrower") {
           beamDamage = 5;
-          q.burnExposure = (q.burnExposure || 0) + 0.5;
+          q.burnExposure = (q.burnExposure || 0) + 0.125;
           // 直接炎ダメージが止まってから500ms後に延焼ダメージを開始する。
           q.burnStartAt = t + 500;
           q.burnUntil = t + q.burnExposure * 1000 + 500;
           q.burnSourceId = a.id;
         } else {
           beamDamage = 4;
-          q.freezeChance = Math.min(100, (q.freezeChance || 0) + 5);
+          q.freezeChance = Math.min(100, (q.freezeChance || 0) + 2.5);
           q.freezeLastHitAt = t;
           q.freezeDecayAt = t + 500;
           if (Math.random() * 100 < q.freezeChance) q.frozenUntil = t + 3000;
@@ -4756,9 +4784,9 @@ io.on("connection", (socket) => {
         }
         a.beamLastHitAt.set(q.id, t);
       }
-      for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
+      for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-2.5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
       broadcastPlayers();
-    }; if(p.weapon==="laserBeam") beamTick(); p.beamTimer=setInterval(beamTick,p.weapon==="laserBeam"?500:250);p.beamTimer.unref?.();
+    }; if(p.weapon==="laserBeam") beamTick(); p.beamTimer=setInterval(beamTick,p.weapon==="laserBeam"?500:125);p.beamTimer.unref?.();
   });
   socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch});p.beamTimer=null;p.beamLastHitAt=null;}});
   socket.on("bowChargeStart", () => {
