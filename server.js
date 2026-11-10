@@ -5164,7 +5164,7 @@ setInterval(() => {
   for (const p of players.values()) {
     if (p.finished || p.health <= 0) continue;
     if (p.isBot && p.mode === TRAINING_MODE) continue;
-    p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + 0.5);
+    p.ultimateCharge = Math.min(100, (p.ultimateCharge || 0) + 0.5 * (p.charm === "ultimate" ? 2 : 1));
   }
 }, 1000);
 
