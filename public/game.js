@@ -3664,7 +3664,7 @@ function startBowCharge() {
   gauge?.classList.remove("hidden");
   if (bowChargeInterval) clearInterval(bowChargeInterval);
   const update = () => {
-    const progress = Math.min(1, (performance.now() - bowChargeStartedAt) / 750);
+    const progress = Math.min(1, (performance.now() - bowChargeStartedAt) / 1125);
     updateBowChargeScope(progress);
     if (fill) fill.style.width = (progress * 100) + "%";
     if (gauge) gauge.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
