@@ -214,7 +214,7 @@ const weaponConfig = {
   grappler: { fireInterval: 1100, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
-  rifle: { fireInterval: 160, automatic: true },
+  rifle: { fireInterval: 160 / 1.5, automatic: true },
   shotgun: { fireInterval: 750, automatic: false },
   marksman: { fireInterval: 450, automatic: true },
   sniper: { fireInterval: 1200, automatic: false },
@@ -2363,7 +2363,7 @@ function createGrenadeProjectileVisual(data) {
   } else mesh.userData.targetPosition.copy(position);
   if (data.type === "tornado") {
     mesh.quaternion.identity();
-    mesh.rotateY(0.22);
+    mesh.rotation.set(0, 0.22, 0);
   }
 }
 function removeGrenadeProjectileVisual(id) {
