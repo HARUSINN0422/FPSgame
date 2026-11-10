@@ -3952,12 +3952,12 @@ function createTracer(event) {
       pellet.y ?? start.y + dir.y * distance,
       pellet.z ?? start.z + dir.z * distance
     );
-    // サーバー側のレールガン当たり判定と同じ半径1mで表示する。
+    // サーバー側のレールガン当たり判定と同じ半径2mで表示する。
     // 深度テストを無効にして、地形や敵モデルに隠れてビーム自体が見えなくなるのを防ぐ。
     const beamVector = end.clone().sub(start);
     const beamLength = Math.max(0.001, beamVector.length());
     const beamDirection = beamVector.clone().normalize();
-    const hitRadius = 1;
+    const hitRadius = 2;
     const geometry = new THREE.CylinderGeometry(hitRadius, hitRadius, beamLength, 24, 1, true);
     const material = new THREE.MeshBasicMaterial({
       color: 0x8cecff,
