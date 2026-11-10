@@ -274,7 +274,7 @@ try {
 }
 
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
-WEAPONS.smg.fireInterval = 107 / 5;
+WEAPONS.smg.fireInterval = 107 / 4.5;
 WEAPONS.smg.magazineSize = 20;
 WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数20発";
 WEAPONS.grappler.magazineSize = 0;
@@ -285,7 +285,7 @@ for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
 }
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
-WEAPONS.bow.description = "長押しで弓を引く / 0.75秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要";
+WEAPONS.bow.description = "長押しで弓を引く / 1.125秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要";
 WEAPONS.marksman.fireInterval = 225 * 1.25;
 WEAPONS.marksman.magazineSize = 15;
 WEAPONS.pistol.magazineSize = 6;
@@ -1358,7 +1358,7 @@ function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
 
 function spawnTornadoProjectile(shooter, now = Date.now()) {
   const direction = directionFromAngles(shooter.yaw, shooter.pitch);
-  const speed = 20;
+  const speed = 40;
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const origin = { x: shooter.x + direction.x * 0.7, y: shooter.y + height * 0.55, z: shooter.z + direction.z * 0.7 };
   const id = "tornado-projectile-" + (++smokeSequence);
@@ -3219,7 +3219,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     // レールガンは移動弾を生成せず、発射フレームで照準上の最初の相手に即着弾する。
     // 既存仕様どおり壁は貫通し、射程は150m。
     if (best) {
-      const damage = 50;
+      const damage = 50 * (best.multiplier || 1);
       const split = applyIncomingDamage(best.target, damage);
       addUltimateCharge(shooter, damage);
       const hitX = origin.x + dir.x * best.t;
@@ -4661,7 +4661,7 @@ io.on("connection", (socket) => {
   socket.on("beamStart", () => {
     const p=players.get(socket.id),now=Date.now(); if(!p||p.health<=0||p.finished||!["flamethrower","laserBeam","freezeCannon"].includes(p.weapon)||p.invulnerableUntil>now||p.frozenUntil>now||p.beamTimer)return;
     broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:true,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch});
-    p.beamLastHitAt=new Map(); p.beamTimer=setInterval(()=>{
+    p.beamLastHitAt=new Map(); const beamTick=()=>{
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
       const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?9:10.5;
@@ -4758,7 +4758,7 @@ io.on("connection", (socket) => {
       }
       for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
       broadcastPlayers();
-    },500);p.beamTimer.unref?.();
+    }; if(p.weapon==="laserBeam") beamTick(); p.beamTimer=setInterval(beamTick,p.weapon==="laserBeam"?500:250);p.beamTimer.unref?.();
   });
   socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch});p.beamTimer=null;p.beamLastHitAt=null;}});
   socket.on("bowChargeStart", () => {
@@ -4777,7 +4777,7 @@ io.on("connection", (socket) => {
     p.bowChargeStartedAt = 0;
     if (now < (p.bowNextFireAt || 0)) return;
     p.bowNextFireAt = now + 750;
-    fireShot(p, false, clamp((now - startedAt) / 750, 0, 1));
+    fireShot(p, false, clamp((now - startedAt) / 1125, 0, 1));
   });
 
   socket.on("minigunChargeStart", () => {
