@@ -820,6 +820,7 @@ function finishRiftDuel(loser) {
   for(const id of duel.playerIds){
     const p=players.get(id);if(!p)continue;
     const returnMap=p.riftReturnMap||getMapForPlayer(p);
+    p.riftFirstHitProtected=false;
     p.riftDuelId=null;p.riftMap=null;p.riftReturnMap=null;p.riftOrigin=null;
     p.input={forward:0,strafe:0,crouch:false};
     const client=io.sockets.sockets.get(id);
@@ -2688,7 +2689,7 @@ function movePlayer(p, dt) {
       const forward = clamp(Number(input.forward) || 0, -1, 1);
       const strafe = clamp(Number(input.strafe) || 0, -1, 1);
       const length = Math.hypot(forward, strafe) || 1;
-      const speed = 1.25;
+      const speed = 5;
       const dx = (-Math.sin(p.yaw) * forward + Math.cos(p.yaw) * strafe) / length * speed * dt;
       const dz = (-Math.cos(p.yaw) * forward - Math.sin(p.yaw) * strafe) / length * speed * dt;
       const nextX = p.x + dx;
@@ -3665,7 +3666,7 @@ function clearBurnStatus(player) {
 }
 
 function applyIncomingDamage(target, amount) {
-  if (target.riftFirstHitProtected) {
+  if (target.riftFirstHitProtected && Number(amount) > 0) {
     target.riftFirstHitProtected = false;
     return { shieldDamage: 0, healthDamage: 0, totalDamage: 0 };
   }
