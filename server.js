@@ -188,8 +188,8 @@ const WEAPONS = {
   },
   rifle: {
     name: "Rifle",
-    damage: 23,
-    fireInterval: 160,
+    damage: 30,
+    fireInterval: 160 / 1.5,
     range: 78,
     spread: 0.032,
     falloffStart: 24,
@@ -209,7 +209,7 @@ const WEAPONS = {
   },
   marksman: {
     name: "Marksman", damage: 40, fireInterval: 450, range: 100, spread: 0.006,
-    falloffStart: 100, minDamageMultiplier: 1, magazineSize: 20,
+    falloffStart: 100, minDamageMultiplier: 1, magazineSize: 30,
     reloadTime: 1300, automatic: true
   },
   smoke: {
@@ -225,7 +225,7 @@ const WEAPONS = {
   minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
   shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
-  railgun: { name: "Railgun", damage: 50, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  railgun: { name: "Railgun", damage: 35, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
   flamethrower: { name: "Flamethrower", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   laserBeam: { name: "Laser Beam", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   freezeCannon: { name: "Freeze Cannon", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
@@ -236,23 +236,23 @@ const WEAPON_LABELS = {
   shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
-  pickaxe: "近距離で振って攻撃する近接武器。弾薬やリロードは不要。",
-  smoke: "煙幕弾を投げる。着弾地点の周囲を煙で覆い、視界を遮る。",
-  pistol: "精度を活かして狙う単発拳銃。装弾数6発で、撃つたびに反動を抑えて照準しよう。",
-  smg: "近距離で力を発揮する高速連射武器。装弾数60発。",
-  rifle: "扱いやすいフルオート武器。連射速度が高く、中距離まで安定して攻撃できる。",
-  shotgun: "近距離向けの散弾銃。一度に複数の弾を発射するため、相手に近づいて撃つほど強力。",
-  grenadeLauncher: "グレネードを発射する。着弾地点で爆発し、爆心地に近い敵ほど大きなダメージを受ける。",
-  shockwaveLauncher: "衝撃波弾を発射する。着弾地点の周囲にいる敵を吹き飛ばす。ダメージは与えない。",
-  grappler: "吸盤付きのワイヤーを発射し、着弾地点へ自分を引き寄せる。床に撃った場合は床面より下へ引き込まれず、地面に沿って移動する。リロード不要。",
-  marksman: "精密射撃向けの連射武器。距離によるダメージ低下がなく、中〜遠距離でも安定して命中させやすい。",
-  sniper: "遠距離から大ダメージを狙うボルトアクション式の狙撃銃。装弾数6発で連射は遅い。",
-  bow: "長押しで弓を引き、溜めてから放つ。溜めるほど威力が上がる。弾薬やリロードは不要。",
-  minigun: "射撃ボタンを長押しして弾をチャージし、離すと連続発射する。チャージ量が多いほど長く撃てる。",
-  railgun: "1秒間チャージしてから発射する貫通弾。壁越しの敵も狙える。弾薬やリロードは不要。",
-  flamethrower: "前方へ炎を連続噴射する。近距離の敵を燃やし、炎から離れた後もしばらく燃焼ダメージを与える。",
-  laserBeam: "長押しでレーザーを連続照射する。同じ相手に命中し続けると、ダメージが段階的に上昇する。壁を貫通する。",
-  freezeCannon: "前方へ冷気を連続噴射する。命中を重ねると凍結確率が上がり、凍結した敵は一定時間移動と射撃ができなくなる。"
+  pickaxe: "近接攻撃。ダメージ: 120。弾薬・リロード不要。",
+  smoke: "煙幕弾を投げ、着弾地点の周囲の視界を遮る。ダメージ: 0。",
+  pistol: "精度を活かして狙う単発拳銃。ダメージ: 70（距離により減衰）。装弾数6発。",
+  smg: "近距離向けの高速連射武器。ダメージ: 1発9。装弾数60発。",
+  rifle: "扱いやすいフルオート武器。ダメージ: 1発30（距離により減衰）。装弾数20発。",
+  shotgun: "近距離向けの散弾銃。ダメージ: 散弾1発10（最大8発）。装弾数6発。",
+  grenadeLauncher: "着弾地点で爆発するグレネード。ダメージ: 最大110（距離で減衰）。装弾数6発。",
+  shockwaveLauncher: "着弾地点の周囲の敵を吹き飛ばす。ダメージ: 0。",
+  grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。ダメージ: 0。リロード不要。",
+  marksman: "中〜遠距離向けの精密連射武器。ダメージ: 1発40。装弾数30発。",
+  sniper: "遠距離向けのボルトアクション式狙撃銃。ダメージ: 1発85（距離により減衰）。装弾数6発。",
+  bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
+  minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
+  railgun: "1秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要。",
+  flamethrower: "前方へ炎を連続噴射し、命中時に燃焼させる。ダメージ: 1回5（燃焼ダメージは別）。",
+  laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
+  freezeCannon: "前方へ冷気を連続噴射し、命中を重ねると凍結させる。ダメージ: 1回4。"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -1429,13 +1429,20 @@ function applyGrapplePull(projectile, position) {
   const directionZ = horizontal > 0.001 ? dz / horizontal : 0;
   const pullSpeed = clamp(72 + horizontal * 0.36, 72, 102);
   const floorY = getGroundHeight(position.x, position.z, position.y, owner);
-  // 床面に着弾した場合、プレイヤーの足元を床面に合わせる。
-  // 従来の「着弾点からプレイヤー半身分下げる」処理だと床の下を目的地にしてしまう。
+  // 床面に着弾した場合は床上を目的地にする。壁面の場合は壁の内側へ入らないよう、
+  // ワイヤーの進行方向と反対側へプレイヤー半径分だけ手前に着地点をずらす。
   const floorAnchor = position.y <= floorY + 0.2;
+  const safeOffset = floorAnchor ? 0 : PLAYER_RADIUS + 0.55;
+  const targetX = position.x - directionX * safeOffset;
+  const targetZ = position.z - directionZ * safeOffset;
+  const targetGroundY = getGroundHeight(targetX, targetZ, owner.y, owner);
+  const targetY = floorAnchor
+    ? targetGroundY
+    : Math.max(targetGroundY, position.y - (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65);
   owner.grapplePullTarget = {
-    x: position.x,
-    y: floorAnchor ? floorY : position.y - (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65,
-    z: position.z,
+    x: targetX,
+    y: targetY,
+    z: targetZ,
     floorAnchor,
     expiresAt: Date.now() + 3200
   };
@@ -2699,7 +2706,7 @@ function movePlayer(p, dt) {
       const forward = clamp(Number(input.forward) || 0, -1, 1);
       const strafe = clamp(Number(input.strafe) || 0, -1, 1);
       const length = Math.hypot(forward, strafe) || 1;
-      const speed = 5;
+      const speed = 20;
       const dx = (-Math.sin(p.yaw) * forward + Math.cos(p.yaw) * strafe) / length * speed * dt;
       const dz = (-Math.cos(p.yaw) * forward - Math.sin(p.yaw) * strafe) / length * speed * dt;
       const nextX = p.x + dx;
@@ -5226,8 +5233,9 @@ setInterval(() => {
         p.velocityY = 0;
       }
       // 床のお守りは特殊床（炎・加速・スライム）の上で毎秒5HP回復する。
+      const floorSurfaceY = getGroundHeight(p.x, p.z, p.y, p);
       const onSpecialFloor = ["fire", "speed", "slime"].some(type => isOnFloorTile(p, type)) &&
-        getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
+        Math.abs(p.y - floorSurfaceY) <= 0.12;
       if (p.charm === "floor" && onSpecialFloor && now >= (p.floorCharmHealAt || 0)) {
         p.floorCharmHealAt = now + 1000;
         p.health = Math.min(Number(p.maxHealth) || 100, p.health + 5);
@@ -5236,7 +5244,7 @@ setInterval(() => {
       }
       // 燃える床は、接地中に500msごとに5ダメージ。床のお守りなら無効化する。
       const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
-        getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
+        Math.abs(p.y - floorSurfaceY) <= 0.12;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 500;
         applyIncomingDamage(p, 5);
