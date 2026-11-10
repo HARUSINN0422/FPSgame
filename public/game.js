@@ -2324,6 +2324,7 @@ function createGrenadeProjectileVisual(data) {
       material
     );
     if (isTornado) {
+      mesh.scale.set(5 / 0.075, 1, 5 / 0.075);
       // 棒の先端を明るくし、上下方向と飛行方向を視認しやすくする。
       const tip = new THREE.Mesh(
         new THREE.SphereGeometry(0.12, 10, 8),
@@ -2361,8 +2362,7 @@ function createGrenadeProjectileVisual(data) {
     grenadeProjectileMeshes.set(data.id, mesh);
   } else mesh.userData.targetPosition.copy(position);
   if (data.type === "tornado") {
-    const direction = new THREE.Vector3(Number(data.vx) || 0, Number(data.vy) || 0, Number(data.vz) || 0);
-    if (direction.lengthSq() > 1e-6) mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+    mesh.quaternion.identity();
     mesh.rotateY(0.22);
   }
 }
@@ -3120,7 +3120,7 @@ function updateRemotePlayers(players) {
     for (const mesh of Object.values(obj.userData.skinMeshes?.base || {})) mesh.visible = !p.invisible;
     for (const mesh of Object.values(obj.userData.skinMeshes?.overlay || {})) mesh.visible = !p.invisible;
     if (obj.userData.nameSprite) obj.userData.nameSprite.visible = !p.invisible;
-    if (obj.userData.weaponMesh) obj.userData.weaponMesh.visible = true;
+    if (obj.userData.weaponMesh) obj.userData.weaponMesh.visible = !p.invisible;
     const nameSprite = obj.userData.nameSprite;
     const teamColor = ["Area", "Payload"].includes(p.mode)
       ? (p.team === "blue" ? "#54b7ff" : "#ff6565")
@@ -3218,7 +3218,7 @@ function updateAimAssist() {
   }
   if (![5, 10].includes(strengthPercent)) return;
   const aimAssistTargetPercent = strengthPercent;
-  if (myState.charm === "aim") strengthPercent = strengthPercent === 5 ? 8 : 12;
+  if (myState.charm === "aim") strengthPercent = strengthPercent === 5 ? 30 : 60;
   const strength = strengthPercent / 100;
   const origin = camera.position.clone();
   let best = null;
