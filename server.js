@@ -3250,7 +3250,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
           (shooter.mode === TRAINING_MODE && !target.isBot) ||
           (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
-      const hit = rayHitsPlayer(origin, dir, target, 5.0);
+      const hit = rayHitsPlayer(origin, dir, target, 2.0);
       if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
     }
 
