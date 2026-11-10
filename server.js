@@ -188,7 +188,7 @@ const WEAPONS = {
   },
   rifle: {
     name: "Rifle",
-    damage: 18,
+    damage: 23,
     fireInterval: 160,
     range: 78,
     spread: 0.032,
@@ -240,7 +240,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   smoke: "投擲 / リロード不要 / 1300ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
   pistol: "単発 / 胴体50ダメージ / 装弾数6発・距離減衰はやや大きめ",
   smg: "連射可能 / 胴体9ダメージ / 装弾数20発",
-  rifle: "連射可能 / 胴体18ダメージ / 長射程・距離減衰が小さい",
+  rifle: "連射可能 / 胴体23ダメージ / 長射程・距離減衰が小さい",
   shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
   grenadeLauncher: "着弾地点で球状爆発 / 中心最大60ダメージ・外側ほど減衰 / 装弾数6発",
   shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
@@ -275,6 +275,8 @@ try {
 
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
 WEAPONS.smg.fireInterval = 107 / 4.5;
+WEAPONS.rifle.damage = 23;
+WEAPONS.rifle.description = "連射可能 / 胴体23ダメージ / 長射程・距離減衰が小さい";
 WEAPONS.smg.magazineSize = 20;
 WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数20発";
 WEAPONS.grappler.magazineSize = 0;
@@ -3157,7 +3159,7 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
 
-  // 通常武器は従来の判定半径。レールガンは指定した半径1mを使用する。
+  // 通常武器は従来の判定半径。レールガンは見た目の弾体半径1.3mを使用する。
   const hitRadius = Number.isFinite(Number(hitRadiusOverride)) && hitRadiusOverride !== null
     ? Math.max(0, Number(hitRadiusOverride))
     : PLAYER_RADIUS * 2;
@@ -3248,7 +3250,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
           (shooter.mode === TRAINING_MODE && !target.isBot) ||
           (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
-      const hit = rayHitsPlayer(origin, dir, target, 1);
+      const hit = rayHitsPlayer(origin, dir, target, 1.3);
       if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
     }
 
