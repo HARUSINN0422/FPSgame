@@ -236,23 +236,23 @@ const WEAPON_LABELS = {
   shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
-  pickaxe: "近接攻撃 / 120ダメージ",
-  smoke: "投擲 / リロード不要 / 1300ms間隔で再投擲可能 / 着地点周囲を煙で遮蔽",
-  pistol: "単発 / 胴体70ダメージ / 装弾数6発・距離減衰を軽減",
-  smg: "連射可能 / 胴体9ダメージ / 装弾数20発",
-  rifle: "連射可能 / 胴体23ダメージ / 長射程・距離減衰が小さい",
-  shotgun: "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 近距離向け",
-  grenadeLauncher: "着弾地点で球状爆発 / 中心最大110ダメージ・外側ほど減衰 / 装弾数6発",
-  shockwaveLauncher: "投擲 / 着弾地点から半径7.8mの敵を吹き飛ばす / 中心に近いほど強く吹き飛ぶ / ダメージなし",
-  grappler: "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要",
-  marksman: "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数15発",
-  sniper: "高威力 / 装弾数6発・連射は遅い",
-  bow: "長押しで弓を引く / 胴体5〜140ダメージ / 0.1秒間隔 / リロード不要",
-  minigun: "長押しで弾をチャージ / 最大1.5秒（チャージ速度2倍） / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
-  railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
-  flamethrower: "長押しで連続噴射 / 125msごとに10ダメージ / 半径2倍・壁越しに命中 / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要",
-  laserBeam: "長押しで連続照射 / 同じ相手に0.5秒ごとに命中すると4→8→16→32→64→128ダメージ（最大128） / 弾薬・リロード不要 / 壁を貫通",
-  freezeCannon: "長押しで冷気を連続噴射 / 125msごとに4ダメージ / 命中ごとに凍結確率+2.5%（命中が途切れると毎秒20%低下） / 凍結すると3秒間移動・射撃不可 / 弾薬・リロード不要"
+  pickaxe: "近距離で振って攻撃する近接武器。弾薬やリロードは不要。",
+  smoke: "煙幕弾を投げる。着弾地点の周囲を煙で覆い、視界を遮る。",
+  pistol: "精度を活かして狙う単発拳銃。装弾数6発で、撃つたびに反動を抑えて照準しよう。",
+  smg: "近距離で力を発揮する高速連射武器。装弾数60発。",
+  rifle: "扱いやすいフルオート武器。連射速度が高く、中距離まで安定して攻撃できる。",
+  shotgun: "近距離向けの散弾銃。一度に複数の弾を発射するため、相手に近づいて撃つほど強力。",
+  grenadeLauncher: "グレネードを発射する。着弾地点で爆発し、爆心地に近い敵ほど大きなダメージを受ける。",
+  shockwaveLauncher: "衝撃波弾を発射する。着弾地点の周囲にいる敵を吹き飛ばす。ダメージは与えない。",
+  grappler: "吸盤付きのワイヤーを発射し、着弾地点へ自分を引き寄せる。床に撃った場合は床面より下へ引き込まれず、地面に沿って移動する。リロード不要。",
+  marksman: "精密射撃向けの連射武器。距離によるダメージ低下がなく、中〜遠距離でも安定して命中させやすい。",
+  sniper: "遠距離から大ダメージを狙うボルトアクション式の狙撃銃。装弾数6発で連射は遅い。",
+  bow: "長押しで弓を引き、溜めてから放つ。溜めるほど威力が上がる。弾薬やリロードは不要。",
+  minigun: "射撃ボタンを長押しして弾をチャージし、離すと連続発射する。チャージ量が多いほど長く撃てる。",
+  railgun: "1秒間チャージしてから発射する貫通弾。壁越しの敵も狙える。弾薬やリロードは不要。",
+  flamethrower: "前方へ炎を連続噴射する。近距離の敵を燃やし、炎から離れた後もしばらく燃焼ダメージを与える。",
+  laserBeam: "長押しでレーザーを連続照射する。同じ相手に命中し続けると、ダメージが段階的に上昇する。壁を貫通する。",
+  freezeCannon: "前方へ冷気を連続噴射する。命中を重ねると凍結確率が上がり、凍結した敵は一定時間移動と射撃ができなくなる。"
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -1423,15 +1423,20 @@ function applyGrapplePull(projectile, position) {
   const directionX = horizontal > 0.001 ? dx / horizontal : 0;
   const directionZ = horizontal > 0.001 ? dz / horizontal : 0;
   const pullSpeed = clamp(72 + horizontal * 0.36, 72, 102);
+  const floorY = getGroundHeight(position.x, position.z, position.y, owner);
+  // 床面に着弾した場合、プレイヤーの足元を床面に合わせる。
+  // 従来の「着弾点からプレイヤー半身分下げる」処理だと床の下を目的地にしてしまう。
+  const floorAnchor = position.y <= floorY + 0.2;
   owner.grapplePullTarget = {
     x: position.x,
-    y: position.y - (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65,
+    y: floorAnchor ? floorY : position.y - (owner.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.65,
     z: position.z,
+    floorAnchor,
     expiresAt: Date.now() + 3200
   };
   owner.knockbackVelocityX = directionX * pullSpeed;
   owner.knockbackVelocityZ = directionZ * pullSpeed;
-  owner.velocityY = clamp(5 + dy * 1.5, 3, 13);
+  owner.velocityY = floorAnchor ? 0 : clamp(5 + dy * 1.5, 3, 13);
   owner.grounded = false;
   owner.lastGroundedAt = 0;
   broadcastGameEvent(owner, "grappleImpact", { id: projectile.id, ownerId: owner.id, x: position.x, y: position.y, z: position.z });
@@ -2786,7 +2791,7 @@ function movePlayer(p, dt) {
       const pullSpeed = clamp(72 + pullHorizontal * 0.36, 72, 102);
       p.knockbackVelocityX = pullHorizontal > 0.001 ? pullX / pullHorizontal * pullSpeed : 0;
       p.knockbackVelocityZ = pullHorizontal > 0.001 ? pullZ / pullHorizontal * pullSpeed : 0;
-      p.velocityY = clamp(pullY * 2.4 + GRAVITY * 0.05, -16, 16);
+      p.velocityY = target.floorAnchor ? 0 : clamp(pullY * 2.4 + GRAVITY * 0.05, -16, 16);
       p.grounded = false;
       p.lastGroundedAt = 0;
     }
