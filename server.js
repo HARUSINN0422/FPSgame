@@ -300,6 +300,10 @@ WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
 WEAPONS.shotgun.minDamageMultiplier = 1;
 WEAPONS.shotgun.spread = 0.24 * 0.7;
 WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 装弾数3発・近距離向け";
+WEAPONS.flamethrower.damage = 10;
+WEAPONS.flamethrower.fireInterval = 125;
+WEAPONS.flamethrower.range = 18;
+WEAPONS.flamethrower.description = "長押しで連続噴射 / 半径2倍・壁越しに命中 / 125msごとに10ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要";
 
 const app = express();
 
