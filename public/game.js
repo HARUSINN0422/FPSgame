@@ -2319,7 +2319,7 @@ function createGrenadeProjectileVisual(data) {
       emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : 0
     });
     mesh = new THREE.Mesh(
-      isTornado ? new THREE.CylinderGeometry(0.075, 0.075, 7, 10, 1, false) :
+      isTornado ? new THREE.CylinderGeometry(0.075, 0.075, 14, 10, 1, false) :
       isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(0.16, 14, 10),
       material
     );
@@ -2329,13 +2329,13 @@ function createGrenadeProjectileVisual(data) {
         new THREE.SphereGeometry(0.12, 10, 8),
         new THREE.MeshBasicMaterial({ color: 0xffffff })
       );
-      tip.position.y = 3.5;
+      tip.position.y = 7;
       mesh.add(tip);
       const tail = new THREE.Mesh(
         new THREE.SphereGeometry(0.09, 10, 8),
         new THREE.MeshBasicMaterial({ color: 0x168bb8 })
       );
-      tail.position.y = -3.5;
+      tail.position.y = -7;
       mesh.add(tail);
     }
     if (isGrapple) {
@@ -4028,7 +4028,7 @@ function createTracer(event) {
 
     const dot = new THREE.Mesh(
       new THREE.SphereGeometry(
-        event.weapon === "railgun" ? .26 : isRifle ? .075 : event.weapon === "shotgun" ? .06 : .045,
+        event.weapon === "railgun" ? 1.3 : isRifle ? .075 : event.weapon === "shotgun" ? .06 : .045,
         8,
         8
       ),
