@@ -277,15 +277,15 @@ try {
 WEAPONS.sniper.magazineSize = 6;
 WEAPONS.sniper.description = "高威力 / 装弾数6発・連射は遅い";
 WEAPONS.smg.fireInterval = 107 / 4.5;
-WEAPONS.rifle.damage = 23;
-WEAPONS.rifle.fireInterval = 160 / 1.2;
+WEAPONS.rifle.damage = 30;
+WEAPONS.rifle.fireInterval = 160 / 1.5;
 WEAPONS.pickaxe.damage = 120;
 WEAPONS.grenadeLauncher.damage = 110;
-WEAPONS.rifle.description = "連射可能 / 胴体23ダメージ / 長射程・距離減衰が小さい";
+WEAPONS.rifle.description = "連射可能 / 胴体30ダメージ / 連射速度1.5倍";
 WEAPONS.smg.magazineSize = 60;
 WEAPONS.smg.description = "連射可能 / 胴体9ダメージ / 装弾数60発";
 WEAPONS.grappler.magazineSize = 0;
-WEAPONS.grappler.description = "吸盤付きの紐を発射 / 着弾地点へ3倍速で引き寄せる / リロード不要";
+WEAPONS.grappler.description = "吸盤付きの紐を発射 / 壁や床へのめり込みを抑えて着弾地点へ引き寄せる / リロード不要";
 // 古いdata/weapons.jsonに空の説明が保存されていても、新武器の説明を必ず表示する。
 for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
   if (!String(WEAPONS[id].description || "").trim()) WEAPONS[id].description = DEFAULT_WEAPON_DESCRIPTIONS[id];
@@ -294,7 +294,7 @@ WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 140;
 WEAPONS.bow.description = "長押しで弓を引く / 胴体5〜140ダメージ / 0.1秒間隔 / リロード不要";
 WEAPONS.marksman.fireInterval = 225 * 1.25;
-WEAPONS.marksman.magazineSize = 15;
+WEAPONS.marksman.magazineSize = 30;
 WEAPONS.pistol.magazineSize = 6;
 WEAPONS.pistol.damage = 70;
 WEAPONS.pistol.falloffStart = 22;
@@ -302,7 +302,7 @@ WEAPONS.pistol.minDamageMultiplier = 0.55;
 WEAPONS.marksman.falloffStart = WEAPONS.marksman.range;
 WEAPONS.marksman.damage = 40;
 WEAPONS.marksman.minDamageMultiplier = 1;
-WEAPONS.marksman.description = "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数15発";
+WEAPONS.marksman.description = "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数30発";
 WEAPONS.shotgun.damage = 25;
 WEAPONS.shotgun.fireInterval = 750 * 1.25;
 WEAPONS.shotgun.magazineSize = 3;
@@ -1372,10 +1372,9 @@ function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
 }
 
 function spawnTornadoProjectile(shooter, now = Date.now()) {
-  const direction = directionFromAngles(shooter.yaw, shooter.pitch);
+  const direction = directionFromAngles(shooter.yaw, 0);
   const speed = 40;
-  const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-  const origin = { x: shooter.x + direction.x * 0.7, y: shooter.y + height * 0.55, z: shooter.z + direction.z * 0.7 };
+  const origin = { x: shooter.x + direction.x * 0.7, y: getGroundHeight(shooter.x, shooter.z, shooter.y, shooter) + 7, z: shooter.z + direction.z * 0.7 };
   const id = "tornado-projectile-" + (++smokeSequence);
   const projectile = {
     id, type: "tornado", owner: shooter, ownerId: shooter.id,
@@ -1660,7 +1659,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     if (projectile.type === "tornado") {
       const next = {
         x: projectile.x + projectile.vx * dt,
-        y: projectile.y + projectile.vy * dt,
+        y: projectile.y,
         z: projectile.z + projectile.vz * dt
       };
       const bounds = getMapForPlayer(projectile.owner).world || WORLD;
@@ -1684,8 +1683,8 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         const lengthSq = dx * dx + dy * dy + dz * dz;
         const t = lengthSq > 1e-8 ? clamp(((center.x - projectile.x) * dx + (center.y - projectile.y) * dy + (center.z - projectile.z) * dz) / lengthSq, 0, 1) : 0;
         const closest = { x: projectile.x + dx * t, y: projectile.y + dy * t, z: projectile.z + dz * t };
-        if (Math.hypot(center.x - closest.x, center.z - closest.z) > 1.45 ||
-            Math.abs(center.y - closest.y) > 2.7) continue;
+        if (Math.hypot(center.x - closest.x, center.z - closest.z) > 5 ||
+            Math.abs(center.y - closest.y) > 7.85) continue;
         projectile.hitPlayers ||= new Set();
         projectile.hitPlayers.add(target.id);
         if (target.invulnerableUntil <= now) {
@@ -2628,7 +2627,7 @@ function isOnFloorTile(p, type) {
 
 function addUltimateCharge(player, damage) {
   if (!player || !Number.isFinite(Number(damage)) || Number(damage) <= 0) return;
-  const charmMultiplier = player.charm === "ultimate" ? 1.1 : 1;
+  const charmMultiplier = player.charm === "ultimate" ? 2 : 1;
   player.ultimateCharge = Math.min(100, (player.ultimateCharge || 0) + Number(damage) / 10 * charmMultiplier);
 }
 
@@ -2821,28 +2820,40 @@ function movePlayer(p, dt) {
     p.knockbackVelocityX = 0;
     p.knockbackVelocityZ = 0;
   }
-  const nextX = p.x + dx;
-  const nextZ = p.z + dz;
-
-  // 坂の上を歩いている場合は、坂の高さまで自然に追従させる。
-  // 空中にいる場合は現在のYをそのまま使って壁との衝突だけ判定する。
-  const nextGroundX = getGroundHeight(nextX, p.z, p.y, p);
   const currentHeight = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-  const collisionY = wasGrounded && p.velocityY <= 0
-    ? Math.max(p.y, nextGroundX)
-    : p.y;
-
-  if (!collides(nextX, p.z, collisionY, currentHeight, p)) {
-    p.x = nextX;
-  }
-
-  const nextGroundZ = getGroundHeight(p.x, nextZ, p.y, p);
-  const collisionY2 = wasGrounded && p.velocityY <= 0
-    ? Math.max(p.y, nextGroundZ)
-    : p.y;
-
-  if (!collides(p.x, nextZ, collisionY2, currentHeight, p)) {
-    p.z = nextZ;
+  if (p.grapplePullTarget) {
+    // 高速の引き寄せを短い区間に分割し、壁・床の薄い当たり判定を飛び越えない。
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dz)) / 0.12));
+    let blocked = false;
+    for (let step = 0; step < steps; step++) {
+      const stepX = p.x + dx / steps;
+      const groundX = getGroundHeight(stepX, p.z, p.y, p);
+      const yX = wasGrounded && p.velocityY <= 0 ? Math.max(p.y, groundX) : p.y;
+      if (!collides(stepX, p.z, yX, currentHeight, p)) p.x = stepX;
+      else { blocked = true; break; }
+      const stepZ = p.z + dz / steps;
+      const groundZ = getGroundHeight(p.x, stepZ, p.y, p);
+      const yZ = wasGrounded && p.velocityY <= 0 ? Math.max(p.y, groundZ) : p.y;
+      if (!collides(p.x, stepZ, yZ, currentHeight, p)) p.z = stepZ;
+      else { blocked = true; break; }
+    }
+    if (blocked) {
+      p.grapplePullTarget = null;
+      p.knockbackVelocityX = 0;
+      p.knockbackVelocityZ = 0;
+      p.velocityY = Math.min(Number(p.velocityY) || 0, 0);
+    }
+  } else {
+    const nextX = p.x + dx;
+    const nextZ = p.z + dz;
+    // 坂の上を歩いている場合は、坂の高さまで自然に追従させる。
+    // 空中にいる場合は現在のYをそのまま使って壁との衝突だけ判定する。
+    const nextGroundX = getGroundHeight(nextX, p.z, p.y, p);
+    const collisionY = wasGrounded && p.velocityY <= 0 ? Math.max(p.y, nextGroundX) : p.y;
+    if (!collides(nextX, p.z, collisionY, currentHeight, p)) p.x = nextX;
+    const nextGroundZ = getGroundHeight(p.x, nextZ, p.y, p);
+    const collisionY2 = wasGrounded && p.velocityY <= 0 ? Math.max(p.y, nextGroundZ) : p.y;
+    if (!collides(p.x, nextZ, collisionY2, currentHeight, p)) p.z = nextZ;
   }
   if (p.isBot && p.mode === PAYLOAD_MODE && !p.botHasLeftRespawnArea &&
       !getPayloadRespawnZoneAt(getMapForPlayer(p), p.x, p.z)) {
@@ -3218,7 +3229,7 @@ function startReload(p) {
   if (weapon.magazineSize <= 0 || p.health <= 0 || p.reloadingUntil > now) return false;
   if (p.ammo >= weapon.magazineSize) return false;
 
-  p.reloadingUntil = now + weapon.reloadTime * (p.charm === "reload" ? 0.25 : 1);
+  p.reloadingUntil = now + weapon.reloadTime * (p.charm === "reload" ? 1 / 6 : 1);
   return true;
 }
 
@@ -3256,7 +3267,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const eyeY = shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15;
     // 画面中央（視点の中心）から照準方向へ発射する。
     const origin = { x: shooter.x, y: eyeY, z: shooter.z };
-    damageBuildStructureOnRay(shooter, origin, dir, 150, 50);
+    damageBuildStructureOnRay(shooter, origin, dir, 150, 35);
     let best = null;
     for (const target of players.values()) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
@@ -3269,7 +3280,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     // レールガンは移動弾を生成せず、発射フレームで照準上の最初の相手に即着弾する。
     // 既存仕様どおり壁は貫通し、射程は150m。
     if (best) {
-      const damage = 50; // 頭部・胴体ともに固定50ダメージ
+      const damage = 35; // 頭部・胴体ともに固定35ダメージ
       const split = applyIncomingDamage(best.target, damage);
       addUltimateCharge(shooter, damage);
       const hitX = origin.x + dir.x * best.t;
@@ -3418,8 +3429,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
+      const jumpCharmSpreadMultiplier = shooter.charm === "jump" ? 0.5 : 1;
       const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) *
-        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now);
+        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now) * jumpCharmSpreadMultiplier;
       const sniperUnscopedMultiplier = shooter.weapon === "sniper" && !sniperScoped ? 3.2 : 1;
       const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier * sniperUnscopedMultiplier;
       yaw += (Math.random() - 0.5) * spread;
@@ -3549,8 +3561,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
+      const jumpCharmSpreadMultiplier = shooter.charm === "jump" ? 0.5 : 1;
       const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) *
-        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now);
+        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now) * jumpCharmSpreadMultiplier;
       const sniperUnscopedMultiplier = shooter.weapon === "sniper" && !sniperScoped ? 3.2 : 1;
       const visualSpread = weapon.spread * botSpreadMultiplier *
         movementSpreadMultiplier * sniperUnscopedMultiplier;
@@ -3652,6 +3665,10 @@ function clearBurnStatus(player) {
 }
 
 function applyIncomingDamage(target, amount) {
+  if (target.riftFirstHitProtected) {
+    target.riftFirstHitProtected = false;
+    return { shieldDamage: 0, healthDamage: 0, totalDamage: 0 };
+  }
   let damage = Math.max(0, Number(amount) || 0);
   // 天墜で浮上している間は受けるダメージを75%軽減する。
   if (target.skyfallImpactId && target.ultimateActiveUntil > Date.now()) damage *= 0.25;
@@ -4638,6 +4655,8 @@ io.on("connection", (socket) => {
         q.velocityY=0;q.grounded=true;q.input={forward:0,strafe:0,crouch:false};q.crouched=false;q.ultimateActiveUntil=0;
       }
       p.health=Number(p.maxHealth)||100;
+      p.riftFirstHitProtected=true;
+      opponent.riftFirstHitProtected=false;
       p.x=-4.2;p.y=0;p.z=0;p.yaw=-Math.PI/2;p.pitch=0;
       opponent.x=4.2;opponent.y=0;opponent.z=0;opponent.yaw=Math.PI/2;opponent.pitch=0;
       riftDuels.set(duelId,{id:duelId,playerIds:[p.id,opponent.id],resolved:false});
@@ -4647,7 +4666,7 @@ io.on("connection", (socket) => {
       if(!Number.isFinite(x)||!Number.isFinite(z)||x<map.world.minX+PLAYER_RADIUS||x>map.world.maxX-PLAYER_RADIUS||z<map.world.minZ+PLAYER_RADIUS||z>map.world.maxZ-PLAYER_RADIUS){reply({ok:false,message:"マップ内の地点を選択してください。"});return;}
       const y=getGroundHeight(x,z,p.y,p);
       if(collides(x,z,y,PLAYER_HEIGHT,p)){reply({ok:false,message:"その地点にはテレポートできません。"});return;}
-      p.x=x;p.y=y;p.z=z;p.velocityY=0;p.grounded=true;
+      p.x=x;p.y=y;p.z=z;p.velocityY=0;p.grounded=true;p.shield=Math.max(Number(p.shield)||0,10);
     }
     p.ultimateCharge=0;
     broadcastPlayers();
@@ -5194,6 +5213,15 @@ setInterval(() => {
         try { appendServerLog("PLAYER-MOVE-ERROR", [p.id, p.mode, String(error?.stack || error)]); } catch (_) {}
         p.input = { forward: 0, strafe: 0, crouch: false };
         p.velocityY = 0;
+      }
+      // 床のお守りは特殊床（炎・加速・スライム）の上で毎秒5HP回復する。
+      const onSpecialFloor = ["fire", "speed", "slime"].some(type => isOnFloorTile(p, type)) &&
+        getGroundHeight(p.x, p.z, p.y, p) <= 0.08 && p.y <= 0.08;
+      if (p.charm === "floor" && onSpecialFloor && now >= (p.floorCharmHealAt || 0)) {
+        p.floorCharmHealAt = now + 1000;
+        p.health = Math.min(Number(p.maxHealth) || 100, p.health + 5);
+      } else if (!onSpecialFloor) {
+        p.floorCharmHealAt = 0;
       }
       // 燃える床は、接地中に500msごとに5ダメージ。床のお守りなら無効化する。
       const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
