@@ -3706,8 +3706,8 @@ function updateMinigunCharge() {
   const now = performance.now();
   const elapsed = Math.max(0, now - minigunLastUpdateAt);
   minigunLastUpdateAt = now;
-  if (minigunCharging) minigunChargeValue = Math.min(1, minigunChargeValue + elapsed / 3000);
-  else if (minigunDraining) minigunChargeValue = Math.max(0, minigunChargeValue - elapsed / 3000);
+  if (minigunCharging) minigunChargeValue = Math.min(1, minigunChargeValue + elapsed / 1500);
+  else if (minigunDraining) minigunChargeValue = Math.max(0, minigunChargeValue - elapsed / 1500);
   const fill = document.getElementById("bowChargeFill");
   const gauge = document.getElementById("bowChargeHud");
   if (fill) fill.style.width = (minigunChargeValue * 100) + "%";
