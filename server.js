@@ -241,7 +241,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   pistol: "精度を活かして狙う単発拳銃。ダメージ: 70（距離により減衰）。装弾数6発。",
   smg: "近距離向けの高速連射武器。ダメージ: 1発9。装弾数60発。",
   rifle: "扱いやすいフルオート武器。ダメージ: 1発30（距離により減衰）。装弾数20発。",
-  shotgun: "近距離向けの散弾銃。ダメージ: 散弾1発10（最大8発）。装弾数6発。",
+  shotgun: "近距離向けの散弾銃。ダメージ: 散弾1発25（最大8発）。装弾数3発。",
   grenadeLauncher: "着弾地点で爆発するグレネード。ダメージ: 最大110（距離で減衰）。装弾数6発。",
   shockwaveLauncher: "着弾地点の周囲の敵を吹き飛ばす。ダメージ: 0。",
   grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。ダメージ: 0。リロード不要。",
@@ -250,7 +250,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
   railgun: "1秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要。",
-  flamethrower: "前方へ炎を連続噴射し、命中時に燃焼させる。ダメージ: 1回5（燃焼ダメージは別）。",
+  flamethrower: "前方へ炎を連続噴射し、命中時に燃焼させる。ダメージ: 1回10（燃焼ダメージは別）。",
   laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
   freezeCannon: "前方へ冷気を連続噴射し、命中を重ねると凍結させる。ダメージ: 1回4。"
 };
@@ -284,6 +284,8 @@ WEAPONS.sniper.description = DEFAULT_WEAPON_DESCRIPTIONS.sniper;
 WEAPONS.smg.fireInterval = 107 / 4.5;
 WEAPONS.rifle.damage = 30;
 WEAPONS.rifle.fireInterval = 160 / 1.5;
+WEAPONS.railgun.damage = 35;
+WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
 WEAPONS.pickaxe.damage = 120;
 WEAPONS.grenadeLauncher.damage = 110;
 WEAPONS.rifle.description = DEFAULT_WEAPON_DESCRIPTIONS.rifle;
