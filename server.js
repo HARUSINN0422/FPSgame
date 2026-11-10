@@ -247,7 +247,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   grappler: "吸盤付きの紐を発射 / 着弾地点へ自分を引き寄せる / リロード不要",
   marksman: "連射可能 / 胴体35ダメージ / 装弾数20発・中〜長距離向け",
   sniper: "高威力 / 装弾数3発・連射は遅い",
-  bow: "長押しで弓を引く / 1.5秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
+  bow: "長押しで弓を引く / 0.75秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要",
   minigun: "長押しで弾をチャージ / 最大3秒 / 離すとチャージ量だけ連射 / SMGの3倍速 / 1発7ダメージ",
   railgun: "発射ボタンを1秒長押しして離すと発射 / 50ダメージ / 壁を貫通 / 射程最大150m / 弾薬・リロード不要",
   flamethrower: "長押しで連続噴射 / 炎に当たるたび0.5秒ごとに5ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（毎秒3ダメージ） / 弾薬・リロード不要",
@@ -285,6 +285,7 @@ for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
 }
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 110;
+WEAPONS.bow.description = "長押しで弓を引く / 0.75秒で最大チャージ / 胴体5〜110ダメージ / 0.1秒間隔 / リロード不要";
 WEAPONS.marksman.fireInterval = 225 * 1.25;
 WEAPONS.marksman.magazineSize = 15;
 WEAPONS.pistol.magazineSize = 6;
@@ -3641,7 +3642,7 @@ function publicPlayer(p, includeSkin = false) {
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
     shield: Math.max(0, Number(p.shield) || 0),
     ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(p.charm) ? p.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
@@ -3661,7 +3662,7 @@ function publicPlayer(p, includeSkin = false) {
 
 function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0, mode = AREA_MODE, role = null }, spawn) {
   const now = Date.now();
-  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(charm) ? charm : "none";
+  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
   return {
     id,
@@ -3802,7 +3803,7 @@ function queueAreaPlayer(socket, data = {}) {
     skin: sanitizeSkin(data.skin),
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(data.charm) ? data.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(data.charm) ? data.charm : "none",
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
   };
@@ -4085,7 +4086,7 @@ const PAYLOAD_BOT_NAMES=["Avery","Ethan","Mason","Logan","Eli","Mila","Aria","Le
 const PAYLOAD_ROUND_TIME_MS=480000,PAYLOAD_CAPTURE_RADIUS=9;
 function payloadQueueStatus(){const remainingMs=Math.max(0,AREA_QUEUE_DURATION_MS-(Date.now()-payloadQueueStartedAt));return{waiting:payloadQueue.length,required:6,remainingMs,secondsRemaining:Math.ceil(remainingMs/1000)};}
 function broadcastPayloadQueueStatus(){const status=payloadQueueStatus();for(const e of payloadQueue)io.to(e.socketId).emit("payloadQueueStatus",status);}
-function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,reconnectToken:typeof data.reconnectToken==="string"?data.reconnectToken.slice(0,128):"",name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate"].includes(data.charm)?data.charm:"none",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
+function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,reconnectToken:typeof data.reconnectToken==="string"?data.reconnectToken.slice(0,128):"",name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate","body"].includes(data.charm)?data.charm:"none",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
 function tryJoinExistingPayloadMatch(socket,entry){for(const match of payloadMatches.values()){if(match.finished||match.playerIds.length>=6)continue;const counts={blue:0,red:0};for(const id of match.humanIds){const p=players.get(id);if(p?.team)counts[p.team]++;}const order=counts.blue===counts.red?["blue","red"]:[counts.blue<counts.red?"blue":"red"];let botId=null;for(const team of order){botId=match.playerIds.find(id=>{const p=players.get(id);return p?.isBot&&p.mode===PAYLOAD_MODE&&p.team===team;});if(botId)break;}if(!botId)continue;const bot=players.get(botId);const player=createPayloadPlayer({id:socket.id,name:entry.name,skin:entry.skin,weapon:entry.weapon,secondaryWeapon:entry.secondaryWeapon,charm:entry.charm,ultimateType:entry.ultimateType,team:bot.team,role:bot.role,matchId:match.id,isBot:false},[bot.x,bot.y,bot.z]);player.reconnectToken=entry.reconnectToken;players.delete(botId);match.playerIds[match.playerIds.indexOf(botId)]=socket.id;match.humanIds.push(socket.id);players.set(socket.id,player);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(player,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:player.team,role:player.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);return true;}return false;}
 function queuePayloadPlayer(socket,data={}){if(players.has(socket.id)){socket.emit("payloadQueueError",{message:"現在の対戦を終了してからモードを変更してください。"});return;}if(payloadQueue.some(e=>e.socketId===socket.id)){socket.emit("payloadQueueStatus",payloadQueueStatus());return;}const entry=buildPayloadQueueEntry(socket,data);if(entry.reconnectToken){const pending=pendingPayloadDisconnects.get(entry.reconnectToken);const oldPlayer=pending&&players.get(pending.playerId);const match=oldPlayer&&payloadMatches.get(oldPlayer.matchId);if(oldPlayer&&match&&!match.finished&&oldPlayer.mode===PAYLOAD_MODE&&oldPlayer.disconnectedAt&&Date.now()-oldPlayer.disconnectedAt<=PAYLOAD_RECONNECT_GRACE_MS){clearTimeout(pending.timer);pendingPayloadDisconnects.delete(entry.reconnectToken);players.delete(oldPlayer.id);oldPlayer.id=socket.id;oldPlayer.disconnectedAt=0;oldPlayer.reconnectToken=entry.reconnectToken;players.set(socket.id,oldPlayer);match.playerIds=match.playerIds.map(id=>id===pending.playerId?socket.id:id);match.humanIds=match.humanIds.map(id=>id===pending.playerId?socket.id:id);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(oldPlayer,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:oldPlayer.team,role:oldPlayer.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 切断前の試合へ復帰:",match.id);return;}}if(tryJoinExistingPayloadMatch(socket,entry))return;if(!payloadQueue.length){payloadQueueStartedAt=Date.now();lastPayloadQueueSecond=null;}payloadQueue.push(entry);broadcastPayloadQueueStatus();if(payloadQueue.length>=6)startPayloadMatch(false);}
 function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQueue=payloadQueue.filter(e=>e.socketId!==socketId);if(!payloadQueue.length){payloadQueueStartedAt=0;lastPayloadQueueSecond=null;}else broadcastPayloadQueueStatus();if(before!==payloadQueue.length)io.to(socketId).emit("payloadQueueCancelled");}
@@ -4325,7 +4326,7 @@ io.on("connection", (socket) => {
         : weapon === "rifle" ? "shotgun" : "rifle";
     }
     const weaponSlots = [weapon, secondaryWeapon];
-    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(data.charm) ? data.charm : "none";
+    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(data.charm) ? data.charm : "none";
     const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
@@ -4593,9 +4594,50 @@ io.on("connection", (socket) => {
 
   socket.on("jump", () => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished) return;
+    if (!p || p.health <= 0 || p.finished || p.frozenUntil > Date.now()) return;
+    const now = Date.now();
+    const canJumpFromGround = p.grounded || now - (p.lastGroundedAt || 0) <= 140;
+
+    if (p.charm === "body") {
+      const armedAt = Number(p.bodyBlinkArmedAt) || 0;
+      const isAirborne = !p.grounded && now - (p.lastGroundedAt || 0) > 140;
+
+      // 最初のジャンプから1.2秒以内に空中でもう一度押すと、前方へブリンクする。
+      if (armedAt && now - armedAt <= 1200 && now - armedAt >= 80 && isAirborne) {
+        const directionX = -Math.sin(p.yaw);
+        const directionZ = -Math.cos(p.yaw);
+        const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+        let destination = null;
+
+        // 壁や建築物の中に入らないよう、最大7mから安全な位置を探す。
+        for (let distance = 7; distance >= 1.5; distance -= 0.5) {
+          const x = p.x + directionX * distance;
+          const z = p.z + directionZ * distance;
+          if (!collides(x, z, p.y, height, p)) {
+            destination = { x, z };
+            break;
+          }
+        }
+
+        p.bodyBlinkArmedAt = 0;
+        if (destination) {
+          p.x = destination.x;
+          p.z = destination.z;
+          broadcastPlayers();
+        }
+        return;
+      }
+
+      if (canJumpFromGround) {
+        // 接地中の再入力は新しいジャンプとして扱い、空中での次の入力を待つ。
+        p.bodyBlinkArmedAt = now;
+        p.jumpQueuedUntil = now + 120;
+      }
+      return;
+    }
+
     // 120msだけ入力を保持し、移動中の同時入力でもジャンプを取りこぼさない。
-    p.jumpQueuedUntil = Date.now() + 120;
+    p.jumpQueuedUntil = now + 120;
   });
 
   socket.on("fire", (fireData = {}) => {
@@ -4735,7 +4777,7 @@ io.on("connection", (socket) => {
     p.bowChargeStartedAt = 0;
     if (now < (p.bowNextFireAt || 0)) return;
     p.bowNextFireAt = now + 750;
-    fireShot(p, false, clamp((now - startedAt) / 1500, 0, 1));
+    fireShot(p, false, clamp((now - startedAt) / 750, 0, 1));
   });
 
   socket.on("minigunChargeStart", () => {
