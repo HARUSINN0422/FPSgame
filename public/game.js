@@ -3664,7 +3664,7 @@ function startBowCharge() {
   gauge?.classList.remove("hidden");
   if (bowChargeInterval) clearInterval(bowChargeInterval);
   const update = () => {
-    const progress = Math.min(1, (performance.now() - bowChargeStartedAt) / 1500);
+    const progress = Math.min(1, (performance.now() - bowChargeStartedAt) / 750);
     updateBowChargeScope(progress);
     if (fill) fill.style.width = (progress * 100) + "%";
     if (gauge) gauge.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
@@ -4451,7 +4451,7 @@ socket.on("joined", ({ player }) => {
   weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim"].includes(player.charm) ? player.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(player.charm) ? player.charm : "none";
   selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
@@ -4766,7 +4766,7 @@ function updateLoadoutSelectionUi() {
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
-  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り" };
+  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り", body: "身体のお守り" };
   const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁", invisible: "幽影", rift: "鏡界" };
   document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
@@ -4785,7 +4785,7 @@ document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListene
 }));
 document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate"].includes(card.dataset.charm) ? card.dataset.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
 }));
 for (const button of document.querySelectorAll(".weapon-card")) {
