@@ -3159,7 +3159,7 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
 
-  // 通常武器は従来の判定半径。レールガンは見た目の弾体半径1.3mを使用する。
+  // 通常武器は従来の判定半径。レールガンは指定された5mの判定半径を使用する。
   const hitRadius = Number.isFinite(Number(hitRadiusOverride)) && hitRadiusOverride !== null
     ? Math.max(0, Number(hitRadiusOverride))
     : PLAYER_RADIUS * 2;
@@ -3250,7 +3250,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
           (shooter.mode === TRAINING_MODE && !target.isBot) ||
           (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
-      const hit = rayHitsPlayer(origin, dir, target, 1.3);
+      const hit = rayHitsPlayer(origin, dir, target, 5.0);
       if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
     }
 
