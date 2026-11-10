@@ -2578,7 +2578,7 @@ function updateWeaponBeamVisuals() {
       direction = directionFromAngles(yawValue, pitchValue);
     }
     const isFan = weapon === "flamethrower" || weapon === "freezeCannon";
-    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 9 : 10.5;
+    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 18 : 10.5;
     const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     let beam = weaponBeamMeshes.get(id);
     if (isFan) {
@@ -4497,8 +4497,30 @@ socket.on("playerSkin", ({ id, skin }) => {
   if (playerObject && skin) applyPlayerSkin(playerObject, skin);
 });
 
+function updateSelfFrozenHud() {
+  let hud = document.getElementById("selfFrozenHud");
+  if (!hud) {
+    hud = document.createElement("div");
+    hud.id = "selfFrozenHud";
+    Object.assign(hud.style, {
+      position: "fixed", left: "50%", top: "17%", transform: "translateX(-50%)",
+      zIndex: "10000", padding: "12px 24px", borderRadius: "12px",
+      border: "2px solid rgba(150,235,255,.95)", background: "rgba(5,35,55,.88)",
+      color: "#c9f7ff", font: "bold 24px sans-serif", letterSpacing: ".08em",
+      textShadow: "0 2px 8px #00131d", boxShadow: "0 0 22px rgba(80,210,255,.55)",
+      pointerEvents: "none", display: "none", whiteSpace: "nowrap"
+    });
+    hud.textContent = "❄ 凍結中";
+    document.body.appendChild(hud);
+  }
+  const remaining = Math.max(0, Number(myState?.frozenUntil || 0) - Date.now());
+  hud.style.display = joined && myState?.health > 0 && remaining > 0 ? "block" : "none";
+  if (remaining > 0) hud.textContent = "❄ 凍結中 " + (remaining / 1000).toFixed(1) + "秒";
+}
+
 socket.on("state", (players) => {
   updateRemotePlayers(players);
+  updateSelfFrozenHud();
   updateCamera();
 
   if (myState) {
