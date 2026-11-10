@@ -4600,7 +4600,7 @@ io.on("connection", (socket) => {
 
     if (p.charm === "body") {
       const armedAt = Number(p.bodyBlinkArmedAt) || 0;
-      const isAirborne = !p.grounded && now - (p.lastGroundedAt || 0) > 140;
+      const isAirborne = !p.grounded;
 
       // 最初のジャンプから1.2秒以内に空中でもう一度押すと、前方へブリンクする。
       if (armedAt && now - armedAt <= 1200 && now - armedAt >= 80 && isAirborne) {
