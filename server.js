@@ -159,12 +159,12 @@ process.on("unhandledRejection", (reason) => {
 
 const WEAPONS = {
   pickaxe: {
-    name: "Pickaxe", damage: 120, fireInterval: 650, range: 3.2, spread: 0,
+    name: "ツルハシ", damage: 120, fireInterval: 650, range: 3.2, spread: 0,
     falloffStart: 3.2, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true
   },
-  sword: { name: "Sword", damage: 50, fireInterval: 650, range: 6.4, spread: 0, falloffStart: 6.4, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true },
+  sword: { name: "剣", damage: 50, fireInterval: 650, range: 6.4, spread: 0, falloffStart: 6.4, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true },
   pistol: {
-    name: "Pistol",
+    name: "ハンドガン",
     damage: 70,
     fireInterval: 400,
     range: 68,
@@ -176,7 +176,7 @@ const WEAPONS = {
     automatic: false
   },
   smg: {
-    name: "Submachine Gun",
+    name: "サブマシンガン",
     damage: 9,
     fireInterval: 107 / 5,
     range: 68,
@@ -188,7 +188,7 @@ const WEAPONS = {
     automatic: true
   },
   rifle: {
-    name: "Rifle",
+    name: "アサルトライフル",
     damage: 30,
     fireInterval: 160 / 1.5,
     range: 78,
@@ -200,37 +200,37 @@ const WEAPONS = {
     automatic: true
   },
   shotgun: {
-    name: "Shotgun", damage: 10, fireInterval: 750, range: 40, pellets: 8,
+    name: "ショットガン", damage: 10, fireInterval: 750, range: 40, pellets: 8,
     spread: 0.24, falloffStart: 10, minDamageMultiplier: 0.30,
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
   grenadeLauncher: {
-    name: "Grenade", damage: 110, fireInterval: 900, range: 0, spread: 0,
+    name: "グレネード", damage: 110, fireInterval: 900, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 0, magazineSize: 6, reloadTime: 1700, automatic: false
   },
   marksman: {
-    name: "Marksman", damage: 40, fireInterval: 450, range: 100, spread: 0.006,
+    name: "マークスマン", damage: 40, fireInterval: 450, range: 100, spread: 0.006,
     falloffStart: 100, minDamageMultiplier: 1, magazineSize: 30,
     reloadTime: 1300, automatic: true
   },
   smoke: {
-    name: "Smoke Grenade", damage: 0, fireInterval: 1300, range: 0, spread: 0,
+    name: "煙幕", damage: 0, fireInterval: 1300, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
   },
   sniper: {
-    name: "Sniper", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
+    name: "スナイパーライフル", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 6,
     reloadTime: 1900, automatic: false
   },
-  bow: { name: "Bow", damage: 140, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
-  minigun: { name: "Minigun", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
-  shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
-  grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
-  railgun: { name: "Railgun", damage: 35, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
-  rocketLauncher: { name: "Rocket Launcher", damage: 150, fireInterval: 1250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 3, reloadTime: 2400, automatic: false },
-  flamethrower: { name: "Flamethrower", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
-  laserBeam: { name: "Laser Beam", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
-  freezeCannon: { name: "Freeze Cannon", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
+  bow: { name: "弓", damage: 140, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  minigun: { name: "ミニガン", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
+  shockwaveLauncher: { name: "ショックウェーブランチャー", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
+  grappler: { name: "グラップラー", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
+  railgun: { name: "レールガン", damage: 35, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  rocketLauncher: { name: "ロケットランチャー", damage: 150, fireInterval: 1250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 3, reloadTime: 2400, automatic: false },
+  flamethrower: { name: "火炎放射器", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
+  laserBeam: { name: "レーザービーム", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
+  freezeCannon: { name: "フリーズキャノン", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
 };
 
 const WEAPON_LABELS = {
