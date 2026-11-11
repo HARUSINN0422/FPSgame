@@ -3470,7 +3470,7 @@ function fire() {
 }
 
 function reload(preserveFiring = false) {
-  if (!joined || myState?.reloading || ["pickaxe", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)) return;
+  if (!joined || myState?.reloading || ["pickaxe", "sword", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)) return;
   if (!preserveFiring) stopFiring();
   socket.emit("reload");
 }
