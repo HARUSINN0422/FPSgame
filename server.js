@@ -1394,7 +1394,7 @@ function spawnRocketProjectile(shooter, now = Date.now()) {
   const direction = directionFromAngles(shooter.yaw, shooter.pitch);
   const speed = 18.5;
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-  const origin = { x: shooter.x + direction.x * 0.85, y: shooter.y + height - 0.18, z: shooter.z + direction.z * 0.85 };
+  const origin = { x: shooter.x + direction.x * 1.15, y: shooter.y + height - 0.12, z: shooter.z + direction.z * 1.15 };
   const id = "rocket-projectile-" + (++smokeSequence);
   const projectile = { id, type: "rocket", owner: shooter, ownerId: shooter.id,
     x: origin.x, y: origin.y, z: origin.z,
@@ -1632,7 +1632,7 @@ function updateSmokeProjectiles(dt, now = Date.now()) {
       const direction = { x: delta.x / distance, y: delta.y / distance, z: delta.z / distance };
       let nearestHit = null;
       const wallDistance = rayHitsObstacle(from, direction, distance, projectile.owner);
-      if (wallDistance !== null) nearestHit = { distance: wallDistance };
+      if (wallDistance !== null && !(projectile.type === "rocket" && wallDistance < 0.28)) nearestHit = { distance: wallDistance };
 
       // 外周の壁はクライアント側で生成されるため、マップ境界もここで衝突判定する。
       const bounds = getMapForPlayer(projectile.owner).world || WORLD;
