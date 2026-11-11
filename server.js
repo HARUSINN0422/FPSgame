@@ -3800,6 +3800,7 @@ function publicPlayer(p, includeSkin = false) {
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
+    swordGuarding: Boolean(p.swordGuarding),
     weaponSlots: Array.isArray(p.weaponSlots) ? [...p.weaponSlots] : [p.weapon],
     activeWeaponSlot: Number(p.activeWeaponSlot) || 0,
     ammo: p.ammo,
