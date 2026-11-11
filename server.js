@@ -5244,13 +5244,13 @@ setInterval(() => {
       } else if (!onSpecialFloor) {
         p.floorCharmHealAt = 0;
       }
-      // 燃える床は、接地中に500msごとに5ダメージ。床のお守りなら無効化する。
+      // 赤い床は延焼状態を付与せず、接地中に毎秒3ダメージ。床のお守りなら無効化する。
       const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
         Math.abs(p.y - floorSurfaceY) <= 0.12;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
-        p.fireFloorDamageAt = now + 500;
-        applyIncomingDamage(p, 5);
-        io.to(p.id).emit("damageTaken", { damage: 5, zone: "environment", source: "fire-floor" });
+        p.fireFloorDamageAt = now + 1000;
+        applyIncomingDamage(p, 3);
+        io.to(p.id).emit("damageTaken", { damage: 3, zone: "environment", source: "fire-floor" });
         if (p.health <= 0) {
           p.respawnAt = now + 5000;
           p.deaths = (p.deaths || 0) + 1;
