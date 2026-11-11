@@ -3790,7 +3790,7 @@ function startFiring(forceRepeat = false) {
     buildPreviewActive = false;
     updateBuildPreview();
   }
-  if (selectedWeapon === "sword") { socket.emit("swordGuardStart"); fire(); return; }
+  if (selectedWeapon === "sword") { socket.emit("swordGuardStart"); return; }
   if(selectedWeapon==="railgun"){startRailgunCharge();return;}
   if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)){socket.emit("beamStart");return;}
   if (selectedWeapon === "bow") { startBowCharge(); return; }
