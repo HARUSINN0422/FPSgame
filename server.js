@@ -253,7 +253,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
   railgun: "1秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要。",
-  rocketLauncher: "やや遅いロケット弾を発射し、壁・床・他プレイヤーへの着弾で爆発。爆発半径13m、中心150ダメージから最小30ダメージまで距離に応じて減衰。装弾数3発。",
+  rocketLauncher: "やや遅いロケット弾を発射し、壁・床・プレイヤーへの着弾で爆発。爆発半径6.5m、自分にもダメージ。中心150ダメージから最小30ダメージまで距離に応じて減衰。装弾数3発。",
   flamethrower: "前方へ炎を連続噴射し、命中時に燃焼させる。ダメージ: 1回10（燃焼ダメージは別）。",
   laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
   freezeCannon: "前方へ冷気を連続噴射し、命中を重ねると凍結させる。ダメージ: 1回4。"
@@ -1536,14 +1536,15 @@ function applyShockwave(projectile, position, now = Date.now()) {
 }
 
 function explodeRocket(projectile, position, now = Date.now()) {
-  const radius = 13, maxDamage = 150, minDamage = 30;
+  const radius = 6.5, maxDamage = 150, minDamage = 30;
   damageBuildStructuresInRadius(projectile.owner, position, radius, maxDamage);
   const id = "rocket-explosion-" + (++smokeSequence);
   broadcastGameEvent(projectile.owner, "grenadeExplosion", { id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 520 });
   for (const target of players.values()) {
-    if (target.id === projectile.ownerId || target.health <= 0 || target.finished || !isSameGame(projectile.owner, target)) continue;
-    if (projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
-    if (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
+    const isOwner = target.id === projectile.ownerId;
+    if (target.health <= 0 || target.finished || !isSameGame(projectile.owner, target)) continue;
+    if (!isOwner && projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
+    if (!isOwner && isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
     if (target.invulnerableUntil > now) continue;
     const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
     const dx = target.x - position.x, dy = target.y + targetHeight * 0.5 - position.y, dz = target.z - position.z;
@@ -1551,17 +1552,19 @@ function explodeRocket(projectile, position, now = Date.now()) {
     if (distance > radius) continue;
     const damage = Math.round(maxDamage - (maxDamage - minDamage) * clamp(distance / radius, 0, 1));
     const split = applyIncomingDamage(target, damage);
-    addUltimateCharge(projectile.owner, damage);
+    if (!isOwner) addUltimateCharge(projectile.owner, damage);
     io.to(projectile.ownerId).emit("damageDealt", { targetId: target.id, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage, zone: "body", x: target.x, y: target.y + targetHeight * 0.5, z: target.z });
     io.to(target.id).emit("damageTaken", { damage, zone: "body" });
     if (target.health <= 0) {
       target.health = 0; target.respawnAt = now + 5000; target.deaths = (target.deaths || 0) + 1;
-      projectile.owner.health = Number(projectile.owner.maxHealth) || 100; clearBurnStatus(projectile.owner);
-      projectile.owner.kills = (projectile.owner.kills || 0) + 1;
-      if (target.mode === "Duel") resolveDuelRound(projectile.owner, target);
+      if (!isOwner) {
+        projectile.owner.health = Number(projectile.owner.maxHealth) || 100; clearBurnStatus(projectile.owner);
+        projectile.owner.kills = (projectile.owner.kills || 0) + 1;
+        if (target.mode === "Duel") resolveDuelRound(projectile.owner, target);
+      }
       target.invisibleUntil = 0; if (target.riftDuelId) finishRiftDuel(target);
-      if (projectile.owner.invisibleUntil > Date.now()) projectile.owner.invisibleUntil = 0;
-      broadcastGameEvent(projectile.owner, "elimination", { killerId: projectile.owner.id, killerName: projectile.owner.name, victimId: target.id, victimName: target.name, killerKills: projectile.owner.kills, zone: "body" });
+      if (!isOwner && projectile.owner.invisibleUntil > Date.now()) projectile.owner.invisibleUntil = 0;
+      broadcastGameEvent(projectile.owner, "elimination", { killerId: isOwner ? null : projectile.owner.id, killerName: isOwner ? "環境" : projectile.owner.name, victimId: target.id, victimName: target.name, killerKills: projectile.owner.kills, zone: "body" });
     }
   }
 }
