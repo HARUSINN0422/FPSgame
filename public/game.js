@@ -3785,12 +3785,24 @@ function cancelMinigunCharge() {
   document.getElementById("bowChargeFill")?.style.setProperty("width", "0%");
   document.getElementById("bowChargeHud")?.classList.add("hidden");
 }
+let swordGuardTimer = null;
+let swordGuardActive = false;
+
 function startFiring(forceRepeat = false) {
   if (selectedGameMode === "Build") {
     buildPreviewActive = false;
     updateBuildPreview();
   }
-  if (selectedWeapon === "sword") { socket.emit("swordGuardStart"); return; }
+  if (selectedWeapon === "sword") {
+    if (swordGuardTimer || swordGuardActive) return;
+    // 短押しは攻撃、長押しはガードとして扱う。
+    swordGuardTimer = setTimeout(() => {
+      swordGuardTimer = null;
+      swordGuardActive = true;
+      socket.emit("swordGuardStart");
+    }, 180);
+    return;
+  }
   if(selectedWeapon==="railgun"){startRailgunCharge();return;}
   if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)){socket.emit("beamStart");return;}
   if (selectedWeapon === "bow") { startBowCharge(); return; }
@@ -3801,12 +3813,22 @@ function startFiring(forceRepeat = false) {
   autoFireTimer = setInterval(fire, cfg.fireInterval);
 }
 
-function stopFiring() {
+function stopFiring(cancelled = false) {
   // 押し始めた武器のチャージだけを解放し、現在選択中の武器名で誤判定しない。
   if (railgunChargeStartedAt) { releaseRailgunCharge(); return; }
   if (bowChargeStartedAt) { releaseBowCharge(); return; }
   if (minigunCharging) { releaseMinigunCharge(); return; }
-  if (selectedWeapon === "sword") socket.emit("swordGuardStop");
+  if (selectedWeapon === "sword") {
+    if (swordGuardTimer) {
+      clearTimeout(swordGuardTimer);
+      swordGuardTimer = null;
+      if (!cancelled) fire();
+    } else if (swordGuardActive) {
+      swordGuardActive = false;
+      socket.emit("swordGuardStop");
+    }
+    return;
+  }
   if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
   if (autoFireTimer) {
     clearInterval(autoFireTimer);
@@ -3832,7 +3854,14 @@ function cancelFiringForWeaponSwitch() {
     resetBowChargeScope();
   }
   if (minigunCharging || minigunDraining || minigunChargeValue > 0) cancelMinigunCharge();
-  if (selectedWeapon === "sword") socket.emit("swordGuardStop");
+  if (swordGuardTimer) {
+    clearTimeout(swordGuardTimer);
+    swordGuardTimer = null;
+  }
+  if (swordGuardActive) {
+    swordGuardActive = false;
+    socket.emit("swordGuardStop");
+  }
   if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
   const hud = document.getElementById("bowChargeHud");
   hud?.classList.add("hidden");
@@ -5400,7 +5429,7 @@ fireButton.addEventListener("pointerup", (e) => {
 fireButton.addEventListener("pointercancel", (e) => {
   if (layoutEditing) return;
   e.preventDefault();
-  stopFiring();
+  stopFiring(true);
 });
 
 fireButton.addEventListener("pointerleave", (e) => {
