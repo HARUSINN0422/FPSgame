@@ -277,6 +277,16 @@ try {
   // 初回起動時はserver.js内の標準設定を使用します。
 }
 
+// ローカルのdata/weapons.jsonに古い英語名が残っていても、対戦中の表示名は日本語に固定する。
+const CANONICAL_WEAPON_NAMES = {
+  pickaxe: "ツルハシ", sword: "剣", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", marksman: "マークスマン", smoke: "煙幕",
+  sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", shockwaveLauncher: "ショックウェーブランチャー",
+  grappler: "グラップラー", railgun: "レールガン", rocketLauncher: "ロケットランチャー",
+  flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
+};
+for (const [id, name] of Object.entries(CANONICAL_WEAPON_NAMES)) WEAPONS[id].name = name;
+
 // 武器説明は保存済みの古いdata/weapons.jsonに上書きされないよう、最新版を固定する。
 for (const [id, description] of Object.entries(DEFAULT_WEAPON_DESCRIPTIONS)) {
   WEAPONS[id].description = description;
