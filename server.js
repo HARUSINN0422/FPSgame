@@ -162,6 +162,7 @@ const WEAPONS = {
     name: "Pickaxe", damage: 120, fireInterval: 650, range: 3.2, spread: 0,
     falloffStart: 3.2, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true
   },
+  sword: { name: "Sword", damage: 50, fireInterval: 650, range: 6.4, spread: 0, falloffStart: 6.4, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true },
   pistol: {
     name: "Pistol",
     damage: 70,
@@ -232,11 +233,12 @@ const WEAPONS = {
 };
 
 const WEAPON_LABELS = {
-  pickaxe: "ツルハシ", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
+  pickaxe: "ツルハシ", sword: "剣", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
   shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃。ダメージ: 120。弾薬・リロード不要。",
+  sword: "剣を振る近接攻撃。ダメージ: 50。長押しで飛び道具のダメージを50%軽減。空中で使用すると前方20mへ山なりに飛び、着地時に半径10mの衝撃波を放つ。",
   smoke: "煙幕弾を投げ、着弾地点の周囲の視界を遮る。ダメージ: 0。",
   pistol: "精度を活かして狙う単発拳銃。ダメージ: 70（距離により減衰）。装弾数6発。",
   smg: "近距離向けの高速連射武器。ダメージ: 1発9。装弾数60発。",
@@ -287,6 +289,9 @@ WEAPONS.rifle.fireInterval = 160 / 1.5;
 WEAPONS.railgun.damage = 35;
 WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
 WEAPONS.pickaxe.damage = 120;
+WEAPONS.sword.damage = 50;
+WEAPONS.sword.range = 6.4;
+WEAPONS.sword.description = DEFAULT_WEAPON_DESCRIPTIONS.sword;
 WEAPONS.grenadeLauncher.damage = 110;
 WEAPONS.rifle.description = DEFAULT_WEAPON_DESCRIPTIONS.rifle;
 WEAPONS.smg.magazineSize = 60;
@@ -2697,9 +2702,56 @@ function resolveSkyfallImpact(attacker, now = Date.now()) {
   }
 }
 
+function applySwordLandingShockwave(player, now = Date.now()) {
+  const radius = 10, id = "sword-shockwave-" + (++smokeSequence);
+  broadcastGameEvent(player, "shockwaveBurst", { id, x: player.x, y: getGroundHeight(player.x, player.z, player.y, player), z: player.z, radius, expiresAt: now + 760 });
+  for (const target of players.values()) {
+    if (target.id === player.id || target.health <= 0 || target.finished || !isSameGame(player, target)) continue;
+    if (player.mode === TRAINING_MODE && !target.isBot) continue;
+    if (isTeamMatchMode(player.mode) && target.team === player.team) continue;
+    if (target.invulnerableUntil > now || Math.hypot(target.x-player.x, target.z-player.z) > radius) continue;
+    const split = applyIncomingDamage(target, 50);
+    addUltimateCharge(player, 50);
+    io.to(player.id).emit("damageDealt", { targetId: target.id, damage: Math.round(split.totalDamage), shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage), zone: "body", x: target.x, y: target.y+1, z: target.z });
+    io.to(target.id).emit("damageTaken", { damage: Math.round(split.totalDamage), zone: "body" });
+    if (target.health <= 0) {
+      target.health=0; target.respawnAt=now+5000; target.deaths=(target.deaths||0)+1;
+      player.kills=(player.kills||0)+1; player.health=Number(player.maxHealth)||100; clearBurnStatus(player);
+      if (target.mode==="Duel") resolveDuelRound(player,target);
+      broadcastGameEvent(player,"elimination",{killerId:player.id,killerName:player.name,victimId:target.id,victimName:target.name,killerKills:player.kills,zone:"body"});
+    }
+  }
+}
+function startSwordLeap(player, now = Date.now()) {
+  if (!player || player.swordLeap || player.grounded || player.invulnerableUntil > now) return false;
+  const bounds=getMapForPlayer(player).world, fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
+  let tx=player.x, tz=player.z;
+  for(let d=.5;d<=20;d+=.5){
+    const x=clamp(player.x+fx*d,bounds.minX+PLAYER_RADIUS,bounds.maxX-PLAYER_RADIUS);
+    const z=clamp(player.z+fz*d,bounds.minZ+PLAYER_RADIUS,bounds.maxZ-PLAYER_RADIUS);
+    if(collides(x,z,getGroundHeight(x,z,player.y,player),PLAYER_HEIGHT,player)) break;
+    tx=x;tz=z;
+  }
+  if(Math.hypot(tx-player.x,tz-player.z)<2) return false;
+  player.swordLeap={sx:player.x,sy:player.y,sz:player.z,tx,tz,at:now,duration:950};
+  player.grounded=false;player.velocityY=0;player.input.forward=0;player.input.strafe=0;
+  broadcastGameEvent(player,"shot",{id:player.id,x:player.x,y:player.y+1,z:player.z,yaw:player.yaw,pitch:player.pitch,weapon:"sword",action:"leap",hit:null,tracers:[]});
+  return true;
+}
+function updateSwordLeap(player, now=Date.now()) {
+  const leap=player.swordLeap;if(!leap)return false;
+  const t=clamp((now-leap.at)/leap.duration,0,1),e=t*t*(3-2*t);
+  player.x=leap.sx+(leap.tx-leap.sx)*e;player.z=leap.sz+(leap.tz-leap.sz)*e;
+  const ground=getGroundHeight(player.x,player.z,leap.sy,player);
+  player.y=leap.sy+(ground-leap.sy)*e+Math.sin(t*Math.PI)*5.2;
+  player.velocityY=0;player.grounded=false;
+  if(t>=1){player.y=getGroundHeight(player.x,player.z,player.y,player);player.grounded=true;player.lastGroundedAt=now;player.swordLeap=null;applySwordLandingShockwave(player,now);}
+  return true;
+}
 function movePlayer(p, dt) {
   const now = Date.now();
   if (p.frozenUntil > now) { p.input.forward = 0; p.input.strafe = 0; p.velocityY = 0; return; }
+  if (p.swordLeap) { updateSwordLeap(p, now); return; }
   if (p.frozenUntil) p.frozenUntil = 0;
   if (p.ultimateActiveUntil > now) {
     // 天墜の浮上中は上下位置を維持しつつ、ごく低速で横移動できる。
@@ -3301,7 +3353,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     // 既存仕様どおり壁は貫通し、射程は150m。
     if (best) {
       const damage = 35; // 頭部・胴体ともに固定35ダメージ
-      const split = applyIncomingDamage(best.target, damage);
+      const split = applyIncomingDamage(best.target, damage, true);
       addUltimateCharge(shooter, damage);
       const hitX = origin.x + dir.x * best.t;
       const hitY = origin.y + dir.y * best.t;
@@ -3488,7 +3540,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
     const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
-    const split = applyIncomingDamage(bestHit.target, damage);
+    const split = applyIncomingDamage(bestHit.target, damage, true);
     addUltimateCharge(shooter, damage);
 
     const existing = damageByTarget.get(bestHit.target.id);
@@ -3612,6 +3664,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     yaw: shooter.yaw,
     pitch: shooter.pitch,
     weapon: shooter.weapon,
+    action: shooter.weapon === "sword" ? "swing" : undefined,
     hit,
     tracers: visualTracers
   });
@@ -3684,12 +3737,13 @@ function clearBurnStatus(player) {
   player.burnSourceId = null;
 }
 
-function applyIncomingDamage(target, amount) {
+function applyIncomingDamage(target, amount, isProjectile = false) {
   if (target.riftFirstHitProtected && Number(amount) > 0) {
     target.riftFirstHitProtected = false;
     return { shieldDamage: 0, healthDamage: 0, totalDamage: 0 };
   }
   let damage = Math.max(0, Number(amount) || 0);
+  if (isProjectile && target.swordGuarding) damage *= 0.5;
   // 天墜で浮上している間は受けるダメージを75%軽減する。
   if (target.skyfallImpactId && target.ultimateActiveUntil > Date.now()) damage *= 0.25;
   let shieldDamage = 0;
@@ -4744,8 +4798,11 @@ io.on("connection", (socket) => {
   socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished || ["bow", "minigun", "railgun", "flamethrower", "laserBeam", "freezeCannon"].includes(p.weapon) || p.frozenUntil > Date.now()) return;
+    if (p.weapon === "sword" && !p.grounded) { startSwordLeap(p, Date.now()); return; }
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
+  socket.on("swordGuardStart", () => { const p = players.get(socket.id); if (p && p.weapon === "sword" && p.health > 0 && !p.finished) p.swordGuarding = true; });
+  socket.on("swordGuardStop", () => { const p = players.get(socket.id); if (p) p.swordGuarding = false; });
 
   socket.on("railgunChargeStart", () => {
     const p=players.get(socket.id),now=Date.now();
