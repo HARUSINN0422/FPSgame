@@ -2723,7 +2723,8 @@ function applySwordLandingShockwave(player, now = Date.now()) {
   }
 }
 function startSwordLeap(player, now = Date.now()) {
-  if (!player || player.swordLeap || player.grounded || player.invulnerableUntil > now) return false;
+  const jumpGrace = now - (Number(player?.lastJumpInputAt) || 0) <= 450;
+  if (!player || player.swordLeap || (player.grounded && !jumpGrace) || player.invulnerableUntil > now) return false;
   const bounds=getMapForPlayer(player).world, fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
   let tx=player.x, tz=player.z;
   for(let d=.5;d<=16;d+=.5){
@@ -4751,6 +4752,7 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished || p.frozenUntil > Date.now()) return;
     const now = Date.now();
+    p.lastJumpInputAt = now;
     const canJumpFromGround = p.grounded || now - (p.lastGroundedAt || 0) <= 140;
 
     if (p.charm === "body") {
