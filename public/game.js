@@ -213,6 +213,7 @@ const weaponConfig = {
   grenadeLauncher: { fireInterval: 900, automatic: false },
   shockwaveLauncher: { fireInterval: 900, automatic: false },
   grappler: { fireInterval: 1100, automatic: false },
+  rocketLauncher: { fireInterval: 1250, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160 / 1.5, automatic: true },
@@ -2271,7 +2272,7 @@ function createWeaponMesh(weapon) {
 }
 
 function refreshLocalWeaponViewModel() {
-  const shouldShow = joined && ["pickaxe", "sword", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
+  const shouldShow = joined && ["pickaxe", "sword", "smoke", "grenadeLauncher", "rocketLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
   if (!shouldShow) {
     if (localWeaponViewModel) camera.remove(localWeaponViewModel);
     localWeaponViewModel = null;
@@ -4801,6 +4802,8 @@ let returnToWeaponOnForeground = false;
 let backgroundDisconnectTimer = null;
 function leaveGameForBackground() {
   if (backgroundLeavePending) return;
+  // バックグラウンド退出後のreturnedToLobbyイベントがモード選択へ戻さないようにする。
+  lobbyScreenAfterLeave = "weaponScreen";
   backgroundLeavePending = true;
   joined = false;
   wasJoinedBeforeDisconnect = false;
@@ -4828,7 +4831,8 @@ function leaveGameForBackground() {
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
-    returnToWeaponOnForeground = !joined;
+    returnToWeaponOnForeground = true;
+    lobbyScreenAfterLeave = "weaponScreen";
     leaveGameForBackground();
   } else if (document.visibilityState === "visible") {
     if (returnToWeaponOnForeground && !joined) {
