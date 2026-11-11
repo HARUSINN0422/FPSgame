@@ -1940,3 +1940,6 @@ body.controller-mode #settingsButton {
 }
 
 .build-toolbar.layout-editing-target { cursor: move !important; outline: 2px dashed rgba(110,190,255,.9); outline-offset: 4px; touch-action: none !important; user-select: none !important; -webkit-user-select: none !important; }
+
+/* 武器選択カテゴリは折りたたまず、常に一覧表示する。 */
+.weapon-category-heading{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.16);font-size:1rem;font-weight:800;}.weapon-category-heading span{font-size:.78rem;opacity:.7;font-weight:600;}.weapon-category{display:block;}
