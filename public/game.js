@@ -5433,7 +5433,8 @@ fireButton.addEventListener("pointercancel", (e) => {
 });
 
 fireButton.addEventListener("pointerleave", (e) => {
-  if (e.buttons === 0) stopFiring();
+  // Pointer Capture中の一時的なleaveで剣ガードを解除しない。
+  if (e.buttons === 0 && selectedWeapon !== "sword") stopFiring();
 });
 
 const lookSurface = renderer.domElement;
