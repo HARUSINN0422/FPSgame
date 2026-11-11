@@ -2193,6 +2193,26 @@ function createWeaponMesh(weapon) {
   }
 
   if (weapon === "grappler") { const grip=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.55,10),new THREE.MeshStandardMaterial({color:0x394653,metalness:.6}));grip.rotation.x=Math.PI/2;group.add(grip);const cup=new THREE.Mesh(new THREE.CylinderGeometry(.19,.13,.16,16),new THREE.MeshStandardMaterial({color:0xe04d43}));cup.rotation.x=Math.PI/2;cup.position.z=-.35;group.add(cup);group.position.set(.34,1.02,-.22);group.rotation.x=-.08;return group; }
+  if (weapon === "rocketLauncher") {
+    const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x3b4148, metalness: 0.68, roughness: 0.32 });
+    const muzzleMaterial = new THREE.MeshStandardMaterial({ color: 0xd85a35, metalness: 0.35, roughness: 0.42, emissive: 0x5a1b0c, emissiveIntensity: 0.35 });
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.92, 12), tubeMaterial);
+    tube.rotation.x = Math.PI / 2;
+    group.add(tube);
+    const muzzle = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 8, 16), muzzleMaterial);
+    muzzle.position.z = -0.46;
+    group.add(muzzle);
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.22), new THREE.MeshStandardMaterial({ color: 0xb7bdc3, metalness: 0.7 }));
+    sight.position.set(0, 0.2, -0.05);
+    group.add(sight);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.18), tubeMaterial);
+    grip.position.set(0, -0.24, 0.08);
+    group.add(grip);
+    group.position.set(0.34, 1.02, -0.22);
+    group.rotation.x = -0.08;
+    return group;
+  }
+
   if (weapon === "smoke" || weapon === "grenadeLauncher" || weapon === "shockwaveLauncher") {
     const grenadeMaterial = new THREE.MeshStandardMaterial({ color: weapon === "shockwaveLauncher" ? 0x39b9d8 : weapon === "grenadeLauncher" ? 0x4d4a3c : 0x67716e, roughness: 0.62, metalness: 0.18, emissive: weapon === "shockwaveLauncher" ? 0x123d4b : 0x000000, emissiveIntensity: weapon === "shockwaveLauncher" ? 0.6 : 0 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), grenadeMaterial);
