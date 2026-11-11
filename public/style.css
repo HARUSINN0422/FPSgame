@@ -109,6 +109,16 @@ p {
   border-color: rgba(120,180,255,.7);
 }
 
+
+.weapon-category-list { display: grid; gap: 8px; max-height: 42vh; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 2px; }
+.weapon-category { border: 1px solid rgba(255,255,255,.14); border-radius: 13px; overflow: hidden; background: rgba(255,255,255,.025); }
+.weapon-category > summary { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 10px 14px; cursor: pointer; list-style: none; color: #fff; font-weight: 800; background: #202936; }
+.weapon-category > summary::-webkit-details-marker { display: none; }
+.weapon-category > summary::after { content: \"＋\"; margin-left: 12px; opacity: .8; }
+.weapon-category[open] > summary::after { content: \"−\"; }
+.weapon-category > summary span { margin-left: auto; font-size: 12px; font-weight: 600; opacity: .58; }
+.weapon-category .weapon-grid { max-height: none; overflow: visible; padding: 8px; }
+
 .weapon-grid {
   display: grid;
   gap: 12px;
@@ -524,8 +534,11 @@ body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
     overflow-y: auto;
   }
 
+  .weapon-category-list { max-height: 36vh; gap: 6px; }
+  .weapon-category > summary { min-height: 42px; padding: 8px 10px; font-size: 13px; }
+  .weapon-category .weapon-grid { gap: 6px; padding: 6px; }
   .weapon-grid {
-    max-height: 36vh;
+    max-height: none;
     gap: 6px;
   }
 
