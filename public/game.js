@@ -3510,7 +3510,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ rocketLauncher:"ロケットランチャー",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ rocketLauncher:"ロケットランチャー",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -4841,6 +4841,14 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", leaveGameForBackground);
+window.addEventListener("focus", () => {
+  if (document.visibilityState !== "visible") return;
+  if (!joined) {
+    document.getElementById("modeScreen")?.classList.add("hidden");
+    document.getElementById("weaponScreen")?.classList.remove("hidden");
+    document.getElementById("topScreen")?.classList.add("hidden");
+  }
+});
 window.addEventListener("pageshow", (event) => {
   if (event.persisted && !joined) {
     document.getElementById("modeScreen")?.classList.add("hidden");
