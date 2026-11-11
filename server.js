@@ -227,6 +227,7 @@ const WEAPONS = {
   shockwaveLauncher: { name: "Shockwave Launcher", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   grappler: { name: "Grappler", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   railgun: { name: "Railgun", damage: 35, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  rocketLauncher: { name: "Rocket Launcher", damage: 150, fireInterval: 1250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 3, reloadTime: 2400, automatic: false },
   flamethrower: { name: "Flamethrower", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   laserBeam: { name: "Laser Beam", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   freezeCannon: { name: "Freeze Cannon", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
@@ -234,7 +235,7 @@ const WEAPONS = {
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", sword: "剣", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", rocketLauncher: "ロケットランチャー", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃。ダメージ: 120。弾薬・リロード不要。",
@@ -252,6 +253,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
   railgun: "1秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要。",
+  rocketLauncher: "やや遅いロケット弾を発射し、壁・床・他プレイヤーへの着弾で爆発。爆発半径13m、中心150ダメージから最小30ダメージまで距離に応じて減衰。装弾数3発。",
   flamethrower: "前方へ炎を連続噴射し、命中時に燃焼させる。ダメージ: 1回10（燃焼ダメージは別）。",
   laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
   freezeCannon: "前方へ冷気を連続噴射し、命中を重ねると凍結させる。ダメージ: 1回4。"
@@ -288,6 +290,10 @@ WEAPONS.rifle.damage = 30;
 WEAPONS.rifle.fireInterval = 160 / 1.5;
 WEAPONS.railgun.damage = 35;
 WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
+WEAPONS.rocketLauncher.magazineSize = 3;
+WEAPONS.rocketLauncher.reloadTime = 2400;
+WEAPONS.rocketLauncher.damage = 150;
+WEAPONS.rocketLauncher.description = DEFAULT_WEAPON_DESCRIPTIONS.rocketLauncher;
 WEAPONS.pickaxe.damage = 120;
 WEAPONS.sword.damage = 50;
 WEAPONS.sword.range = 6.4;
@@ -1384,6 +1390,22 @@ function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
   });
 }
 
+function spawnRocketProjectile(shooter, now = Date.now()) {
+  const direction = directionFromAngles(shooter.yaw, shooter.pitch);
+  const speed = 18.5;
+  const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const origin = { x: shooter.x + direction.x * 0.85, y: shooter.y + height - 0.18, z: shooter.z + direction.z * 0.85 };
+  const id = "rocket-projectile-" + (++smokeSequence);
+  const projectile = { id, type: "rocket", owner: shooter, ownerId: shooter.id,
+    x: origin.x, y: origin.y, z: origin.z,
+    vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
+    expiresAt: now + 9000 };
+  grenadeProjectiles.set(id, projectile);
+  broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
+  broadcastGameEvent(shooter, "shot", { id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
+    yaw: shooter.yaw, pitch: shooter.pitch, weapon: "rocketLauncher", hit: null, tracers: [] });
+}
+
 function spawnTornadoProjectile(shooter, now = Date.now()) {
   const direction = directionFromAngles(shooter.yaw, 0);
   const speed = 40;
@@ -1500,6 +1522,37 @@ function applyShockwave(projectile, position, now = Date.now()) {
     target.velocityY = Math.max(Number(target.velocityY) || 0, 4.3 + 6.3 * proximity);
     target.grounded = false;
     target.lastGroundedAt = 0;
+  }
+}
+
+function explodeRocket(projectile, position, now = Date.now()) {
+  const radius = 13, maxDamage = 150, minDamage = 30;
+  damageBuildStructuresInRadius(projectile.owner, position, radius, maxDamage);
+  const id = "rocket-explosion-" + (++smokeSequence);
+  broadcastGameEvent(projectile.owner, "grenadeExplosion", { id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 520 });
+  for (const target of players.values()) {
+    if (target.id === projectile.ownerId || target.health <= 0 || target.finished || !isSameGame(projectile.owner, target)) continue;
+    if (projectile.owner.mode === TRAINING_MODE && !target.isBot) continue;
+    if (isTeamMatchMode(projectile.owner.mode) && target.team === projectile.owner.team) continue;
+    if (target.invulnerableUntil > now) continue;
+    const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+    const dx = target.x - position.x, dy = target.y + targetHeight * 0.5 - position.y, dz = target.z - position.z;
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance > radius) continue;
+    const damage = Math.round(maxDamage - (maxDamage - minDamage) * clamp(distance / radius, 0, 1));
+    const split = applyIncomingDamage(target, damage);
+    addUltimateCharge(projectile.owner, damage);
+    io.to(projectile.ownerId).emit("damageDealt", { targetId: target.id, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage, zone: "body", x: target.x, y: target.y + targetHeight * 0.5, z: target.z });
+    io.to(target.id).emit("damageTaken", { damage, zone: "body" });
+    if (target.health <= 0) {
+      target.health = 0; target.respawnAt = now + 5000; target.deaths = (target.deaths || 0) + 1;
+      projectile.owner.health = Number(projectile.owner.maxHealth) || 100; clearBurnStatus(projectile.owner);
+      projectile.owner.kills = (projectile.owner.kills || 0) + 1;
+      if (target.mode === "Duel") resolveDuelRound(projectile.owner, target);
+      target.invisibleUntil = 0; if (target.riftDuelId) finishRiftDuel(target);
+      if (projectile.owner.invisibleUntil > Date.now()) projectile.owner.invisibleUntil = 0;
+      broadcastGameEvent(projectile.owner, "elimination", { killerId: projectile.owner.id, killerName: projectile.owner.name, victimId: target.id, victimName: target.name, killerKills: projectile.owner.kills, zone: "body" });
+    }
   }
 }
 
@@ -1743,7 +1796,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
 
     const from = { x: projectile.x, y: projectile.y, z: projectile.z };
     const nextX = projectile.x + projectile.vx * dt;
-    const nextY = projectile.y + projectile.vy * dt - 0.5 * SMOKE_PROJECTILE_GRAVITY * dt * dt;
+    const nextY = projectile.type === "rocket" ? projectile.y + projectile.vy * dt : projectile.y + projectile.vy * dt - 0.5 * SMOKE_PROJECTILE_GRAVITY * dt * dt;
     const nextZ = projectile.z + projectile.vz * dt;
     const delta = { x: nextX - from.x, y: nextY - from.y, z: nextZ - from.z };
     const distance = Math.hypot(delta.x, delta.y, delta.z);
@@ -1783,7 +1836,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       for (const target of players.values()) {
         if (projectile.type === "grapple" || target.id === projectile.ownerId || target.health <= 0 || target.finished ||
             !isSameGame(projectile.owner, target)) continue;
-        const hit = rayHitsPlayer(from, direction, target);
+        const hit = rayHitsPlayer(from, direction, target, projectile.type === "rocket" ? 0.8 : undefined);
         if (hit && hit.t >= 0 && hit.t <= distance && (!nearestHit || hit.t < nearestHit.distance)) {
           nearestHit = { distance: hit.t };
         }
@@ -1821,6 +1874,10 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         projectile.pendingShockwaveAt = now + 300;
         projectile.pendingShockwavePosition = impact;
         broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
+      } else if (projectile.type === "rocket") {
+        explodeRocket(projectile, impact, now);
+        grenadeProjectiles.delete(projectile.id);
+        broadcastGameEvent(projectile.owner, "grenadeProjectileRemove", { id: projectile.id });
       } else {
         explodeGrenade(projectile, impact, now);
         grenadeProjectiles.delete(projectile.id);
@@ -1832,7 +1889,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
     projectile.x = nextX;
     projectile.y = nextY;
     projectile.z = nextZ;
-    if (projectile.type !== "grapple") projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
+    if (projectile.type !== "grapple" && projectile.type !== "rocket") projectile.vy -= SMOKE_PROJECTILE_GRAVITY * dt;
     broadcastGameEvent(projectile.owner, "grenadeProjectileUpdate", {
       id: projectile.id, x: projectile.x, y: projectile.y, z: projectile.z
     });
@@ -3442,6 +3499,10 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   }
   if (shooter.weapon === "grenadeLauncher") {
     spawnGrenadeProjectile(shooter, now);
+    return;
+  }
+  if (shooter.weapon === "rocketLauncher") {
+    spawnRocketProjectile(shooter, now);
     return;
   }
 
