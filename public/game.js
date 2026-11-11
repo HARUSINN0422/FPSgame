@@ -4776,6 +4776,7 @@ socket.on("connect", () => {
 // FPS_BACKGROUND_PRESENCE
 // バックグラウンドへ移ったら明示的に退出し、復帰時はロビーから接続し直す。
 let backgroundLeavePending = false;
+let returnToWeaponOnForeground = false;
 let backgroundDisconnectTimer = null;
 function leaveGameForBackground() {
   if (backgroundLeavePending) return;
@@ -4806,9 +4807,16 @@ function leaveGameForBackground() {
 }
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
+    returnToWeaponOnForeground = !joined;
     leaveGameForBackground();
-  } else if (document.visibilityState === "visible" && !socket.connected) {
-    socket.connect();
+  } else if (document.visibilityState === "visible") {
+    if (returnToWeaponOnForeground && !joined) {
+      returnToWeaponOnForeground = false;
+      document.getElementById("modeScreen")?.classList.add("hidden");
+      document.getElementById("weaponScreen")?.classList.remove("hidden");
+      document.getElementById("topScreen")?.classList.add("hidden");
+    }
+    if (!socket.connected) socket.connect();
   }
 });
 window.addEventListener("pagehide", leaveGameForBackground);
