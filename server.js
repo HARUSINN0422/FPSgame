@@ -2726,7 +2726,7 @@ function startSwordLeap(player, now = Date.now()) {
   if (!player || player.swordLeap || player.grounded || player.invulnerableUntil > now) return false;
   const bounds=getMapForPlayer(player).world, fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
   let tx=player.x, tz=player.z;
-  for(let d=.5;d<=20;d+=.5){
+  for(let d=.5;d<=16;d+=.5){
     const x=clamp(player.x+fx*d,bounds.minX+PLAYER_RADIUS,bounds.maxX-PLAYER_RADIUS);
     const z=clamp(player.z+fz*d,bounds.minZ+PLAYER_RADIUS,bounds.maxZ-PLAYER_RADIUS);
     if(collides(x,z,getGroundHeight(x,z,player.y,player),PLAYER_HEIGHT,player)) break;
