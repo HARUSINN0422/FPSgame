@@ -2284,7 +2284,11 @@ function pickaxeSwingAngle(elapsedSeconds) {
 function animateLocalWeaponViewModel(now) {
   if (!localWeaponViewModel) return;
   const elapsed = (now - localWeaponActionStartedAt) / 1000;
-  if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.48) {
+  if (selectedWeapon === "sword" && swordGuardActive) {
+    // ガード中は剣を顔の前に立て、画面中央寄りに構える。
+    localWeaponViewModel.position.set(0.16, 0.02, -0.5);
+    localWeaponViewModel.rotation.set(-0.12, -0.28, -0.32);
+  } else if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.48) {
     const progress = elapsed / 0.48;
     localWeaponViewModel.rotation.set(0.16 - Math.sin(progress * Math.PI) * 0.9, -0.18, -0.28 + progress * 1.8);
     localWeaponViewModel.position.set(0.38, -0.34 + Math.sin(progress * Math.PI) * 0.08, -0.62);
@@ -2734,7 +2738,14 @@ function updateSmokeVisuals(now, dt) {
     const actionElapsed = (now - Number(obj.userData.weaponActionStartedAt || -Infinity)) / 1000;
     const weaponMesh = obj.userData.weaponMesh;
     const rightArm = obj.userData.rightArm;
-    if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.48) {
+    if (player.swordGuarding && obj.userData.weaponType === "sword") {
+      // 他プレイヤーにも、顔の前で剣を立てるガード姿勢を表示する。
+      if (weaponMesh) {
+        weaponMesh.position.set(0.28, 1.28, -0.28);
+        weaponMesh.rotation.set(-0.12, 0, -0.38);
+      }
+      if (rightArm) rightArm.rotation.set(-0.82, 0, 0.22);
+    } else if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.48) {
       const progress = actionElapsed / 0.48;
       if (weaponMesh) {
         weaponMesh.position.set(0.34, 1.02 + Math.sin(progress * Math.PI) * 0.08, -0.22);
