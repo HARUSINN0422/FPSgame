@@ -208,6 +208,7 @@ let pointerLocked = false;
 
 const weaponConfig = {
   pickaxe: { fireInterval: 650, automatic: false, melee: true },
+  sword: { fireInterval: 650, automatic: false, melee: true },
   smoke: { fireInterval: 1300, automatic: false },
   grenadeLauncher: { fireInterval: 900, automatic: false },
   shockwaveLauncher: { fireInterval: 900, automatic: false },
@@ -2141,6 +2142,20 @@ initWeaponAttachmentControls();
 function createWeaponMesh(weapon) {
   const group = new THREE.Group();
 
+  if (weapon === "sword") {
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.34, 8), new THREE.MeshStandardMaterial({ color: 0x49352b, roughness: 0.82 }));
+    grip.position.y = -0.22;
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.07, 0.1), new THREE.MeshStandardMaterial({ color: 0xb78b42, metalness: 0.72, roughness: 0.28 }));
+    guard.position.y = -0.02;
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.08, 0.055), new THREE.MeshStandardMaterial({ color: 0xdde8f2, metalness: 0.88, roughness: 0.2 }));
+    blade.position.y = 0.55;
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1.02, 0.018), new THREE.MeshBasicMaterial({ color: 0x75d9ff }));
+    edge.position.set(0.072, 0.55, -0.006);
+    group.add(grip, guard, blade, edge);
+    group.position.set(0.34, 1.02, -0.22);
+    group.rotation.x = -0.08;
+    return group;
+  }
   if (weapon === "pickaxe") {
     const wood = new THREE.MeshStandardMaterial({ color: 0x76502d, roughness: 0.85 });
     const steel = new THREE.MeshStandardMaterial({ color: 0xb8c1c8, metalness: 0.72, roughness: 0.32 });
@@ -2236,7 +2251,7 @@ function createWeaponMesh(weapon) {
 }
 
 function refreshLocalWeaponViewModel() {
-  const shouldShow = joined && ["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
+  const shouldShow = joined && ["pickaxe", "sword", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
   if (!shouldShow) {
     if (localWeaponViewModel) camera.remove(localWeaponViewModel);
     localWeaponViewModel = null;
@@ -2254,7 +2269,7 @@ function refreshLocalWeaponViewModel() {
 }
 
 function startLocalWeaponAction(weapon) {
-  if (!["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(weapon)) return;
+  if (!["pickaxe", "sword", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(weapon)) return;
   localWeaponActionType = weapon;
   localWeaponActionStartedAt = performance.now();
 }
@@ -2269,7 +2284,15 @@ function pickaxeSwingAngle(elapsedSeconds) {
 function animateLocalWeaponViewModel(now) {
   if (!localWeaponViewModel) return;
   const elapsed = (now - localWeaponActionStartedAt) / 1000;
-  if (localWeaponActionType === "pickaxe" && elapsed >= 0 && elapsed < 0.38) {
+  if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.48) {
+    const progress = elapsed / 0.48;
+    localWeaponViewModel.rotation.set(0.16 - Math.sin(progress * Math.PI) * 0.9, -0.18, -0.28 + progress * 1.8);
+    localWeaponViewModel.position.set(0.38, -0.34 + Math.sin(progress * Math.PI) * 0.08, -0.62);
+  } else if (localWeaponActionType === "swordLeap" && elapsed >= 0 && elapsed < 0.95) {
+    const progress = elapsed / 0.95;
+    localWeaponViewModel.rotation.set(-0.9 + progress * 1.8, -0.18, -0.28 + Math.sin(progress * Math.PI) * 0.7);
+    localWeaponViewModel.position.set(0.38, -0.34 + Math.sin(progress * Math.PI) * 0.12, -0.62);
+  } else if (localWeaponActionType === "pickaxe" && elapsed >= 0 && elapsed < 0.38) {
     const angle = pickaxeSwingAngle(elapsed);
     localWeaponViewModel.rotation.x = 0.16 + angle * 0.64;
     localWeaponViewModel.rotation.z = -0.28 - angle * 0.46;
@@ -2515,7 +2538,7 @@ function startRemoteWeaponAction(event) {
   const obj = remotePlayers.get(event?.id);
   if (!obj) return;
   obj.userData.weaponActionStartedAt = performance.now();
-  obj.userData.weaponActionType = event.weapon;
+  obj.userData.weaponActionType = event.action === "leap" ? "swordLeap" : event.weapon;
 }
 
 const activeWeaponBeams = new Map();
@@ -2711,7 +2734,21 @@ function updateSmokeVisuals(now, dt) {
     const actionElapsed = (now - Number(obj.userData.weaponActionStartedAt || -Infinity)) / 1000;
     const weaponMesh = obj.userData.weaponMesh;
     const rightArm = obj.userData.rightArm;
-    if (obj.userData.weaponActionType === "pickaxe" && obj.userData.weaponType === "pickaxe" && actionElapsed >= 0 && actionElapsed < 0.38) {
+    if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.48) {
+      const progress = actionElapsed / 0.48;
+      if (weaponMesh) {
+        weaponMesh.position.set(0.34, 1.02 + Math.sin(progress * Math.PI) * 0.08, -0.22);
+        weaponMesh.rotation.set(-0.08 - Math.sin(progress * Math.PI) * 0.9, 0, 1.8 * progress);
+      }
+      if (rightArm) rightArm.rotation.set(-Math.sin(progress * Math.PI) * 0.65, 0, 0.08 - progress * 0.3);
+    } else if (obj.userData.weaponActionType === "swordLeap" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.95) {
+      const progress = actionElapsed / 0.95;
+      if (weaponMesh) {
+        weaponMesh.position.set(0.34, 1.02 + Math.sin(progress * Math.PI) * 0.12, -0.22);
+        weaponMesh.rotation.set(-0.9 + progress * 1.8, 0, Math.sin(progress * Math.PI) * 0.7);
+      }
+      if (rightArm) rightArm.rotation.set(-0.7 + progress * 1.4, 0, 0.08);
+    } else if (obj.userData.weaponActionType === "pickaxe" && obj.userData.weaponType === "pickaxe" && actionElapsed >= 0 && actionElapsed < 0.38) {
       const angle = pickaxeSwingAngle(actionElapsed);
       if (weaponMesh) weaponMesh.rotation.set(-0.08 + angle * 0.55, 0, angle * 0.62);
       if (rightArm) rightArm.rotation.set(angle * 0.48, 0, 0.08 - angle * 0.24);
@@ -3415,7 +3452,7 @@ function fire() {
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (!["pickaxe", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
+  if (!["pickaxe", "sword", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
     // 弾切れによる自動リロードでは射撃ボタンの長押し状態を維持する。
     reload(true);
     return;
@@ -3426,7 +3463,9 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
-  if (["pickaxe", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) startLocalWeaponAction(selectedWeapon);
+  if (["pickaxe", "sword", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) {
+    startLocalWeaponAction(selectedWeapon === "sword" && myState?.grounded === false ? "swordLeap" : selectedWeapon);
+  }
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
 }
 
@@ -3437,7 +3476,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -3447,6 +3486,7 @@ function updateWeaponReticle() {
     bow: ["weapon-bow", "⌒"],
     minigun: ["weapon-minigun", "✣"],
     pickaxe: ["weapon-pickaxe", "+"],
+    sword: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
     shockwaveLauncher: ["weapon-grenade", "◉"], grappler: ["weapon-grenade", "⊂"],
@@ -3471,7 +3511,7 @@ function updateWeaponReticle() {
 function updatePickaxeReticleBounds() {
   const crosshair = document.getElementById("crosshair");
   if (!crosshair) return;
-  if (selectedWeapon !== "pickaxe") {
+  if (selectedWeapon !== "pickaxe" && selectedWeapon !== "sword") {
     crosshair.style.width = "";
     return;
   }
@@ -3750,6 +3790,7 @@ function startFiring(forceRepeat = false) {
     buildPreviewActive = false;
     updateBuildPreview();
   }
+  if (selectedWeapon === "sword") { socket.emit("swordGuardStart"); fire(); return; }
   if(selectedWeapon==="railgun"){startRailgunCharge();return;}
   if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)){socket.emit("beamStart");return;}
   if (selectedWeapon === "bow") { startBowCharge(); return; }
@@ -3765,6 +3806,7 @@ function stopFiring() {
   if (railgunChargeStartedAt) { releaseRailgunCharge(); return; }
   if (bowChargeStartedAt) { releaseBowCharge(); return; }
   if (minigunCharging) { releaseMinigunCharge(); return; }
+  if (selectedWeapon === "sword") socket.emit("swordGuardStop");
   if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
   if (autoFireTimer) {
     clearInterval(autoFireTimer);
@@ -3790,6 +3832,7 @@ function cancelFiringForWeaponSwitch() {
     resetBowChargeScope();
   }
   if (minigunCharging || minigunDraining || minigunChargeValue > 0) cancelMinigunCharge();
+  if (selectedWeapon === "sword") socket.emit("swordGuardStop");
   if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
   const hud = document.getElementById("bowChargeHud");
   hud?.classList.add("hidden");
@@ -3978,7 +4021,7 @@ function createTracer(event) {
     tracers.push({ line, dot: null, start, end, born: performance.now(), life: 110 });
     return;
   }
-  if (event.weapon === "pickaxe" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
+  if (event.weapon === "pickaxe" || event.weapon === "sword" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     return;
   }
