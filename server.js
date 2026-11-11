@@ -2781,8 +2781,8 @@ function movePlayer(p, dt) {
     // 3秒経過時点の真下にある床面へ即座に着地。壁の上面も着地点に含める。
     p.y = getGroundHeight(p.x, p.z, p.y, p);
     p.velocityY = 0;
-    p.grounded = true;
-    p.lastGroundedAt = now;
+    p.grounded = false;
+    p.lastGroundedAt = 0;
     p.skyfallImpactPending = true;
   }
   updateCrouchState(p);
@@ -4515,7 +4515,7 @@ io.on("connection", (socket) => {
       isBot: false,
       lastPresenceAt: Date.now(),
       x: spawn[0],
-      y: 0,
+      y: Number(spawn[1]) || 0,
       z: spawn[2],
       yaw: 0,
       pitch: 0,
@@ -4538,8 +4538,8 @@ io.on("connection", (socket) => {
       reloadingUntil: 0,
       lastFire: 0,
       velocityY: 0,
-      grounded: true,
-      lastGroundedAt: Date.now(),
+      grounded: false,
+      lastGroundedAt: 0,
       jumpQueuedUntil: 0,
       input: { forward: 0, strafe: 0, crouch: false },
       crouched: false,
@@ -5009,7 +5009,7 @@ io.on("connection", (socket) => {
       ? p.trainingMap.spawnPoints[0]
       : pickSpawnForPlayer(p, p.botSpawnIndex || 0);
     p.x = spawn[0];
-    p.y = spawn[1] || 0;
+    p.y = Number(spawn[1]) || 0;
     p.z = spawn[2];
     if (p.mode === PAYLOAD_MODE) p.yaw = -Math.PI / 2;
     p.velocityY = 0;
