@@ -2269,7 +2269,7 @@ function refreshLocalWeaponViewModel() {
 }
 
 function startLocalWeaponAction(weapon) {
-  if (!["pickaxe", "sword", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(weapon)) return;
+  if (!["pickaxe", "sword", "swordLeap", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(weapon)) return;
   localWeaponActionType = weapon;
   localWeaponActionStartedAt = performance.now();
 }
