@@ -3490,7 +3490,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ rocketLauncher:"ロケットランチャー",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパー", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -3503,6 +3503,7 @@ function updateWeaponReticle() {
     sword: ["weapon-pickaxe", "+"],
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
+    rocketLauncher: ["weapon-grenade", "◎"],
     shockwaveLauncher: ["weapon-grenade", "◉"], grappler: ["weapon-grenade", "⊂"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
@@ -4072,7 +4073,7 @@ function createTracer(event) {
     tracers.push({ line, dot: null, start, end, born: performance.now(), life: 110 });
     return;
   }
-  if (event.weapon === "pickaxe" || event.weapon === "sword" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
+  if (event.weapon === "pickaxe" || event.weapon === "sword" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "rocketLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     else if (event.weapon === "sword" && event.action === "leap") startLocalWeaponAction("swordLeap");
     return;
