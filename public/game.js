@@ -3445,8 +3445,10 @@ function sendInput(now) {
   lastInputSent = now;
 }
 
+let lastLocalJumpInputAt = 0;
 function jump() {
   if (!joined || myState?.health <= 0) return;
+  lastLocalJumpInputAt = Date.now();
   socket.emit("jump");
 }
 
@@ -3798,6 +3800,7 @@ function cancelMinigunCharge() {
 }
 let swordGuardActive = false;
 let swordPressStartedAt = 0;
+let swordAirAttack = false;
 
 function startFiring(forceRepeat = false) {
   if (selectedGameMode === "Build") {
@@ -3805,8 +3808,15 @@ function startFiring(forceRepeat = false) {
     updateBuildPreview();
   }
   if (selectedWeapon === "sword") {
-    if (swordPressStartedAt || swordGuardActive) return;
-    // 押した瞬間にガードを開始し、離した時に短押しか長押しか判定する。
+    if (swordPressStartedAt || swordGuardActive || swordAirAttack) return;
+    const airborneOrJustJumped = myState?.grounded === false || Date.now() - lastLocalJumpInputAt <= 450;
+    if (airborneOrJustJumped) {
+      // 空中ではガードを開始せず、押した瞬間にジャンプ攻撃を発動する。
+      swordAirAttack = true;
+      fire();
+      return;
+    }
+    // 地上では押した瞬間にガードを開始する。
     swordPressStartedAt = Date.now();
     swordGuardActive = true;
     socket.emit("swordGuardStart");
@@ -3823,6 +3833,10 @@ function startFiring(forceRepeat = false) {
 }
 
 function stopFiring(cancelled = false) {
+  if (swordAirAttack) {
+    swordAirAttack = false;
+    return;
+  }
   if (selectedWeapon === "sword" || swordPressStartedAt || swordGuardActive) {
     const heldFor = swordPressStartedAt ? Date.now() - swordPressStartedAt : Infinity;
     swordPressStartedAt = 0;
@@ -3864,6 +3878,7 @@ function cancelFiringForWeaponSwitch() {
   }
   if (minigunCharging || minigunDraining || minigunChargeValue > 0) cancelMinigunCharge();
   swordPressStartedAt = 0;
+  swordAirAttack = false;
   if (swordGuardActive) {
     swordGuardActive = false;
     socket.emit("swordGuardStop");
