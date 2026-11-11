@@ -3498,7 +3498,7 @@ function fire() {
   if (now - localLastFire < cfg.fireInterval * .8) return;
 
   localLastFire = now;
-  if (["pickaxe", "sword", "smoke", "grenadeLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) {
+  if (["pickaxe", "sword", "smoke", "grenadeLauncher", "rocketLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) {
     startLocalWeaponAction(selectedWeapon === "sword" && myState?.grounded === false ? "swordLeap" : selectedWeapon);
   }
   socket.emit("fire", { scoped: selectedWeapon === "sniper" && scopeEnabled });
