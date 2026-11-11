@@ -5309,8 +5309,15 @@ setInterval(() => {
         p.floorCharmHealAt = 0;
       }
       // 赤い床は延焼状態を付与せず、接地中に毎秒3ダメージ。床のお守りなら無効化する。
-      const onFireFloorGround = p.charm !== "floor" && isOnFloorTile(p, "fire") &&
-        Math.abs(p.y - floorSurfaceY) <= 0.12;
+      const fireFloorTile = (getMapForPlayer(p).floorTiles || []).find(tile =>
+        tile.type === "fire" &&
+        Math.abs(p.x - tile.x) <= tile.w / 2 &&
+        Math.abs(p.z - tile.z) <= tile.d / 2
+      );
+      // 赤い床そのものの高さ(y)に接地している時だけダメージ。上にある足場や空中では発生させない。
+      const fireFloorY = fireFloorTile ? (Number(fireFloorTile.y) || 0) : null;
+      const onFireFloorGround = p.charm !== "floor" && Boolean(fireFloorTile) &&
+        p.grounded === true && Math.abs(p.y - fireFloorY) <= 0.12;
       if (onFireFloorGround && now >= (p.fireFloorDamageAt || 0)) {
         p.fireFloorDamageAt = now + 1000;
         applyIncomingDamage(p, 3);
