@@ -5394,8 +5394,8 @@ lookSurface.addEventListener("pointermove", (e) => {
   lastLookX = e.clientX;
   lastLookY = e.clientY;
 
-  yaw -= dx * .0045 * gameSettings.touchSensitivity;
-  pitch -= dy * .0045 * gameSettings.touchSensitivity;
+  yaw -= dx * .0045 * gameSettings.touchSensitivity * getScopeSensitivityMultiplier();
+  pitch -= dy * .0045 * gameSettings.touchSensitivity * getScopeSensitivityMultiplier();
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
 });
 
