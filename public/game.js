@@ -2339,15 +2339,16 @@ function createGrenadeProjectileVisual(data) {
     const isShockwave = data.type === "shockwave";
     const isGrapple = data.type === "grapple";
     const isTornado = data.type === "tornado";
+    const isRocket = data.type === "rocket";
     const material = new THREE.MeshStandardMaterial({
-      color: isTornado ? 0x8cecff : isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : 0x8b7a43,
+      color: isTornado ? 0x8cecff : isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : isRocket ? 0xff542e : 0x8b7a43,
       roughness: 0.35, metalness: 0.2, transparent: isTornado, opacity: isTornado ? 0.68 : 1,
-      emissive: isTornado ? 0x1b8ab0 : isGrapple ? 0x12545c : isShockwave ? 0x145b78 : 0x000000,
-      emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : 0
+      emissive: isTornado ? 0x1b8ab0 : isGrapple ? 0x12545c : isShockwave ? 0x145b78 : isRocket ? 0x9f210e : 0x000000,
+      emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : isRocket ? 1.0 : 0
     });
     mesh = new THREE.Mesh(
       isTornado ? new THREE.CylinderGeometry(0.075, 0.075, 14, 10, 1, false) :
-      isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(0.16, 14, 10),
+      isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(isRocket ? 0.38 : 0.16, 14, 10),
       material
     );
     if (isTornado) {
@@ -4811,7 +4812,12 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", leaveGameForBackground);
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && !joined) {
+    document.getElementById("modeScreen")?.classList.add("hidden");
+    document.getElementById("weaponScreen")?.classList.remove("hidden");
+    document.getElementById("topScreen")?.classList.add("hidden");
+  }
   if (document.visibilityState === "visible" && !socket.connected) socket.connect();
 });
 setInterval(() => {
@@ -4855,7 +4861,10 @@ document.addEventListener("visibilitychange", () => {
     return;
   }
   if (document.visibilityState === "visible" && leftMatchForBackground) {
-    window.location.reload();
+    leftMatchForBackground = false;
+    document.getElementById("modeScreen")?.classList.add("hidden");
+    document.getElementById("weaponScreen")?.classList.remove("hidden");
+    document.getElementById("topScreen")?.classList.add("hidden");
   }
 });
 
