@@ -1943,3 +1943,8 @@ body.controller-mode #settingsButton {
 
 /* 武器選択カテゴリは折りたたまず、常に一覧表示する。 */
 .weapon-category-heading{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.16);font-size:1rem;font-weight:800;}.weapon-category-heading span{font-size:.78rem;opacity:.7;font-weight:600;}.weapon-category{display:block;}
+
+
+/* 武器選択はカテゴリ枠を使わず、全武器を連続した一覧で表示する。 */
+.weapon-grid-all{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;}
+.weapon-grid-all .weapon-card{min-width:0;}
