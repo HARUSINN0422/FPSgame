@@ -4801,7 +4801,11 @@ io.on("connection", (socket) => {
   socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished || ["bow", "minigun", "railgun", "flamethrower", "laserBeam", "freezeCannon"].includes(p.weapon) || p.frozenUntil > Date.now()) return;
-    if (p.weapon === "sword" && !p.grounded) { startSwordLeap(p, Date.now()); return; }
+    if (p.weapon === "sword") {
+      const now = Date.now();
+      const jumpGrace = now - (Number(p.lastJumpInputAt) || 0) <= 450;
+      if (!p.grounded || jumpGrace) { startSwordLeap(p, now); return; }
+    }
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
   });
   socket.on("swordGuardStart", () => { const p = players.get(socket.id); if (p && p.weapon === "sword" && p.health > 0 && !p.finished) p.swordGuarding = true; });
