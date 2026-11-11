@@ -4023,6 +4023,7 @@ function createTracer(event) {
   }
   if (event.weapon === "pickaxe" || event.weapon === "sword" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
     if (event.id !== myId) startRemoteWeaponAction(event);
+    else if (event.weapon === "sword" && event.action === "leap") startLocalWeaponAction("swordLeap");
     return;
   }
   // マークスマンは専用の弾道表示を使わない。
