@@ -213,7 +213,7 @@ const WEAPONS = {
     falloffStart: 100, minDamageMultiplier: 1, magazineSize: 30,
     reloadTime: 1300, automatic: true
   },
-  formingGun: { name: "フォーミングガン", damage: 30, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
+  formingGun: { name: "ホーミングガン", damage: 30, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   smoke: {
     name: "煙幕", damage: 0, fireInterval: 1300, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
@@ -236,7 +236,7 @@ const WEAPONS = {
 
 const WEAPON_LABELS = {
   pickaxe: "ツルハシ", sword: "剣", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル",
-  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", formingGun: "フォーミングガン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", rocketLauncher: "ロケットランチャー", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
+  shotgun: "ショットガン", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", marksman: "マークスマン", formingGun: "ホーミングガン", smoke: "煙幕", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン", railgun: "レールガン", rocketLauncher: "ロケットランチャー", flamethrower: "火炎放射器", laserBeam: "レーザービーム", freezeCannon: "フリーズキャノン"
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃。ダメージ: 120。弾薬・リロード不要。",
@@ -1792,7 +1792,10 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
           const distance = Math.hypot(dx, dy, dz);
           if (distance > 5 || (nearest && distance >= nearest.distance)) continue;
           const dir = { x: dx / Math.max(distance, 1e-6), y: dy / Math.max(distance, 1e-6), z: dz / Math.max(distance, 1e-6) };
-          const wall = rayHitsObstacle({ x: projectile.x, y: projectile.y, z: projectile.z }, dir, distance, owner);
+          const sightOrigin = { x: projectile.x, y: projectile.y, z: projectile.z };
+          const mapWall = rayHitsObstacle(sightOrigin, dir, distance, owner);
+          const cartWall = owner.mode === PAYLOAD_MODE ? rayHitsPayloadCart(sightOrigin, dir, distance, owner) : null;
+          const wall = mapWall === null ? cartWall : cartWall === null ? mapWall : Math.min(mapWall, cartWall);
           if (wall !== null && wall < distance - 0.2) continue;
           nearest = { candidate, distance, dir };
         }
@@ -1807,7 +1810,10 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         const dx = center.x - projectile.x, dy = center.y - projectile.y, dz = center.z - projectile.z;
         const distance = Math.hypot(dx, dy, dz);
         const dir = { x: dx / Math.max(distance, 1e-6), y: dy / Math.max(distance, 1e-6), z: dz / Math.max(distance, 1e-6) };
-        const wall = rayHitsObstacle({ x: projectile.x, y: projectile.y, z: projectile.z }, dir, distance, owner);
+        const sightOrigin = { x: projectile.x, y: projectile.y, z: projectile.z };
+        const mapWall = rayHitsObstacle(sightOrigin, dir, distance, owner);
+        const cartWall = owner.mode === PAYLOAD_MODE ? rayHitsPayloadCart(sightOrigin, dir, distance, owner) : null;
+        const wall = mapWall === null ? cartWall : cartWall === null ? mapWall : Math.min(mapWall, cartWall);
         if (wall !== null && wall < distance - 0.2) {
           projectile.homing = false;
           projectile.homingDisabled = true;
@@ -1832,10 +1838,28 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       let hitTarget = null, hitInfo = null;
       for (const candidate of players.values()) {
         if (!eligible(candidate) || candidate.invulnerableUntil > now) continue;
-        const hit = rayHitsPlayer(from, dir, candidate, 0.35);
-        if (hit && hit.t <= distance && (!hitInfo || hit.t < hitInfo.t)) { hitTarget = candidate; hitInfo = hit; }
+        const height = candidate.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+        const center = { x: candidate.x, y: candidate.y + height * 0.55, z: candidate.z };
+        const lengthSq = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
+        const t = lengthSq > 1e-9
+          ? clamp(((center.x - from.x) * delta.x + (center.y - from.y) * delta.y + (center.z - from.z) * delta.z) / lengthSq, 0, 1)
+          : 0;
+        const closest = { x: from.x + delta.x * t, y: from.y + delta.y * t, z: from.z + delta.z * t };
+        const horizontalDistance = Math.hypot(center.x - closest.x, center.z - closest.z);
+        const verticalDistance = Math.abs(center.y - closest.y);
+        // 1フレーム内の移動線分全体を判定し、細い弾が高速移動中に敵をすり抜けないようにする。
+        if (horizontalDistance > PLAYER_RADIUS + 0.22 || verticalDistance > height * 0.48 + 0.22) continue;
+        const hitDistance = distance * t;
+        if (!hitInfo || hitDistance < hitInfo.t) {
+          hitTarget = candidate;
+          hitInfo = { t: hitDistance, zone: closest.y > candidate.y + height * 0.78 ? "head" : "body" };
+        }
       }
-      const wallDistance = distance > 1e-5 ? rayHitsObstacle(from, dir, distance, owner) : null;
+      const mapWallDistance = distance > 1e-5 ? rayHitsObstacle(from, dir, distance, owner) : null;
+      const cartWallDistance = distance > 1e-5 && owner.mode === PAYLOAD_MODE
+        ? rayHitsPayloadCart(from, dir, distance, owner) : null;
+      const wallDistance = mapWallDistance === null ? cartWallDistance
+        : cartWallDistance === null ? mapWallDistance : Math.min(mapWallDistance, cartWallDistance);
       if (hitTarget && (wallDistance === null || wallDistance > hitInfo.t)) {
         const damage = 30;
         const split = applyIncomingDamage(hitTarget, damage, true);
@@ -1843,8 +1867,14 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         io.to(owner.id).emit("damageDealt", { targetId: hitTarget.id, damage: Math.round(split.totalDamage), shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage), zone: hitInfo.zone || "body", x: next.x, y: next.y, z: next.z });
         io.to(hitTarget.id).emit("damageTaken", { damage: Math.round(split.totalDamage), zone: hitInfo.zone || "body" });
         if (hitTarget.health <= 0) {
-          hitTarget.health = 0; hitTarget.respawnAt = now + 5000; hitTarget.deaths = (hitTarget.deaths || 0) + 1;
+          hitTarget.health = 0;
+          hitTarget.respawnAt = now + 5000;
+          hitTarget.deaths = (hitTarget.deaths || 0) + 1;
+          hitTarget.invisibleUntil = 0;
+          if (hitTarget.riftDuelId) finishRiftDuel(hitTarget);
+          clearBurnStatus(hitTarget);
           owner.kills = (owner.kills || 0) + 1;
+          if (owner.invisibleUntil > now) owner.invisibleUntil = 0;
           if (hitTarget.mode === "Duel") resolveDuelRound(owner, hitTarget);
           broadcastGameEvent(owner, "elimination", { killerId: owner.id, killerName: owner.name, victimId: hitTarget.id, victimName: hitTarget.name, killerKills: owner.kills, zone: hitInfo.zone || "body" });
         }
