@@ -2316,20 +2316,20 @@ function animateLocalWeaponViewModel(now) {
   } else if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.62) {
     // 振り始め→斬り下ろし→短い戻しの一振りにし、直線的な回転や急な巻き戻りを抑える。
     const progress = elapsed / 0.62;
-    const windup = progress < 0.22 ? progress / 0.22 : 1;
-    const slash = progress >= 0.22 && progress < 0.62
-      ? Math.sin(((progress - 0.22) / 0.40) * Math.PI * 0.5)
-      : (progress >= 0.62 ? 1 : 0);
-    const recovery = progress >= 0.62 ? 1 - (progress - 0.62) / 0.38 : 0;
+    const windup = progress < 0.18 ? progress / 0.18 : 1;
+    const slash = progress >= 0.18 && progress < 0.72
+      ? Math.sin(((progress - 0.18) / 0.54) * Math.PI * 0.5)
+      : (progress >= 0.72 ? 1 : 0);
+    const recovery = progress >= 0.72 ? 1 - (progress - 0.72) / 0.28 : 0;
     localWeaponViewModel.rotation.set(
-      0.16 - windup * 0.22 - slash * 0.78 + recovery * 0.12,
+      0.16 - windup * 0.22 - slash * 0.78 + recovery * 0.78 + recovery * 0.22,
       -0.18,
-      -0.28 - windup * 0.42 + slash * 1.52 - recovery * 0.82
+      -0.28 - windup * 0.42 + slash * 1.52 - recovery * 1.52 + recovery * 0.42
     );
     localWeaponViewModel.position.set(
-      0.38 + windup * 0.025 - slash * 0.035,
-      -0.34 + slash * 0.10 - recovery * 0.035,
-      -0.62 - windup * 0.035 + slash * 0.055
+      0.38 + windup * 0.025 - slash * 0.035 + recovery * 0.035 - recovery * 0.025,
+      -0.34 + slash * 0.10 - recovery * 0.10,
+      -0.62 - windup * 0.035 + slash * 0.055 - recovery * 0.055 + recovery * 0.035
     );
   } else if (localWeaponActionType === "swordLeap" && elapsed >= 0 && elapsed < 0.95) {
     const progress = elapsed / 0.95;
@@ -2788,18 +2788,18 @@ function updateSmokeVisuals(now, dt) {
       if (rightArm) rightArm.rotation.set(-0.82, 0, 0.22);
     } else if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.62) {
       const progress = actionElapsed / 0.62;
-      const windup = progress < 0.22 ? progress / 0.22 : 1;
-      const slash = progress >= 0.22
-        ? Math.sin(Math.min(1, (progress - 0.22) / 0.40) * Math.PI * 0.5)
-        : 0;
-      const recovery = progress >= 0.62 ? 1 - (progress - 0.62) / 0.38 : 0;
+      const windup = progress < 0.18 ? progress / 0.18 : 1;
+      const slash = progress >= 0.18 && progress < 0.72
+        ? Math.sin(((progress - 0.18) / 0.54) * Math.PI * 0.5)
+        : (progress >= 0.72 ? 1 : 0);
+      const recovery = progress >= 0.72 ? 1 - (progress - 0.72) / 0.28 : 0;
       if (weaponMesh) {
-        weaponMesh.position.set(0.34 + windup * 0.02 - slash * 0.025, 1.02 + slash * 0.10 - recovery * 0.035, -0.22);
-        weaponMesh.rotation.set(-0.08 - windup * 0.18 - slash * 0.72 + recovery * 0.1, 0,
-          -0.18 - windup * 0.35 + slash * 1.45 - recovery * 0.78);
+        weaponMesh.position.set(0.34 + windup * 0.02 - slash * 0.025 + recovery * 0.005, 1.02 + slash * 0.10 - recovery * 0.10, -0.22);
+        weaponMesh.rotation.set(-0.08 - windup * 0.18 - slash * 0.72 + recovery * 0.72 + recovery * 0.18, 0,
+          -0.18 - windup * 0.35 + slash * 1.45 - recovery * 1.45 + recovery * 0.35);
       }
-      if (rightArm) rightArm.rotation.set(-windup * 0.12 - slash * 0.62 + recovery * 0.1, 0,
-        0.08 - windup * 0.08 - slash * 0.28 + recovery * 0.16);
+      if (rightArm) rightArm.rotation.set(-windup * 0.12 - slash * 0.62 + recovery * 0.62 + recovery * 0.12, 0,
+        0.08 - windup * 0.08 - slash * 0.28 + recovery * 0.28 + recovery * 0.08);
     } else if (obj.userData.weaponActionType === "swordLeap" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.95) {
       const progress = actionElapsed / 0.95;
       if (weaponMesh) {
