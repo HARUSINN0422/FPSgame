@@ -3489,7 +3489,7 @@ function fire() {
   // リスポーン直後の無敵時間中は発射操作自体を受け付けない。
   if (myState && Number(myState.invulnerableUntil || 0) > Date.now()) return;
 
-  if (!["pickaxe", "sword", "smoke", "shockwaveLauncher", "grappler","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
+  if (!["pickaxe", "sword", "smoke", "shockwaveLauncher", "grappler","railgun","formingGun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon) && myState && myState.ammo <= 0) {
     // 弾切れによる自動リロードでは射撃ボタンの長押し状態を維持する。
     reload(true);
     return;
