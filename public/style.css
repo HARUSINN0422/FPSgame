@@ -1948,3 +1948,30 @@ body.controller-mode #settingsButton {
 /* 武器選択はカテゴリ枠を使わず、全武器を連続した一覧で表示する。 */
 .weapon-grid-all{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;}
 .weapon-grid-all .weapon-card{min-width:0;}
+
+
+/* 武器構成画面は画面幅を活用し、一覧の縦スクロール量を減らす。 */
+#weaponScreen {
+  padding: 20px clamp(16px, 2.4vw, 36px);
+}
+#weaponScreen > .panel {
+  width: min(1180px, calc(100vw - 48px));
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  padding: clamp(18px, 2vw, 28px);
+}
+#weaponScreen .weapon-grid-all {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+  gap: 10px;
+}
+@media (max-width: 900px) {
+  #weaponScreen {
+    padding: 14px;
+  }
+  #weaponScreen > .panel {
+    width: calc(100vw - 28px);
+    max-height: calc(100vh - 28px);
+    max-height: calc(100dvh - 28px);
+    padding: clamp(14px, 2vw, 22px);
+  }
+}
