@@ -2313,9 +2313,9 @@ function animateLocalWeaponViewModel(now) {
     // ガード中は剣を顔の前に立て、画面中央寄りに構える。
     localWeaponViewModel.position.set(0.16, 0.02, -0.5);
     localWeaponViewModel.rotation.set(-0.12, -0.28, -0.32);
-  } else if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.62) {
+  } else if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.48) {
     // 振り始め→斬り下ろし→短い戻しの一振りにし、直線的な回転や急な巻き戻りを抑える。
-    const progress = elapsed / 0.62;
+    const progress = elapsed / 0.48;
     const windup = progress < 0.18 ? progress / 0.18 : 1;
     const slash = progress >= 0.18 && progress < 0.72
       ? Math.sin(((progress - 0.18) / 0.54) * Math.PI * 0.5)
@@ -2786,8 +2786,8 @@ function updateSmokeVisuals(now, dt) {
         weaponMesh.rotation.set(-0.12, 0, -0.38);
       }
       if (rightArm) rightArm.rotation.set(-0.82, 0, 0.22);
-    } else if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.62) {
-      const progress = actionElapsed / 0.62;
+    } else if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.48) {
+      const progress = actionElapsed / 0.48;
       const windup = progress < 0.18 ? progress / 0.18 : 1;
       const slash = progress >= 0.18 && progress < 0.72
         ? Math.sin(((progress - 0.18) / 0.54) * Math.PI * 0.5)
