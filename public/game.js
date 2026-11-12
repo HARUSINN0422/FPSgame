@@ -1879,7 +1879,13 @@ function buildWorld(data) {
   makeBox(1, 3, worldDepth, bounds.maxX + 2, 1.5, centerZ, 0x58636e);
   if (Array.isArray(data.payloadPath)) buildPayloadTrackVisual(data.payloadPath);
 }
-let minimapRespawnMarker = null;
+let minimapRespawnMarkers = [];
+function addEnemyRespawnMarker(playerId, x, z) {
+  if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) return;
+  const now = Date.now();
+  minimapRespawnMarkers = minimapRespawnMarkers.filter(marker => marker.until > now && marker.playerId !== playerId);
+  minimapRespawnMarkers.push({ playerId, x: Number(x), z: Number(z), until: now + 8000 });
+}
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
   if (!canvas || !myState || !worldData?.world) return;
@@ -1999,13 +2005,15 @@ function updateMinimap() {
   ctx.fill();
 
   // 敵がリスポーンした地点だけを短時間表示する（自分の復帰地点は表示しない）。
-  const showRespawnMarker = minimapRespawnMarker && minimapRespawnMarker.until > Date.now();
-  if (showRespawnMarker) {
+  // 敵の復帰地点は敵の通常スポット判定・視界遮蔽とは独立して描画する。
+  const markerNow = Date.now();
+  minimapRespawnMarkers = minimapRespawnMarkers.filter(marker => marker.until > markerNow);
+  for (const marker of minimapRespawnMarkers) {
     ctx.fillStyle = "#ffd34f";
-    ctx.strokeStyle = "rgba(255,255,255,.95)";
+    ctx.strokeStyle = "rgba(255,255,255,.98)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(mapX(minimapRespawnMarker.x), mapZ(minimapRespawnMarker.z), 7, 0, Math.PI * 2);
+    ctx.arc(mapX(marker.x), mapZ(marker.z), 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
@@ -3209,6 +3217,11 @@ function updateRemotePlayers(players) {
         if (material?.color) material.color.copy(clothingColor);
       }
     }
+    const previousPlayerState = obj.userData.playerState;
+    if (previousPlayerState && Number(previousPlayerState.health) <= 0 && Number(p.health) > 0) {
+      const isEnemy = !(["Area", "Payload"].includes(selectedGameMode) && p.team === myState?.team);
+      if (isEnemy) addEnemyRespawnMarker(p.id, p.x, p.z);
+    }
     obj.userData.playerState = p;
     const isFrozen = Number(p.frozenUntil || 0) > Date.now() && p.health > 0;
     if (obj.userData.freezeShell) obj.userData.freezeShell.visible = isFrozen && !p.invisible;
@@ -3900,10 +3913,12 @@ function startFiring(forceRepeat = false) {
   }
   if (selectedWeapon === "sword") {
     if (swordPressStartedAt || swordGuardActive || swordAirAttack) return;
-    const airborneOrJustJumped = myState?.grounded === false || Date.now() - lastLocalJumpInputAt <= 450;
+    const airborneOrJustJumped = myState?.grounded === false || Date.now() - lastLocalJumpInputAt <= 900;
+    if (performance.now() < swordMeleeLocalReadyAt) return;
     if (airborneOrJustJumped) {
       // 空中ではガードを開始せず、押した瞬間にジャンプ攻撃を発動する。
       swordAirAttack = true;
+      swordMeleeLocalReadyAt = performance.now() + (weaponConfig.sword?.fireInterval || 650);
       swordLeapLocalUntil = performance.now() + 1000;
       fire();
       return;
@@ -3939,8 +3954,9 @@ function stopFiring(cancelled = false) {
     }
     // 180ms未満のタップだけ通常攻撃。長押しはガードのみ。
     if (!cancelled && heldFor < 180 && selectedWeapon === "sword" && performance.now() >= swordMeleeLocalReadyAt) {
-      fire();
+      // fire()より先に次の攻撃可能時刻を確定し、連打・多重pointerイベントを抑止。
       swordMeleeLocalReadyAt = performance.now() + (weaponConfig.sword?.fireInterval || 650);
+      fire();
     }
     return;
   }
@@ -4778,7 +4794,8 @@ socket.on("enemyRespawnMarker", (data = {}) => {
   const enemy = remotePlayers.get(data.playerId)?.userData.playerState;
   if ((selectedGameMode === "Area" || selectedGameMode === "Payload") &&
       enemy?.team && myState?.team && enemy.team === myState.team) return;
-  minimapRespawnMarker = { x: Number(data.x), z: Number(data.z), until: Date.now() + 5000 };
+  // players/stateの更新タイミングに左右されないよう、イベント受信時にも記録する。
+  addEnemyRespawnMarker(data.playerId, data.x, data.z);
 });
 
 socket.on("weaponBeam", setWeaponBeam);
