@@ -3513,7 +3513,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ rocketLauncher:"ロケットランチャー",formingGun:"フォーミングガン",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ rocketLauncher:"ロケットランチャー",formingGun:"ホーミングガン",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -3837,8 +3837,8 @@ function startFormingCharge() {
   const hud = document.getElementById("bowChargeHud");
   const fill = document.getElementById("bowChargeFill");
   const label = hud?.querySelector("span");
-  if (label) label.textContent = "フォーミングガン チャージ";
-  hud?.setAttribute("aria-label", "フォーミングガンのチャージ");
+  if (label) label.textContent = "ホーミングガン チャージ";
+  hud?.setAttribute("aria-label", "ホーミングガンのチャージ");
   hud?.classList.remove("hidden");
   if (fill) fill.style.width = "0%";
   if (formingChargeTimer) clearInterval(formingChargeTimer);
