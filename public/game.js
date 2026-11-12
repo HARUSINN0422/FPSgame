@@ -1879,6 +1879,7 @@ function buildWorld(data) {
   makeBox(1, 3, worldDepth, bounds.maxX + 2, 1.5, centerZ, 0x58636e);
   if (Array.isArray(data.payloadPath)) buildPayloadTrackVisual(data.payloadPath);
 }
+let minimapRespawnMarker = null;
 function updateMinimap() {
   const canvas = document.getElementById("minimapCanvas");
   if (!canvas || !myState || !worldData?.world) return;
@@ -1997,8 +1998,17 @@ function updateMinimap() {
   ctx.arc(px, pz, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // 無敵中は敵全員を表示。それ以外は自分（エリアでは味方も）の視界に入った敵だけ表示。
-  const showAllEnemies = Number(myState.invulnerableUntil || 0) > Date.now();
+  // リスポーン後5秒間は敵の現在位置を隠し、復帰地点だけを表示する。
+  const showRespawnMarker = minimapRespawnMarker && minimapRespawnMarker.until > Date.now();
+  if (showRespawnMarker) {
+    ctx.fillStyle = "#ffd34f";
+    ctx.strokeStyle = "rgba(255,255,255,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mapX(minimapRespawnMarker.x), mapZ(minimapRespawnMarker.z), 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
   const observers = [{ x: myState.x, y: myState.y || 0, z: myState.z, yaw, team: myState.team }];
   if (selectedGameMode === "Area" || selectedGameMode === "Payload") {
     for (const obj of remotePlayers.values()) {
@@ -2010,6 +2020,7 @@ function updateMinimap() {
   }
 
   const raycaster = new THREE.Raycaster();
+  if (showRespawnMarker) return;
   for (const obj of remotePlayers.values()) {
     const enemy = obj.userData.playerState;
     if (!enemy || enemy.health <= 0 || enemy.finished) continue;
@@ -2027,17 +2038,15 @@ function updateMinimap() {
     });
     if (hiddenBySmoke) continue;
 
-    // 乱戦では、プレイヤーからマップの長辺の半分以上離れた敵もミニマップに表示する。
+    // 遠距離の敵はミニマップに表示しない。味方表示は従来どおり。
     const enemyDistance = Math.hypot(ex - myState.x, ez - myState.z);
-    const showDistantMeleeEnemy = selectedGameMode === "Melee"
-      && enemyDistance >= Math.max(worldWidth, worldDepth) / 2;
-    let spotted = isAlly || showAllEnemies || showDistantMeleeEnemy;
+    let spotted = isAlly;
     if (!spotted) {
       for (const observer of observers) {
         const dx = ex - observer.x;
         const dz = ez - observer.z;
         const distance = Math.hypot(dx, dz);
-        if (distance < 0.01 || distance > 45) continue;
+        if (distance < 0.01 || distance > 25) continue;
         const targetYaw = Math.atan2(-dx, -dz);
         const yawDiff = Math.atan2(Math.sin(targetYaw - observer.yaw), Math.cos(targetYaw - observer.yaw));
         if (Math.abs(yawDiff) > Math.PI * 0.24) continue;
@@ -2062,13 +2071,8 @@ function updateMinimap() {
     const ezMap = mapZ(ez);
     ctx.fillStyle = (selectedGameMode === "Area" || selectedGameMode === "Payload") ? (enemy.team === "blue" ? "#4aa5ff" : "#ff5c5c") : "#ff4d4d";
     ctx.beginPath();
-    ctx.arc(exMap, ezMap, showAllEnemies ? 5 : 4, 0, Math.PI * 2);
+    ctx.arc(exMap, ezMap, 4, 0, Math.PI * 2);
     ctx.fill();
-    if (showAllEnemies) {
-      ctx.strokeStyle = "rgba(255,255,255,.9)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
   }
 }
 
@@ -3645,7 +3649,7 @@ function isLocalGrapplerExtended() {
 }
 
 function selectWeaponSlot(slot) {
-  if (!joined || myState?.health <= 0 || isLocalGrapplerExtended()) return;
+  if (!joined || myState?.health <= 0 || isLocalGrapplerExtended() || performance.now() < swordLeapLocalUntil) return;
   const now = performance.now();
   if (now - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
   const nextSlot = Number(slot);
@@ -3826,6 +3830,8 @@ function cancelMinigunCharge() {
 let swordGuardActive = false;
 let swordPressStartedAt = 0;
 let swordAirAttack = false;
+let swordLeapLocalUntil = 0;
+let swordMeleeLocalReadyAt = 0;
 
 let formingChargeStartedAt = 0;
 let formingChargeTimer = null;
@@ -3876,6 +3882,7 @@ function startFiring(forceRepeat = false) {
     if (airborneOrJustJumped) {
       // 空中ではガードを開始せず、押した瞬間にジャンプ攻撃を発動する。
       swordAirAttack = true;
+      swordLeapLocalUntil = performance.now() + 1000;
       fire();
       return;
     }
@@ -3909,7 +3916,10 @@ function stopFiring(cancelled = false) {
       socket.emit("swordGuardStop");
     }
     // 180ms未満のタップだけ通常攻撃。長押しはガードのみ。
-    if (!cancelled && heldFor < 180 && selectedWeapon === "sword") fire();
+    if (!cancelled && heldFor < 180 && selectedWeapon === "sword" && performance.now() >= swordMeleeLocalReadyAt) {
+      fire();
+      swordMeleeLocalReadyAt = performance.now() + (weaponConfig.sword?.fireInterval || 650);
+    }
     return;
   }
   // 押し始めた武器のチャージだけを解放し、現在選択中の武器名で誤判定しない。
@@ -4735,6 +4745,7 @@ socket.on("state", (players) => {
 
 socket.on("respawned", ({ player }) => {
   myState = player;
+  minimapRespawnMarker = { x: player.x, z: player.z, until: Date.now() + 5000 };
   yaw = player.yaw;
   pitch = player.pitch;
   hideRespawnPanel();
