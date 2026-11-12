@@ -219,6 +219,7 @@ const weaponConfig = {
   rifle: { fireInterval: 160 / 1.5, automatic: true },
   shotgun: { fireInterval: 750, automatic: false },
   marksman: { fireInterval: 450, automatic: true },
+  formingGun: { fireInterval: 1000, automatic: false },
   sniper: { fireInterval: 1200, automatic: false },
   bow: { fireInterval: 1, automatic: false },
   minigun: { fireInterval: 107 / 3, automatic: false },
@@ -2361,15 +2362,16 @@ function createGrenadeProjectileVisual(data) {
     const isGrapple = data.type === "grapple";
     const isTornado = data.type === "tornado";
     const isRocket = data.type === "rocket";
+    const isForming = data.type === "forming";
     const material = new THREE.MeshStandardMaterial({
-      color: isTornado ? 0x8cecff : isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : isRocket ? 0xff542e : 0x8b7a43,
+      color: isTornado ? 0x8cecff : isGrapple ? 0x37d9e8 : isShockwave ? 0x4bdcff : isRocket ? 0xff542e : isForming ? 0xb66cff : 0x8b7a43,
       roughness: 0.35, metalness: 0.2, transparent: isTornado, opacity: isTornado ? 0.68 : 1,
-      emissive: isTornado ? 0x1b8ab0 : isGrapple ? 0x12545c : isShockwave ? 0x145b78 : isRocket ? 0x9f210e : 0x000000,
-      emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : isRocket ? 1.0 : 0
+      emissive: isTornado ? 0x1b8ab0 : isGrapple ? 0x12545c : isShockwave ? 0x145b78 : isRocket ? 0x9f210e : isForming ? 0x58208f : 0x000000,
+      emissiveIntensity: isTornado ? 1.1 : isGrapple || isShockwave ? 0.8 : isRocket || isForming ? 1.0 : 0
     });
     mesh = new THREE.Mesh(
       isTornado ? new THREE.CylinderGeometry(0.075, 0.075, 14, 10, 1, false) :
-      isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(isRocket ? 0.38 : 0.16, 14, 10),
+      isGrapple ? new THREE.CylinderGeometry(0.1, 0.17, 0.24, 12) : new THREE.SphereGeometry(isRocket ? 0.38 : isForming ? 0.25 : 0.16, 14, 10),
       material
     );
     if (isTornado) {
@@ -3480,7 +3482,7 @@ function setCrouch(held) {
 }
 
 function fire() {
-  if (["bow","minigun","railgun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)) return;
+  if (["bow","minigun","railgun","formingGun","flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)) return;
   if (!joined || myState?.reloading) return;
   // 武器切替中はレティクルが隠れている時間と同じ長さだけ発射を禁止する。
   if (performance.now() - lastWeaponSwitchAt < WEAPON_SWITCH_COOLDOWN_MS) return;
@@ -3511,7 +3513,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ rocketLauncher:"ロケットランチャー",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ rocketLauncher:"ロケットランチャー",formingGun:"フォーミングガン",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -3825,6 +3827,44 @@ let swordGuardActive = false;
 let swordPressStartedAt = 0;
 let swordAirAttack = false;
 
+let formingChargeStartedAt = 0;
+let formingChargeTimer = null;
+function startFormingCharge() {
+  if (!joined || selectedWeapon !== "formingGun" || myState?.health <= 0 || formingChargeStartedAt ||
+      Number(myState?.invulnerableUntil || 0) > Date.now() || myState?.frozenUntil > Date.now()) return;
+  formingChargeStartedAt = performance.now();
+  socket.emit("formingChargeStart");
+  const hud = document.getElementById("bowChargeHud");
+  const fill = document.getElementById("bowChargeFill");
+  const label = hud?.querySelector("span");
+  if (label) label.textContent = "フォーミングガン チャージ";
+  hud?.setAttribute("aria-label", "フォーミングガンのチャージ");
+  hud?.classList.remove("hidden");
+  if (fill) fill.style.width = "0%";
+  if (formingChargeTimer) clearInterval(formingChargeTimer);
+  formingChargeTimer = setInterval(() => {
+    const progress = Math.min(1, (performance.now() - formingChargeStartedAt) / 1000);
+    if (fill) fill.style.width = (progress * 100) + "%";
+    hud?.setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+  }, 25);
+}
+function releaseFormingCharge(cancelled = false) {
+  if (!formingChargeStartedAt) return;
+  const elapsed = performance.now() - formingChargeStartedAt;
+  formingChargeStartedAt = 0;
+  if (formingChargeTimer) clearInterval(formingChargeTimer);
+  formingChargeTimer = null;
+  const hud = document.getElementById("bowChargeHud");
+  hud?.classList.add("hidden");
+  const fill = document.getElementById("bowChargeFill");
+  if (fill) fill.style.width = "0%";
+  const label = hud?.querySelector("span");
+  if (label) label.textContent = "弓のチャージ";
+  hud?.setAttribute("aria-label", "弓のチャージ");
+  if (cancelled || selectedWeapon !== "formingGun") socket.emit("formingCancel");
+  else socket.emit("formingRelease");
+}
+
 function startFiring(forceRepeat = false) {
   if (selectedGameMode === "Build") {
     buildPreviewActive = false;
@@ -3846,6 +3886,7 @@ function startFiring(forceRepeat = false) {
     return;
   }
   if(selectedWeapon==="railgun"){startRailgunCharge();return;}
+  if(selectedWeapon==="formingGun"){startFormingCharge();return;}
   if(["flamethrower","laserBeam","freezeCannon"].includes(selectedWeapon)){socket.emit("beamStart");return;}
   if (selectedWeapon === "bow") { startBowCharge(); return; }
   if (selectedWeapon === "minigun") { startMinigunCharge(); return; }
@@ -3873,6 +3914,7 @@ function stopFiring(cancelled = false) {
   }
   // 押し始めた武器のチャージだけを解放し、現在選択中の武器名で誤判定しない。
   if (railgunChargeStartedAt) { releaseRailgunCharge(); return; }
+  if (formingChargeStartedAt) { releaseFormingCharge(cancelled); return; }
   if (bowChargeStartedAt) { releaseBowCharge(); return; }
   if (minigunCharging) { releaseMinigunCharge(); return; }
   if (["flamethrower", "laserBeam", "freezeCannon"].includes(selectedWeapon)) socket.emit("beamStop");
@@ -3888,6 +3930,7 @@ function cancelFiringForWeaponSwitch() {
     autoFireTimer = null;
   }
   // 武器切替は「発射」ではなくキャンセル。チャージ中の武器が切り替わっても誤発射しない。
+  if (formingChargeStartedAt) releaseFormingCharge(true);
   if (railgunChargeStartedAt) {
     railgunChargeStartedAt = 0;
     if (railgunChargeTimer) clearInterval(railgunChargeTimer);
