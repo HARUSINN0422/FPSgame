@@ -2818,7 +2818,9 @@ function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
     // リスポーン区画のゲートは、該当ロールのプレイヤーだけ通過できる。
     if (o.teamOnlyRole && player?.role === o.teamOnlyRole) return false;
     if (o.teamOnly && player?.team === o.teamOnly) return false;
-    if (o.ceiling ? (bodyTop <= o.y || bodyBottom >= o.y + o.h) : (bodyTop <= 0 || bodyBottom >= o.h)) return false;
+    const obstacleBottom = o.ceiling ? (Number(o.y) || 0) : (Number(o.y) || 0);
+    const obstacleTop = obstacleBottom + (Number(o.h) || 0);
+    if (bodyTop <= obstacleBottom || bodyBottom >= obstacleTop) return false;
     return x > o.x - o.w / 2 - PLAYER_RADIUS &&
       x < o.x + o.w / 2 + PLAYER_RADIUS &&
       z > o.z - o.d / 2 - PLAYER_RADIUS &&
