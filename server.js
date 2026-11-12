@@ -2365,7 +2365,7 @@ function updateBuildBot(bot, targets, now) {
   const distance = Math.max(0.001, Math.hypot(dx, dz));
   const targetYaw = Math.atan2(-dx, -dz);
   const yawDelta = Math.atan2(Math.sin(targetYaw - bot.yaw), Math.cos(targetYaw - bot.yaw));
-  bot.yaw += clamp(yawDelta, -0.2, 0.2);
+  bot.yaw += clamp(yawDelta, -0.55, 0.55);
   const targetY = target.y + (target.crouched ? 0.75 : 1.0);
   bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance), -0.9, 0.9);
 
@@ -2395,8 +2395,8 @@ function updateBuildBot(bot, targets, now) {
   if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval && Math.random() < 0.9) {
     const oldYaw = bot.yaw, oldPitch = bot.pitch;
     // 左右・上下の意図的な照準誤差を従来の1/3にする。
-    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.27);
-    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.36, -0.9, 0.9);
+    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.012 + Math.random() * 0.018);
+    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.05, -0.9, 0.9);
     fireShot(bot);
     bot.yaw = oldYaw;
     bot.pitch = oldPitch;
@@ -2462,7 +2462,7 @@ function updateBot(p, now) {
       targetDistance = Math.hypot(dx, dz);
       const targetYaw = Math.atan2(-dx, -dz);
       const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
-      p.yaw += clamp(yawDelta, -0.22, 0.22);
+      p.yaw += clamp(yawDelta, -0.55, 0.55);
       p.pitch = clamp(Math.atan2((skyfallTarget.y || 0) + 1 - p.y, Math.max(0.001, targetDistance)), -0.8, 0.8);
       p.input.forward = targetDistance > 4 ? 1 : 0;
       p.input.strafe = Math.abs(yawDelta) > 0.4 ? Math.sign(yawDelta) * 0.25 : 0;
@@ -2611,7 +2611,7 @@ function updateBot(p, now) {
     const distance = Math.max(0.001, Math.hypot(dx, dz));
     const targetYaw = Math.atan2(-dx, -dz);
     const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
-    p.yaw += clamp(yawDelta, -0.14 - p.botAggression * 0.06, 0.14 + p.botAggression * 0.06);
+    p.yaw += clamp(yawDelta, -0.55, 0.55);
     p.pitch = 0;
     const origin = { x: p.x, y: p.y + PLAYER_HEIGHT - 0.15, z: p.z };
     const dir = directionFromAngles(p.yaw, 0);
@@ -2674,7 +2674,7 @@ function updateBot(p, now) {
   const distance = Math.max(0.001, Math.hypot(dx, dz));
   const targetYaw = Math.atan2(-dx, -dz);
   const yawDelta = Math.atan2(Math.sin(targetYaw - p.yaw), Math.cos(targetYaw - p.yaw));
-  p.yaw += clamp(yawDelta, -0.16, 0.16);
+  p.yaw += clamp(yawDelta, -0.55, 0.55);
   const targetY = target.y + (target.crouched ? 0.75 : 1.0);
   p.pitch = clamp(Math.atan2(targetY - (p.y + PLAYER_HEIGHT - 0.15), distance), -1.0, 1.0);
 
@@ -2713,15 +2713,15 @@ function updateBot(p, now) {
   }
   p.input.crouch = false;
   // ペイロードBOTは交戦の手数を少し増やし、目標周辺の攻防を維持する。
-  const botFireChance = isPayloadBot ? 0.72 : 0.60;
+  const botFireChance = isPayloadBot ? 0.95 : 0.90;
   const botAimOffChance = 1;
   if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < botFireChance) {
     const originalYaw = p.yaw;
     const originalPitch = p.pitch;
     if (Math.random() < botAimOffChance) {
-      const aimOffset = isAreaBot ? 0.9 + Math.random() * 0.96 : 0.6 + Math.random() * 0.54;
+      const aimOffset = 0.012 + Math.random() * 0.018;
       p.yaw += (Math.random() < 0.5 ? -1 : 1) * aimOffset;
-      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * (isAreaBot ? 1.14 : 0.72), -1.0, 1.0);
+      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * 0.05, -1.0, 1.0);
     }
     fireShot(p);
     p.yaw = originalYaw;
