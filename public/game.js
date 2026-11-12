@@ -4792,8 +4792,9 @@ socket.on("respawned", ({ player }) => {
 socket.on("enemyRespawnMarker", (data = {}) => {
   if (!data.playerId || data.playerId === myId) return;
   const enemy = remotePlayers.get(data.playerId)?.userData.playerState;
+  const markerTeam = data.team || enemy?.team;
   if ((selectedGameMode === "Area" || selectedGameMode === "Payload") &&
-      enemy?.team && myState?.team && enemy.team === myState.team) return;
+      markerTeam && myState?.team && markerTeam === myState.team) return;
   // players/stateの更新タイミングに左右されないよう、イベント受信時にも記録する。
   addEnemyRespawnMarker(data.playerId, data.x, data.z);
 });
