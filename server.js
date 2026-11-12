@@ -2392,10 +2392,12 @@ function updateBuildBot(bot, targets, now) {
   }
   bot.input.crouch = false;
 
-  if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval && Math.random() < 0.78) {
+  if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval && Math.random() < 0.9) {
     const oldYaw = bot.yaw, oldPitch = bot.pitch;
-    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.54);
-    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.72, -0.9, 0.9);
+    // 旧設定では発射直前に照準を0.6〜1.14radずらしていたため、狙いから大きく外れていた。
+    // 横方向・上下方向の誤差をおよそ半分にして命中率を上げる。
+    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.27);
+    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.36, -0.9, 0.9);
     fireShot(bot);
     bot.yaw = oldYaw;
     bot.pitch = oldPitch;
@@ -3000,9 +3002,9 @@ function applySwordLandingShockwave(player, now = Date.now()) {
   }
 }
 function swordLeapHeight(t) {
-  // まず垂直に持ち上がってから前進し、壁の側面に触れた瞬間に軌道が止まるのを防ぐ。
-  if (t < 0.22) return Math.sin((t / 0.22) * Math.PI * 0.5) * 6.76;
-  return Math.cos(((t - 0.22) / 0.78) * Math.PI * 0.5) * 6.76;
+  // 開始直後から上昇し、中央で最高点を通って着地まで滑らかに下降する放物線。
+  const progress = clamp(t, 0, 1);
+  return 4 * 6.76 * progress * (1 - progress);
 }
 function startSwordLeap(player, now = Date.now()) {
   const jumpGrace = now - (Number(player?.lastJumpInputAt) || 0) <= 900;
@@ -3014,8 +3016,7 @@ function startSwordLeap(player, now = Date.now()) {
   const candidates = [];
   const leapDistance = 12.8;
   for (let d = 0.5; d <= leapDistance; d += 0.5) {
-    const travel = d / leapDistance;
-    const t = 0.22 + travel * 0.78;
+    const t = d / leapDistance;
     const x = clamp(player.x + fx * d, bounds.minX + PLAYER_RADIUS, bounds.maxX - PLAYER_RADIUS);
     const z = clamp(player.z + fz * d, bounds.minZ + PLAYER_RADIUS, bounds.maxZ - PLAYER_RADIUS);
     const flightY = player.y + swordLeapHeight(t);
@@ -3045,8 +3046,8 @@ function updateSwordLeap(player, now = Date.now()) {
   const leap = player.swordLeap;
   if (!leap) return false;
   const t = clamp((now - leap.at) / leap.duration, 0, 1);
-  const travelT = clamp((t - 0.22) / 0.78, 0, 1);
-  const ease = travelT * travelT * (3 - 2 * travelT);
+  // 水平方向も最初から最後まで進め、上下方向は同じ時間軸の放物線に合わせる。
+  const ease = t * t * (3 - 2 * t);
   player.x = leap.sx + (leap.tx - leap.sx) * ease;
   player.z = leap.sz + (leap.tz - leap.sz) * ease;
   // 上面に着地可能な壁では、降下中も壁上面を候補の床として検出する。
@@ -3818,7 +3819,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     if (weapon.spread) {
       // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
-      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 6.5 : 1;
+      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 3.25 : 1;
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
@@ -5124,6 +5125,8 @@ io.on("connection", (socket) => {
     if (p.weapon === "sword") {
       const now = Date.now();
       const jumpGrace = now - (Number(p.lastJumpInputAt) || 0) <= 900;
+      // 剣はクライアント入力の重複に依存せず、サーバー側で攻撃間隔を一元管理する。
+      if (now < Number(p.swordMeleeReadyAt || 0) || now < Number(p.swordLeapReadyAt || 0)) return;
       if (!p.grounded || jumpGrace) { startSwordLeap(p, now); return; }
     }
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
