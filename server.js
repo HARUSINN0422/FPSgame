@@ -1820,7 +1820,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
           projectile.targetId = null;
         } else {
           const current = { x: projectile.vx / projectile.speed, y: projectile.vy / projectile.speed, z: projectile.vz / projectile.speed };
-          const blend = Math.min(1, dt * 3.2);
+          const blend = Math.min(1, dt * 16);
           const nx = current.x + (dir.x - current.x) * blend;
           const ny = current.y + (dir.y - current.y) * blend;
           const nz = current.z + (dir.z - current.z) * blend;
@@ -1848,7 +1848,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         const horizontalDistance = Math.hypot(center.x - closest.x, center.z - closest.z);
         const verticalDistance = Math.abs(center.y - closest.y);
         // 1フレーム内の移動線分全体を判定し、細い弾が高速移動中に敵をすり抜けないようにする。
-        if (horizontalDistance > PLAYER_RADIUS + 0.22 || verticalDistance > height * 0.48 + 0.22) continue;
+        if (horizontalDistance > PLAYER_RADIUS + 0.55 || verticalDistance > height * 0.58 + 0.4) continue;
         const hitDistance = distance * t;
         if (!hitInfo || hitDistance < hitInfo.t) {
           hitTarget = candidate;
@@ -2349,8 +2349,8 @@ function updateBuildBot(bot, targets, now) {
 
   if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval && Math.random() < 0.78) {
     const oldYaw = bot.yaw, oldPitch = bot.pitch;
-    bot.yaw = targetYaw;
-    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance), -0.9, 0.9);
+    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.54);
+    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.72, -0.9, 0.9);
     fireShot(bot);
     bot.yaw = oldYaw;
     bot.pitch = oldPitch;
@@ -2668,14 +2668,14 @@ function updateBot(p, now) {
   p.input.crouch = false;
   // ペイロードBOTは交戦の手数を少し増やし、目標周辺の攻防を維持する。
   const botFireChance = isPayloadBot ? 0.72 : 0.60;
-  const botAimOffChance = isAreaBot ? 0.82 : isPayloadBot ? 0.42 : 0.5;
+  const botAimOffChance = 1;
   if (visible && Math.abs(yawDelta) < 0.085 && now - p.lastFire >= WEAPONS[p.weapon].fireInterval && Math.random() < botFireChance) {
     const originalYaw = p.yaw;
     const originalPitch = p.pitch;
     if (Math.random() < botAimOffChance) {
-      const aimOffset = isAreaBot ? 0.3 + Math.random() * 0.32 : 0.2 + Math.random() * 0.18;
+      const aimOffset = isAreaBot ? 0.9 + Math.random() * 0.96 : 0.6 + Math.random() * 0.54;
       p.yaw += (Math.random() < 0.5 ? -1 : 1) * aimOffset;
-      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * (isAreaBot ? 0.38 : 0.24), -1.0, 1.0);
+      p.pitch = clamp(p.pitch + (Math.random() - 0.5) * (isAreaBot ? 1.14 : 0.72), -1.0, 1.0);
     }
     fireShot(p);
     p.yaw = originalYaw;
