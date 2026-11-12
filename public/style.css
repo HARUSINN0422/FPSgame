@@ -1975,3 +1975,38 @@ body.controller-mode #settingsButton {
     padding: clamp(14px, 2vw, 22px);
   }
 }
+
+
+/* 武器・お守り・アルティメットの切替で外枠とボタン位置が動かないよう固定 */
+#weaponScreen > .panel {
+  box-sizing: border-box;
+  height: min(820px, calc(100vh - 40px));
+  height: min(820px, calc(100dvh - 40px));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#weaponScreen .weapon-grid-all:not(.hidden),
+#weaponScreen .charm-grid:not(.hidden) {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+#weaponScreen .loadout-slot-picker,
+#weaponScreen .loadout-selection-status,
+#weaponScreen > .panel > .eyebrow,
+#weaponScreen > .panel > h1,
+#weaponScreen > .panel > p,
+#weaponScreen .start-game-button {
+  flex: 0 0 auto;
+}
+@media (max-width: 900px) {
+  #weaponScreen > .panel {
+    height: calc(100vh - 28px);
+    height: calc(100dvh - 28px);
+  }
+}
