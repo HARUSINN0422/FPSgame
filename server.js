@@ -5616,6 +5616,9 @@ setInterval(() => {
         p.respawnAt = 0;
         p.damageHitstopUntil = 0;
         p.damageSlowUntil = 0;
+        broadcastGameEvent(p, "enemyRespawnMarker", {
+          playerId: p.id, x: p.x, z: p.z, team: p.team || null, mode: p.mode, durationMs: 8000
+        });
       }
       // BOTのAIは停止したまま、ノックバックと重力だけを適用する。
       if (p.health > 0) {
