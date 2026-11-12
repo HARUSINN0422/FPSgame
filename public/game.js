@@ -1998,7 +1998,7 @@ function updateMinimap() {
   ctx.arc(px, pz, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // リスポーン後5秒間は敵の現在位置を隠し、復帰地点だけを表示する。
+  // 敵がリスポーンした地点だけを短時間表示する（自分の復帰地点は表示しない）。
   const showRespawnMarker = minimapRespawnMarker && minimapRespawnMarker.until > Date.now();
   if (showRespawnMarker) {
     ctx.fillStyle = "#ffd34f";
@@ -2020,7 +2020,6 @@ function updateMinimap() {
   }
 
   const raycaster = new THREE.Raycaster();
-  if (showRespawnMarker) return;
   for (const obj of remotePlayers.values()) {
     const enemy = obj.userData.playerState;
     if (!enemy || enemy.health <= 0 || enemy.finished) continue;
@@ -2314,10 +2313,24 @@ function animateLocalWeaponViewModel(now) {
     // ガード中は剣を顔の前に立て、画面中央寄りに構える。
     localWeaponViewModel.position.set(0.16, 0.02, -0.5);
     localWeaponViewModel.rotation.set(-0.12, -0.28, -0.32);
-  } else if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.48) {
-    const progress = elapsed / 0.48;
-    localWeaponViewModel.rotation.set(0.16 - Math.sin(progress * Math.PI) * 0.9, -0.18, -0.28 + progress * 1.8);
-    localWeaponViewModel.position.set(0.38, -0.34 + Math.sin(progress * Math.PI) * 0.08, -0.62);
+  } else if (localWeaponActionType === "sword" && elapsed >= 0 && elapsed < 0.62) {
+    // 振り始め→斬り下ろし→短い戻しの一振りにし、直線的な回転や急な巻き戻りを抑える。
+    const progress = elapsed / 0.62;
+    const windup = progress < 0.22 ? progress / 0.22 : 1;
+    const slash = progress >= 0.22 && progress < 0.62
+      ? Math.sin(((progress - 0.22) / 0.40) * Math.PI * 0.5)
+      : (progress >= 0.62 ? 1 : 0);
+    const recovery = progress >= 0.62 ? 1 - (progress - 0.62) / 0.38 : 0;
+    localWeaponViewModel.rotation.set(
+      0.16 - windup * 0.22 - slash * 0.78 + recovery * 0.12,
+      -0.18,
+      -0.28 - windup * 0.42 + slash * 1.52 - recovery * 0.82
+    );
+    localWeaponViewModel.position.set(
+      0.38 + windup * 0.025 - slash * 0.035,
+      -0.34 + slash * 0.10 - recovery * 0.035,
+      -0.62 - windup * 0.035 + slash * 0.055
+    );
   } else if (localWeaponActionType === "swordLeap" && elapsed >= 0 && elapsed < 0.95) {
     const progress = elapsed / 0.95;
     localWeaponViewModel.rotation.set(-0.9 + progress * 1.8, -0.18, -0.28 + Math.sin(progress * Math.PI) * 0.7);
@@ -2773,13 +2786,20 @@ function updateSmokeVisuals(now, dt) {
         weaponMesh.rotation.set(-0.12, 0, -0.38);
       }
       if (rightArm) rightArm.rotation.set(-0.82, 0, 0.22);
-    } else if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.48) {
-      const progress = actionElapsed / 0.48;
+    } else if (obj.userData.weaponActionType === "sword" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.62) {
+      const progress = actionElapsed / 0.62;
+      const windup = progress < 0.22 ? progress / 0.22 : 1;
+      const slash = progress >= 0.22
+        ? Math.sin(Math.min(1, (progress - 0.22) / 0.40) * Math.PI * 0.5)
+        : 0;
+      const recovery = progress >= 0.62 ? 1 - (progress - 0.62) / 0.38 : 0;
       if (weaponMesh) {
-        weaponMesh.position.set(0.34, 1.02 + Math.sin(progress * Math.PI) * 0.08, -0.22);
-        weaponMesh.rotation.set(-0.08 - Math.sin(progress * Math.PI) * 0.9, 0, 1.8 * progress);
+        weaponMesh.position.set(0.34 + windup * 0.02 - slash * 0.025, 1.02 + slash * 0.10 - recovery * 0.035, -0.22);
+        weaponMesh.rotation.set(-0.08 - windup * 0.18 - slash * 0.72 + recovery * 0.1, 0,
+          -0.18 - windup * 0.35 + slash * 1.45 - recovery * 0.78);
       }
-      if (rightArm) rightArm.rotation.set(-Math.sin(progress * Math.PI) * 0.65, 0, 0.08 - progress * 0.3);
+      if (rightArm) rightArm.rotation.set(-windup * 0.12 - slash * 0.62 + recovery * 0.1, 0,
+        0.08 - windup * 0.08 - slash * 0.28 + recovery * 0.16);
     } else if (obj.userData.weaponActionType === "swordLeap" && obj.userData.weaponType === "sword" && actionElapsed >= 0 && actionElapsed < 0.95) {
       const progress = actionElapsed / 0.95;
       if (weaponMesh) {
@@ -4747,11 +4767,18 @@ socket.on("state", (players) => {
 
 socket.on("respawned", ({ player }) => {
   myState = player;
-  minimapRespawnMarker = { x: player.x, z: player.z, until: Date.now() + 5000 };
   yaw = player.yaw;
   pitch = player.pitch;
   hideRespawnPanel();
   showMessage("リスポーンしました");
+});
+
+socket.on("enemyRespawnMarker", (data = {}) => {
+  if (!data.playerId || data.playerId === myId) return;
+  const enemy = remotePlayers.get(data.playerId)?.userData.playerState;
+  if ((selectedGameMode === "Area" || selectedGameMode === "Payload") &&
+      enemy?.team && myState?.team && enemy.team === myState.team) return;
+  minimapRespawnMarker = { x: Number(data.x), z: Number(data.z), until: Date.now() + 5000 };
 });
 
 socket.on("weaponBeam", setWeaponBeam);
