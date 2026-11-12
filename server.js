@@ -2995,34 +2995,57 @@ function applySwordLandingShockwave(player, now = Date.now()) {
     }
   }
 }
+function swordLeapHeight(t) {
+  // まず垂直に持ち上がってから前進し、壁の側面に触れた瞬間に軌道が止まるのを防ぐ。
+  if (t < 0.22) return Math.sin((t / 0.22) * Math.PI * 0.5) * 6.76;
+  return Math.cos(((t - 0.22) / 0.78) * Math.PI * 0.5) * 6.76;
+}
 function startSwordLeap(player, now = Date.now()) {
-  const jumpGrace = now - (Number(player?.lastJumpInputAt) || 0) <= 450;
-  if (!player || player.swordLeap || (player.grounded && !jumpGrace) || player.invulnerableUntil > now) return false;
-  const bounds=getMapForPlayer(player).world, fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
-  let tx=player.x, tz=player.z;
+  const jumpGrace = now - (Number(player?.lastJumpInputAt) || 0) <= 900;
+  if (!player || player.swordLeap || now < Number(player.swordLeapReadyAt || 0) ||
+      (player.grounded && !jumpGrace) || player.invulnerableUntil > now) return false;
+  const bounds = getMapForPlayer(player).world;
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  let tx = player.x, tz = player.z, landingY = player.y;
   const leapDistance = 12.8;
-  for(let d=.5;d<=leapDistance;d+=.5){
-    const x=clamp(player.x+fx*d,bounds.minX+PLAYER_RADIUS,bounds.maxX-PLAYER_RADIUS);
-    const z=clamp(player.z+fz*d,bounds.minZ+PLAYER_RADIUS,bounds.maxZ-PLAYER_RADIUS);
-    const t = d / leapDistance;
-    const flightY = player.y + Math.sin(t * Math.PI) * 6.76;
-    if(collides(x,z,flightY,PLAYER_HEIGHT,player)) break;
-    tx=x;tz=z;
+  for (let d = 0.5; d <= leapDistance; d += 0.5) {
+    const travel = d / leapDistance;
+    const t = 0.22 + travel * 0.78;
+    const x = clamp(player.x + fx * d, bounds.minX + PLAYER_RADIUS, bounds.maxX - PLAYER_RADIUS);
+    const z = clamp(player.z + fz * d, bounds.minZ + PLAYER_RADIUS, bounds.maxZ - PLAYER_RADIUS);
+    const flightY = player.y + swordLeapHeight(t);
+    if (collides(x, z, flightY, PLAYER_HEIGHT, player)) break;
+    tx = x; tz = z;
+    const candidateGround = getGroundHeight(x, z, player.y + 7, player);
+    if (Number.isFinite(candidateGround)) landingY = candidateGround;
   }
-  if(Math.hypot(tx-player.x,tz-player.z)<2) return false;
-  player.swordLeap={sx:player.x,sy:player.y,sz:player.z,tx,tz,at:now,duration:950};
-  player.grounded=false;player.velocityY=0;player.input.forward=0;player.input.strafe=0;
-  broadcastGameEvent(player,"shot",{id:player.id,x:player.x,y:player.y+1,z:player.z,yaw:player.yaw,pitch:player.pitch,weapon:"sword",action:"leap",hit:null,tracers:[]});
+  if (Math.hypot(tx - player.x, tz - player.z) < 2) return false;
+  player.swordLeapReadyAt = now + (WEAPONS.sword?.fireInterval || 650);
+  player.swordLeap = { sx: player.x, sy: player.y, sz: player.z, tx, tz, at: now, duration: 950, landingY };
+  player.grounded = false; player.velocityY = 0; player.input.forward = 0; player.input.strafe = 0;
+  broadcastGameEvent(player, "shot", { id: player.id, x: player.x, y: player.y + 1, z: player.z, yaw: player.yaw, pitch: player.pitch, weapon: "sword", action: "leap", hit: null, tracers: [] });
   return true;
 }
-function updateSwordLeap(player, now=Date.now()) {
-  const leap=player.swordLeap;if(!leap)return false;
-  const t=clamp((now-leap.at)/leap.duration,0,1),e=t*t*(3-2*t);
-  player.x=leap.sx+(leap.tx-leap.sx)*e;player.z=leap.sz+(leap.tz-leap.sz)*e;
-  const ground=getGroundHeight(player.x,player.z,leap.sy,player);
-  player.y=leap.sy+(ground-leap.sy)*e+Math.sin(t*Math.PI)*6.76;
-  player.velocityY=0;player.grounded=false;
-  if(t>=1){player.y=getGroundHeight(player.x,player.z,player.y,player);player.grounded=true;player.lastGroundedAt=now;player.swordLeap=null;applySwordLandingShockwave(player,now);}
+function updateSwordLeap(player, now = Date.now()) {
+  const leap = player.swordLeap;
+  if (!leap) return false;
+  const t = clamp((now - leap.at) / leap.duration, 0, 1);
+  const travelT = clamp((t - 0.22) / 0.78, 0, 1);
+  const ease = travelT * travelT * (3 - 2 * travelT);
+  player.x = leap.sx + (leap.tx - leap.sx) * ease;
+  player.z = leap.sz + (leap.tz - leap.sz) * ease;
+  // 上面に着地可能な壁では、降下中も壁上面を候補の床として検出する。
+  const ground = getGroundHeight(player.x, player.z, leap.sy + 7, player);
+  player.y = leap.sy + (ground - leap.sy) * ease + swordLeapHeight(t);
+  player.velocityY = 0;
+  player.grounded = false;
+  if (t >= 1) {
+    player.y = getGroundHeight(player.x, player.z, player.y + 7, player);
+    // 着地点の足元に障害物がある場合は、壁内部ではなく上面に固定する。
+    player.y = Math.max(player.y, Number(leap.landingY) || 0);
+    player.grounded = true; player.lastGroundedAt = now; player.swordLeap = null;
+    applySwordLandingShockwave(player, now);
+  }
   return true;
 }
 function movePlayer(p, dt) {
@@ -5085,7 +5108,7 @@ io.on("connection", (socket) => {
     if (!p || p.health <= 0 || p.finished || ["bow", "minigun", "railgun", "formingGun", "flamethrower", "laserBeam", "freezeCannon"].includes(p.weapon) || p.frozenUntil > Date.now()) return;
     if (p.weapon === "sword") {
       const now = Date.now();
-      const jumpGrace = now - (Number(p.lastJumpInputAt) || 0) <= 450;
+      const jumpGrace = now - (Number(p.lastJumpInputAt) || 0) <= 900;
       if (!p.grounded || jumpGrace) { startSwordLeap(p, now); return; }
     }
     fireShot(p, p.weapon === "sniper" && fireData.scoped === true);
