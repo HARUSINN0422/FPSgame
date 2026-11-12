@@ -437,7 +437,7 @@ body:has(#scopeOverlay:not(.hidden)) #crosshair { opacity: .92 !important; }
   width: 76px;
   height: 76px;
   border: 1px solid rgba(255,255,255,.42);
-  border-radius: 14px;
+  border-radius: 50%;
   background: rgba(38, 52, 70, .72);
   color: #fff;
   font-size: 12px;
