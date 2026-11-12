@@ -4930,7 +4930,7 @@ function updateLoadoutSelectionUi() {
   });
   document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
-  document.querySelector(".weapon-category-list")?.classList.toggle("hidden", loadoutSlotToEdit >= 2);
+  document.querySelector(".weapon-grid-all")?.classList.toggle("hidden", loadoutSlotToEdit >= 2);
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
