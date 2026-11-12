@@ -2392,12 +2392,11 @@ function updateBuildBot(bot, targets, now) {
   }
   bot.input.crouch = false;
 
-  if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval && Math.random() < 0.9) {
+  if (visible && aligned && now - bot.lastFire >= WEAPONS[bot.weapon].fireInterval) {
     const oldYaw = bot.yaw, oldPitch = bot.pitch;
-    // 旧設定では発射直前に照準を0.6〜1.14radずらしていたため、狙いから大きく外れていた。
-    // 横方向・上下方向の誤差をおよそ半分にして命中率を上げる。
-    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.27);
-    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.36, -0.9, 0.9);
+    // 左右・上下の意図的な照準誤差を従来の1/3にする。
+    bot.yaw = targetYaw + (Math.random() < 0.5 ? -1 : 1) * (0.1 + Math.random() * 0.09);
+    bot.pitch = clamp(Math.atan2(targetY - (bot.y + PLAYER_HEIGHT - 0.15), distance) + (Math.random() - 0.5) * 0.12, -0.9, 0.9);
     fireShot(bot);
     bot.yaw = oldYaw;
     bot.pitch = oldPitch;
@@ -3819,7 +3818,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     if (weapon.spread) {
       // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
-      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 3.25 : 1;
+      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? (3.25 / 3) : 1;
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
