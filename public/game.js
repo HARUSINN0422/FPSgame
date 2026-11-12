@@ -3537,8 +3537,11 @@ function fire() {
   // 剣の通常攻撃はサーバーのダメージ間隔と同じ650msをローカルでも厳守する。
   const localFireInterval = selectedWeapon === "sword" ? cfg.fireInterval : cfg.fireInterval * .8;
   if (now - localLastFire < localFireInterval) return;
+  // 入力経路が重複しても、剣の振りアニメーションと発射要求は650ms間隔を下回らない。
+  if (selectedWeapon === "sword" && now < localSwordNextAttackAt) return;
 
   localLastFire = now;
+  if (selectedWeapon === "sword") localSwordNextAttackAt = now + Math.max(650, cfg.fireInterval || 650);
   if (["pickaxe", "sword", "smoke", "grenadeLauncher", "rocketLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) {
     startLocalWeaponAction(selectedWeapon === "sword" && myState?.grounded === false ? "swordLeap" : selectedWeapon);
   }
@@ -3867,6 +3870,7 @@ let swordPressStartedAt = 0;
 let swordAirAttack = false;
 let swordLeapLocalUntil = 0;
 let swordMeleeLocalReadyAt = 0;
+let localSwordNextAttackAt = 0;
 let swordGuardQueueTimer = null;
 let swordGuardQueued = false;
 
