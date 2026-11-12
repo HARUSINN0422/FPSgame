@@ -1418,34 +1418,42 @@ function spawnRocketProjectile(shooter, now = Date.now()) {
     yaw: shooter.yaw, pitch: shooter.pitch, weapon: "rocketLauncher", hit: null, tracers: [] });
 }
 
-function spawnFormingProjectile(shooter, now = Date.now()) {
+function spawnFormingProjectile(shooter, now = Date.now(), shotIndex = 0) {
   const speed = 18.5;
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const forward = directionFromAngles(shooter.yaw, shooter.pitch);
   const rightX = Math.cos(shooter.yaw), rightZ = -Math.sin(shooter.yaw);
-  const offsets = [-0.065, -0.039, -0.013, 0.013, 0.039, 0.065];
-  offsets.forEach((spread, index) => {
-    const yaw = shooter.yaw + spread;
-    const pitch = shooter.pitch + (index % 2 ? 0.012 : -0.012);
-    const direction = directionFromAngles(yaw, pitch);
-    const lateral = (index - 2.5) * 0.075;
-    const origin = {
-      x: shooter.x + forward.x * 0.85 + rightX * lateral,
-      y: shooter.y + height - 0.12 + (index % 2 ? 0.045 : -0.045),
-      z: shooter.z + forward.z * 0.85 + rightZ * lateral
-    };
-    const id = "forming-projectile-" + (++smokeSequence);
-    const projectile = {
-      id, type: "forming", owner: shooter, ownerId: shooter.id,
-      x: origin.x, y: origin.y, z: origin.z,
-      vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
-      speed, targetId: null, homing: false, expiresAt: now + 9000
-    };
-    grenadeProjectiles.set(id, projectile);
-    broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
-  });
-  broadcastGameEvent(shooter, "shot", { id: shooter.id, x: shooter.x + forward.x * 0.85, y: shooter.y + height - 0.12, z: shooter.z + forward.z * 0.85,
-    yaw: shooter.yaw, pitch: shooter.pitch, weapon: "formingGun", hit: null, tracers: [] });
+  // 6発とも同じ銃口から発射し、連射ごとにごく小さく照準をずらす。
+  const spread = (shotIndex - 2.5) * 0.009;
+  const direction = directionFromAngles(shooter.yaw + spread, shooter.pitch);
+  const origin = {
+    x: shooter.x + forward.x * 0.85,
+    y: shooter.y + height - 0.12,
+    z: shooter.z + forward.z * 0.85
+  };
+  const id = "forming-projectile-" + (++smokeSequence);
+  const projectile = {
+    id, type: "forming", owner: shooter, ownerId: shooter.id,
+    x: origin.x, y: origin.y, z: origin.z,
+    vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
+    speed, targetId: null, homing: false, expiresAt: now + 9000
+  };
+  grenadeProjectiles.set(id, projectile);
+  broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
+  broadcastGameEvent(shooter, "shot", { id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
+    yaw: shooter.yaw + spread, pitch: shooter.pitch, weapon: "formingGun", hit: null, tracers: [] });
+}
+
+function spawnFormingBurst(shooter, now = Date.now()) {
+  const shotCount = 6;
+  const intervalMs = 115;
+  for (let index = 0; index < shotCount; index++) {
+    setTimeout(() => {
+      const current = players.get(shooter.id);
+      if (current !== shooter || current.health <= 0 || current.finished || !isSameGame(current, shooter)) return;
+      spawnFormingProjectile(current, Date.now(), index);
+    }, index * intervalMs);
+  }
 }
 
 function spawnTornadoProjectile(shooter, now = Date.now()) {
@@ -2877,7 +2885,9 @@ function getGroundHeight(x, z, playerY = 0, player = null) {
     if (obstacle.ceiling) continue;
     const insideX = Math.abs(x - obstacle.x) <= obstacle.w / 2 + PLAYER_RADIUS;
     const insideZ = Math.abs(z - obstacle.z) <= obstacle.d / 2 + PLAYER_RADIUS;
-    if (insideX && insideZ && playerY >= obstacle.h - 0.2) height = Math.max(height, obstacle.h);
+    const obstacleTop = (Number(obstacle.y) || 0) + (Number(obstacle.h) || 0);
+    // 通常壁・建築壁を含む全ての非天井障害物の上面を着地面として扱う。
+    if (insideX && insideZ && playerY >= obstacleTop - 0.2) height = Math.max(height, obstacleTop);
   }
   return height;
 }
@@ -5092,7 +5102,7 @@ io.on("connection", (socket) => {
         p.health <= 0 || p.finished || p.invulnerableUntil > now || p.frozenUntil > now) return;
     p.formingChargeStartedAt = 0;
     p.lastFire = 0;
-    spawnFormingProjectile(p, now);
+    spawnFormingBurst(p, now);
   });
   socket.on("formingCancel", () => {
     const p = players.get(socket.id);
@@ -5327,6 +5337,8 @@ io.on("connection", (socket) => {
     p.damageSlowUntil = 0;
 
     socket.emit("respawned", { player: publicPlayer(p) });
+    // 同じ対戦内の他プレイヤーへ、敵の復帰地点だけを通知する。
+    broadcastGameEvent(p, "enemyRespawnMarker", { playerId: p.id, x: p.x, z: p.z, durationMs: 5000 });
     broadcastPlayers();
   });
 
