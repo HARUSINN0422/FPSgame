@@ -2753,6 +2753,10 @@ function respawnBot(p, now) {
   p.crouched = false; p.respawnAt = 0;
   p.invulnerableUntil = now + (p.mode === PAYLOAD_MODE ? 2500 : 1500);
   p.damageHitstopUntil = 0; p.damageSlowUntil = 0;
+  // BOTの復帰も敵側クライアントへ通知し、ミニマップに復帰地点を残す。
+  broadcastGameEvent(p, "enemyRespawnMarker", {
+    playerId: p.id, x: p.x, z: p.z, team: p.team || null, mode: p.mode, durationMs: 8000
+  });
 }
 
 function collides(x, z, y = 0, height = PLAYER_HEIGHT, player = null) {
@@ -5363,7 +5367,9 @@ io.on("connection", (socket) => {
 
     socket.emit("respawned", { player: publicPlayer(p) });
     // 同じ対戦内の他プレイヤーへ、敵の復帰地点だけを通知する。
-    broadcastGameEvent(p, "enemyRespawnMarker", { playerId: p.id, x: p.x, z: p.z, durationMs: 5000 });
+    broadcastGameEvent(p, "enemyRespawnMarker", {
+      playerId: p.id, x: p.x, z: p.z, team: p.team || null, mode: p.mode, durationMs: 8000
+    });
     broadcastPlayers();
   });
 
