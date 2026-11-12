@@ -3006,7 +3006,8 @@ function swordLeapHeight(t) {
 }
 function startSwordLeap(player, now = Date.now()) {
   const jumpGrace = now - (Number(player?.lastJumpInputAt) || 0) <= 900;
-  if (!player || player.swordLeap || now < Number(player.swordLeapReadyAt || 0) ||
+  const swordReadyAt = Math.max(Number(player?.swordLeapReadyAt || 0), Number(player?.swordMeleeReadyAt || 0));
+  if (!player || player.swordLeap || now < swordReadyAt ||
       (player.grounded && !jumpGrace) || player.invulnerableUntil > now) return false;
   const bounds = getMapForPlayer(player).world;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
@@ -3034,6 +3035,7 @@ function startSwordLeap(player, now = Date.now()) {
   if (!landing || Math.hypot(landing.x - player.x, landing.z - player.z) < 2) return false;
   const tx = landing.x, tz = landing.z, landingY = landing.ground;
   player.swordLeapReadyAt = now + (WEAPONS.sword?.fireInterval || 650);
+  player.swordMeleeReadyAt = player.swordLeapReadyAt;
   player.swordLeap = { sx: player.x, sy: player.y, sz: player.z, tx, tz, at: now, duration: 950, landingY };
   player.grounded = false; player.velocityY = 0; player.input.forward = 0; player.input.strafe = 0;
   broadcastGameEvent(player, "shot", { id: player.id, x: player.x, y: player.y + 1, z: player.z, yaw: player.yaw, pitch: player.pitch, weapon: "sword", action: "leap", hit: null, tracers: [] });
