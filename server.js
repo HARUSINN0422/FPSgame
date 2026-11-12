@@ -1404,7 +1404,7 @@ function spawnGrenadeProjectile(shooter, now = Date.now(), type = "grenade") {
 
 function spawnRocketProjectile(shooter, now = Date.now()) {
   const direction = directionFromAngles(shooter.yaw, shooter.pitch);
-  const speed = 18.5;
+  const speed = 18.5 * 1.5;
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const origin = { x: shooter.x + direction.x * 1.15, y: shooter.y + height - 0.12, z: shooter.z + direction.z * 1.15 };
   const id = "rocket-projectile-" + (++smokeSequence);
@@ -1851,6 +1851,8 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       let collidedProjectile = null;
       for (const other of grenadeProjectiles.values()) {
         if (other.id === projectile.id || other.pendingShockwaveAt || !["forming", "rocket", "grenade", "shockwave", "smoke", "grapple", "tornado"].includes(other.type)) continue;
+        // ホーミングガンの6発は同じ所有者から同時発射されるため、味方弾同士では衝突させない。
+        if (projectile.type === "forming" && other.type === "forming" && other.ownerId === projectile.ownerId) continue;
         const otherOwner = other.owner;
         if (!otherOwner || !isSameGame(owner, otherOwner)) continue;
         const ox = other.x - next.x, oy = other.y - next.y, oz = other.z - next.z;
