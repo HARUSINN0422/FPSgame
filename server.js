@@ -1419,20 +1419,32 @@ function spawnRocketProjectile(shooter, now = Date.now()) {
 }
 
 function spawnFormingProjectile(shooter, now = Date.now()) {
-  const direction = directionFromAngles(shooter.yaw, shooter.pitch);
   const speed = 18.5;
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-  const origin = { x: shooter.x + direction.x * 0.85, y: shooter.y + height - 0.12, z: shooter.z + direction.z * 0.85 };
-  const id = "forming-projectile-" + (++smokeSequence);
-  const projectile = {
-    id, type: "forming", owner: shooter, ownerId: shooter.id,
-    x: origin.x, y: origin.y, z: origin.z,
-    vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
-    speed, targetId: null, homing: false, expiresAt: now + 9000
-  };
-  grenadeProjectiles.set(id, projectile);
-  broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
-  broadcastGameEvent(shooter, "shot", { id: shooter.id, x: origin.x, y: origin.y, z: origin.z,
+  const forward = directionFromAngles(shooter.yaw, shooter.pitch);
+  const rightX = Math.cos(shooter.yaw), rightZ = -Math.sin(shooter.yaw);
+  const offsets = [-0.065, -0.039, -0.013, 0.013, 0.039, 0.065];
+  offsets.forEach((spread, index) => {
+    const yaw = shooter.yaw + spread;
+    const pitch = shooter.pitch + (index % 2 ? 0.012 : -0.012);
+    const direction = directionFromAngles(yaw, pitch);
+    const lateral = (index - 2.5) * 0.075;
+    const origin = {
+      x: shooter.x + forward.x * 0.85 + rightX * lateral,
+      y: shooter.y + height - 0.12 + (index % 2 ? 0.045 : -0.045),
+      z: shooter.z + forward.z * 0.85 + rightZ * lateral
+    };
+    const id = "forming-projectile-" + (++smokeSequence);
+    const projectile = {
+      id, type: "forming", owner: shooter, ownerId: shooter.id,
+      x: origin.x, y: origin.y, z: origin.z,
+      vx: direction.x * speed, vy: direction.y * speed, vz: direction.z * speed,
+      speed, targetId: null, homing: false, expiresAt: now + 9000
+    };
+    grenadeProjectiles.set(id, projectile);
+    broadcastGameEvent(shooter, "grenadeProjectileSpawn", smokeProjectilePayload(projectile));
+  });
+  broadcastGameEvent(shooter, "shot", { id: shooter.id, x: shooter.x + forward.x * 0.85, y: shooter.y + height - 0.12, z: shooter.z + forward.z * 0.85,
     yaw: shooter.yaw, pitch: shooter.pitch, weapon: "formingGun", hit: null, tracers: [] });
 }
 
@@ -1832,6 +1844,29 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       }
       const from = { x: projectile.x, y: projectile.y, z: projectile.z };
       const next = { x: from.x + projectile.vx * dt, y: from.y + projectile.vy * dt, z: from.z + projectile.vz * dt };
+      const physicalProjectileRadius = (item) => item.type === "rocket" ? 0.42
+        : item.type === "forming" ? 0.25
+        : item.type === "tornado" ? 0.7
+        : item.type === "grapple" ? 0.16 : 0.22;
+      let collidedProjectile = null;
+      for (const other of grenadeProjectiles.values()) {
+        if (other.id === projectile.id || other.pendingShockwaveAt || !["forming", "rocket", "grenade", "shockwave", "smoke", "grapple", "tornado"].includes(other.type)) continue;
+        const otherOwner = other.owner;
+        if (!otherOwner || !isSameGame(owner, otherOwner)) continue;
+        const ox = other.x - next.x, oy = other.y - next.y, oz = other.z - next.z;
+        const radius = physicalProjectileRadius(projectile) + physicalProjectileRadius(other);
+        if (ox * ox + oy * oy + oz * oz <= radius * radius) {
+          collidedProjectile = other;
+          break;
+        }
+      }
+      if (collidedProjectile) {
+        grenadeProjectiles.delete(projectile.id);
+        grenadeProjectiles.delete(collidedProjectile.id);
+        broadcastGameEvent(owner, "grenadeProjectileRemove", { id: projectile.id });
+        broadcastGameEvent(collidedProjectile.owner, "grenadeProjectileRemove", { id: collidedProjectile.id });
+        continue;
+      }
       const delta = { x: next.x - from.x, y: next.y - from.y, z: next.z - from.z };
       const distance = Math.hypot(delta.x, delta.y, delta.z);
       const dir = { x: delta.x / Math.max(distance, 1e-6), y: delta.y / Math.max(distance, 1e-6), z: delta.z / Math.max(distance, 1e-6) };
@@ -1861,7 +1896,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       const wallDistance = mapWallDistance === null ? cartWallDistance
         : cartWallDistance === null ? mapWallDistance : Math.min(mapWallDistance, cartWallDistance);
       if (hitTarget && (wallDistance === null || wallDistance > hitInfo.t)) {
-        const damage = 30;
+        const damage = 10;
         const split = applyIncomingDamage(hitTarget, damage, true);
         addUltimateCharge(owner, split.totalDamage);
         io.to(owner.id).emit("damageDealt", { targetId: hitTarget.id, damage: Math.round(split.totalDamage), shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage), zone: hitInfo.zone || "body", x: next.x, y: next.y, z: next.z });
@@ -2927,6 +2962,13 @@ function applySwordLandingShockwave(player, now = Date.now()) {
     if (player.mode === TRAINING_MODE && !target.isBot) continue;
     if (isTeamMatchMode(player.mode) && target.team === player.team) continue;
     if (target.invulnerableUntil > now || Math.hypot(target.x-player.x, target.z-player.z) > radius) continue;
+    const dx = target.x - player.x, dy = target.y + (target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.5 - (player.y + 0.25), dz = target.z - player.z;
+    const distance = Math.hypot(dx, dy, dz) || 0.001;
+    const direction = { x: dx / distance, y: dy / distance, z: dz / distance };
+    const wall = rayHitsObstacle({ x: player.x, y: player.y + 0.25, z: player.z }, direction, distance, player);
+    const cartWall = player.mode === PAYLOAD_MODE ? rayHitsPayloadCart({ x: player.x, y: player.y + 0.25, z: player.z }, direction, distance, player) : null;
+    const blocker = wall === null ? cartWall : cartWall === null ? wall : Math.min(wall, cartWall);
+    if (blocker !== null && blocker < distance - 0.35) continue;
     const split = applyIncomingDamage(target, 50);
     addUltimateCharge(player, 50);
     io.to(player.id).emit("damageDealt", { targetId: target.id, damage: Math.round(split.totalDamage), shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage), zone: "body", x: target.x, y: target.y+1, z: target.z });
@@ -2944,10 +2986,13 @@ function startSwordLeap(player, now = Date.now()) {
   if (!player || player.swordLeap || (player.grounded && !jumpGrace) || player.invulnerableUntil > now) return false;
   const bounds=getMapForPlayer(player).world, fx=-Math.sin(player.yaw), fz=-Math.cos(player.yaw);
   let tx=player.x, tz=player.z;
-  for(let d=.5;d<=16;d+=.5){
+  const leapDistance = 12.8;
+  for(let d=.5;d<=leapDistance;d+=.5){
     const x=clamp(player.x+fx*d,bounds.minX+PLAYER_RADIUS,bounds.maxX-PLAYER_RADIUS);
     const z=clamp(player.z+fz*d,bounds.minZ+PLAYER_RADIUS,bounds.maxZ-PLAYER_RADIUS);
-    if(collides(x,z,getGroundHeight(x,z,player.y,player),PLAYER_HEIGHT,player)) break;
+    const t = d / leapDistance;
+    const flightY = player.y + Math.sin(t * Math.PI) * 6.76;
+    if(collides(x,z,flightY,PLAYER_HEIGHT,player)) break;
     tx=x;tz=z;
   }
   if(Math.hypot(tx-player.x,tz-player.z)<2) return false;
@@ -2961,7 +3006,7 @@ function updateSwordLeap(player, now=Date.now()) {
   const t=clamp((now-leap.at)/leap.duration,0,1),e=t*t*(3-2*t);
   player.x=leap.sx+(leap.tx-leap.sx)*e;player.z=leap.sz+(leap.tz-leap.sz)*e;
   const ground=getGroundHeight(player.x,player.z,leap.sy,player);
-  player.y=leap.sy+(ground-leap.sy)*e+Math.sin(t*Math.PI)*5.2;
+  player.y=leap.sy+(ground-leap.sy)*e+Math.sin(t*Math.PI)*6.76;
   player.velocityY=0;player.grounded=false;
   if(t>=1){player.y=getGroundHeight(player.x,player.z,player.y,player);player.grounded=true;player.lastGroundedAt=now;player.swordLeap=null;applySwordLandingShockwave(player,now);}
   return true;
@@ -3627,6 +3672,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
   finishReload(shooter, now);
   if (shooter.reloadingUntil > now) return;
+  if (shooter.weapon === "sword" && now < Number(shooter.swordMeleeReadyAt || 0)) return;
   if (now - shooter.lastFire < weapon.fireInterval) return;
 
   if (shooter.weapon === "smoke") {
@@ -3653,6 +3699,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   }
 
   shooter.lastFire = now;
+  if (shooter.weapon === "sword") shooter.swordMeleeReadyAt = now + weapon.fireInterval;
   if (!weapon.melee && !["bow", "minigun", "shockwaveLauncher", "grappler"].includes(shooter.weapon)) {
     shooter.ammo -= 1;
     if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
@@ -3698,7 +3745,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (lateralDistance > halfWidth) continue;
       const distance = Math.hypot(dx, dz);
       const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
-      if (verticalDiff > 1.6) continue;
+      if (verticalDiff > (shooter.weapon === "sword" ? 2.15 : 1.6)) continue;
       const meleeDirection = {x: dx / distance, y: 0, z: dz / distance};
       const wallDistance = rayHitsObstacle(origin, meleeDirection, distance, shooter);
       if (wallDistance !== null && wallDistance < distance - 0.35) continue;
@@ -5291,6 +5338,7 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     if (!p || p.finished) return;
     const nextWeapon = sanitizeWeapon(weapon);
+    if (p.swordLeap) return;
     if (p.weapon === nextWeapon) return;
     p.bowChargeStartedAt = 0; p.railgunChargeStartedAt=0; if(p.beamTimer){clearInterval(p.beamTimer);broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false});}p.beamTimer=null;
     if (!Array.isArray(p.weaponSlots)) p.weaponSlots = [p.weapon, nextWeapon];
@@ -5307,6 +5355,7 @@ io.on("connection", (socket) => {
     const p = players.get(socket.id);
     if (!p || p.health <= 0 || p.finished || !Array.isArray(p.weaponSlots)) return;
     const now = Date.now();
+    if (p.swordLeap) return;
     const grappleInFlight = [...grenadeProjectiles.values()].some(projectile =>
       projectile.type === "grapple" && projectile.ownerId === p.id
     );
