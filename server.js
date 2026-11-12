@@ -1780,9 +1780,10 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         !(isTeamMatchMode(owner.mode) && candidate.team === owner.team);
       if (projectile.homing && (!eligible(target) || !target)) {
         projectile.homing = false;
+        projectile.homingDisabled = true;
         projectile.targetId = null;
       }
-      if (!projectile.homing) {
+      if (!projectile.homing && !projectile.homingDisabled) {
         let nearest = null;
         for (const candidate of players.values()) {
           if (!eligible(candidate) || candidate.invulnerableUntil > now) continue;
@@ -1809,6 +1810,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
         const wall = rayHitsObstacle({ x: projectile.x, y: projectile.y, z: projectile.z }, dir, distance, owner);
         if (wall !== null && wall < distance - 0.2) {
           projectile.homing = false;
+          projectile.homingDisabled = true;
           projectile.targetId = null;
         } else {
           const current = { x: projectile.vx / projectile.speed, y: projectile.vy / projectile.speed, z: projectile.vz / projectile.speed };
