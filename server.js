@@ -3010,7 +3010,7 @@ function startSwordLeap(player, now = Date.now()) {
       (player.grounded && !jumpGrace) || player.invulnerableUntil > now) return false;
   const bounds = getMapForPlayer(player).world;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
-  let tx = player.x, tz = player.z, landingY = player.y;
+  const candidates = [];
   const leapDistance = 12.8;
   for (let d = 0.5; d <= leapDistance; d += 0.5) {
     const travel = d / leapDistance;
@@ -3019,11 +3019,20 @@ function startSwordLeap(player, now = Date.now()) {
     const z = clamp(player.z + fz * d, bounds.minZ + PLAYER_RADIUS, bounds.maxZ - PLAYER_RADIUS);
     const flightY = player.y + swordLeapHeight(t);
     if (collides(x, z, flightY, PLAYER_HEIGHT, player)) break;
-    tx = x; tz = z;
     const candidateGround = getGroundHeight(x, z, player.y + 7, player);
-    if (Number.isFinite(candidateGround)) landingY = candidateGround;
+    candidates.push({ x, z, ground: Number.isFinite(candidateGround) ? candidateGround : player.y });
   }
-  if (Math.hypot(tx - player.x, tz - player.z) < 2) return false;
+  // 空中では通過できても、降下時に壁の側面や天井へめり込む地点は着地点に選ばない。
+  let landing = null;
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    const candidate = candidates[i];
+    if (!collides(candidate.x, candidate.z, candidate.ground, PLAYER_HEIGHT, player)) {
+      landing = candidate;
+      break;
+    }
+  }
+  if (!landing || Math.hypot(landing.x - player.x, landing.z - player.z) < 2) return false;
+  const tx = landing.x, tz = landing.z, landingY = landing.ground;
   player.swordLeapReadyAt = now + (WEAPONS.sword?.fireInterval || 650);
   player.swordLeap = { sx: player.x, sy: player.y, sz: player.z, tx, tz, at: now, duration: 950, landingY };
   player.grounded = false; player.velocityY = 0; player.input.forward = 0; player.input.strafe = 0;
