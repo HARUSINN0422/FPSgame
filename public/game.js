@@ -3501,7 +3501,9 @@ function fire() {
 
   const now = performance.now();
   const cfg = weaponConfig[selectedWeapon];
-  if (now - localLastFire < cfg.fireInterval * .8) return;
+  // 剣の通常攻撃はサーバーのダメージ間隔と同じ650msをローカルでも厳守する。
+  const localFireInterval = selectedWeapon === "sword" ? cfg.fireInterval : cfg.fireInterval * .8;
+  if (now - localLastFire < localFireInterval) return;
 
   localLastFire = now;
   if (["pickaxe", "sword", "smoke", "grenadeLauncher", "rocketLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon)) {
