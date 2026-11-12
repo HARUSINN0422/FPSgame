@@ -3867,6 +3867,17 @@ let swordPressStartedAt = 0;
 let swordAirAttack = false;
 let swordLeapLocalUntil = 0;
 let swordMeleeLocalReadyAt = 0;
+let swordGuardQueueTimer = null;
+let swordGuardQueued = false;
+
+function beginQueuedSwordGuard() {
+  swordGuardQueueTimer = null;
+  if (!swordGuardQueued || !swordPressStartedAt || selectedWeapon !== "sword" ||
+      swordGuardActive || swordAirAttack) return;
+  swordGuardQueued = false;
+  swordGuardActive = true;
+  socket.emit("swordGuardStart");
+}
 
 let formingChargeStartedAt = 0;
 let formingChargeTimer = null;
@@ -3914,8 +3925,9 @@ function startFiring(forceRepeat = false) {
   if (selectedWeapon === "sword") {
     if (swordPressStartedAt || swordGuardActive || swordAirAttack) return;
     const airborneOrJustJumped = myState?.grounded === false || Date.now() - lastLocalJumpInputAt <= 900;
-    if (performance.now() < swordMeleeLocalReadyAt) return;
+    const cooldownRemaining = swordMeleeLocalReadyAt - performance.now();
     if (airborneOrJustJumped) {
+      if (cooldownRemaining > 0) return;
       // 空中ではガードを開始せず、押した瞬間にジャンプ攻撃を発動する。
       swordAirAttack = true;
       swordMeleeLocalReadyAt = performance.now() + (weaponConfig.sword?.fireInterval || 650);
@@ -3923,8 +3935,15 @@ function startFiring(forceRepeat = false) {
       fire();
       return;
     }
-    // 地上では押した瞬間にガードを開始する。
     swordPressStartedAt = Date.now();
+    if (cooldownRemaining > 0) {
+      // 振り終わり前から押し続けている場合、クールタイム終了と同時にガードへ移行する。
+      swordGuardQueued = true;
+      if (swordGuardQueueTimer) clearTimeout(swordGuardQueueTimer);
+      swordGuardQueueTimer = setTimeout(beginQueuedSwordGuard, cooldownRemaining);
+      return;
+    }
+    // 攻撃可能な地上状態では押した瞬間にガードを開始する。
     swordGuardActive = true;
     socket.emit("swordGuardStart");
     return;
@@ -3945,15 +3964,21 @@ function stopFiring(cancelled = false) {
     swordAirAttack = false;
     return;
   }
-  if (selectedWeapon === "sword" || swordPressStartedAt || swordGuardActive) {
+  if (selectedWeapon === "sword" || swordPressStartedAt || swordGuardActive || swordGuardQueued) {
     const heldFor = swordPressStartedAt ? Date.now() - swordPressStartedAt : Infinity;
+    const wasQueuedForCooldown = swordGuardQueued;
     swordPressStartedAt = 0;
+    swordGuardQueued = false;
+    if (swordGuardQueueTimer) {
+      clearTimeout(swordGuardQueueTimer);
+      swordGuardQueueTimer = null;
+    }
     if (swordGuardActive) {
       swordGuardActive = false;
       socket.emit("swordGuardStop");
     }
-    // 180ms未満のタップだけ通常攻撃。長押しはガードのみ。
-    if (!cancelled && heldFor < 180 && selectedWeapon === "sword" && performance.now() >= swordMeleeLocalReadyAt) {
+    // クールタイム中に押して離した入力は攻撃に変換しない。押し続けた場合のみ終了時にガードする。
+    if (!wasQueuedForCooldown && !cancelled && heldFor < 180 && selectedWeapon === "sword" && performance.now() >= swordMeleeLocalReadyAt) {
       // fire()より先に次の攻撃可能時刻を確定し、連打・多重pointerイベントを抑止。
       swordMeleeLocalReadyAt = performance.now() + (weaponConfig.sword?.fireInterval || 650);
       fire();
@@ -3973,6 +3998,16 @@ function stopFiring(cancelled = false) {
 }
 
 function cancelFiringForWeaponSwitch() {
+  swordPressStartedAt = 0;
+  swordGuardQueued = false;
+  if (swordGuardQueueTimer) {
+    clearTimeout(swordGuardQueueTimer);
+    swordGuardQueueTimer = null;
+  }
+  if (swordGuardActive) {
+    swordGuardActive = false;
+    socket.emit("swordGuardStop");
+  }
   if (autoFireTimer) {
     clearInterval(autoFireTimer);
     autoFireTimer = null;
