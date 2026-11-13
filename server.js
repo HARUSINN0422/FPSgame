@@ -3993,13 +3993,12 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
       let hitInfo = null;
       if (shooter.weapon === "bow") {
-        // チャージが弱いほど初速を強く落とし、重力も増やす。弱い矢は急角度で落下する。
-        const arrowSpeed = 65 * 0.8 * 2 * 0.2 * 0.5 * Math.pow(bowCharge, 3);
-        const gravity = 2;
-        const stepTime = 0.04;
-        // 重力100では矢は短時間で地面へ落ちる。低速時に range / speed を使うと
-        // 数万回のループになり、Socket.IOの応答まで止めて切断を招くため飛行時間に上限を設ける。
-        const maxFlightTime = Math.min(weapon.range / Math.max(arrowSpeed, 0.001), 0.75);
+        // 低チャージでも最低速度を確保し、速度に応じて命中ダメージを減らす。
+        const arrowSpeed = Math.max(1.5, 10.4 * Math.pow(bowCharge, 3));
+        const gravity = 1.3;
+        // 判定間隔を広げて軌道サンプル数を削減し、射撃時のサーバー負荷を抑える。
+        const stepTime = 0.1;
+        const maxFlightTime = Math.min(weapon.range / arrowSpeed, 0.75);
         let previous = { ...origin };
         for (let elapsed = stepTime; arrowSpeed > 0.05 && elapsed <= maxFlightTime; elapsed += stepTime) {
           const current = {
@@ -4046,7 +4045,10 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
-    const damage = baseShotDamage * bestHit.multiplier * distanceMultiplier;
+    const bowSpeedDamageMultiplier = shooter.weapon === "bow"
+      ? clamp(Math.max(1.5, 10.4 * Math.pow(bowCharge, 3)) / 10.4, 0.2, 1)
+      : 1;
+    const damage = baseShotDamage * bowSpeedDamageMultiplier * bestHit.multiplier * distanceMultiplier;
     const split = applyIncomingDamage(bestHit.target, damage, true);
     addUltimateCharge(shooter, damage);
 
