@@ -4269,7 +4269,7 @@ function createTracer(event) {
     const dir = directionFromAngles(event.yaw, event.pitch);
     const charge = THREE.MathUtils.clamp(Number(event.bowCharge) || 0, 0, 1);
     const speed = 10.4 * Math.pow(charge, 3);
-    const gravity = 10;
+    const gravity = 3;
     const dot = new THREE.Mesh(
       new THREE.SphereGeometry(0.085, 8, 8),
       new THREE.MeshBasicMaterial({ color: 0xffd27a })
