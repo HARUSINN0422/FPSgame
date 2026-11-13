@@ -1230,7 +1230,7 @@ function isSameGame(a, b) {
   const modeA = a.mode || MAP_MODE;
   const modeB = b.mode || MAP_MODE;
   if (modeA !== modeB) return false;
-  if (isTeamMatchMode(modeA) || modeA === TRAINING_MODE || modeA === BUILD_MODE || modeA === "Duel") return Boolean(a.matchId && a.matchId === b.matchId);
+  if (isTeamMatchMode(modeA) || modeA === TRAINING_MODE || modeA === BUILD_MODE || modeA === "Duel" || modeA === "Wander") return Boolean(a.matchId && a.matchId === b.matchId);
   return true;
 }
 
@@ -2180,6 +2180,53 @@ function removeBuildBotsForMatch(matchId) {
   }
 }
 
+function createWanderBotForPlayer(owner) {
+  if (!owner || owner.mode !== "Wander" || owner.wanderBotsEnabled !== true) return;
+  const id = "bot:wander:" + owner.matchId;
+  if (players.has(id)) return;
+  const map = owner.wanderMap || activeMap;
+  const points = Array.isArray(map?.spawnPoints) ? map.spawnPoints : [];
+  const candidates = points.slice().sort(() => Math.random() - 0.5);
+  let spawn = candidates.find(point =>
+    Array.isArray(point) && point.length >= 3 &&
+    Math.hypot(point[0] - owner.x, point[2] - owner.z) >= 8 &&
+    !collides(point[0], point[2], Number(point[1]) || 0, PLAYER_HEIGHT, { mode: "Wander", wanderMap: map, matchId: owner.matchId })
+  );
+  if (!spawn) {
+    const offsets = [[10,0],[-10,0],[0,10],[0,-10],[8,8],[-8,8],[8,-8],[-8,-8]];
+    for (const [dx,dz] of offsets) {
+      const x = owner.x + dx, z = owner.z + dz;
+      const context = {mode:"Wander",wanderMap:map,matchId:owner.matchId};
+      if (!collides(x,z,owner.y,PLAYER_HEIGHT,context)) {
+        spawn = [x, getGroundHeight(x,z,owner.y,context), z];
+        break;
+      }
+    }
+  }
+  if (!spawn) return;
+  const now = Date.now();
+  const usedNames = new Set([owner.name.toLowerCase()]);
+  const availableNames = AREA_BOT_NAMES.filter(name => !usedNames.has(name.toLowerCase()));
+  const botName = availableNames.length ? availableNames[Math.floor(Math.random()*availableNames.length)] : "BOT-1";
+  players.set(id, {
+    id, name: botName, mode: "Wander", team: null, matchId: owner.matchId,
+    wanderMap: map, isBot: true, finished: false, botSpawnIndex: Math.max(1, points.indexOf(spawn)),
+    x: spawn[0], y: Number(spawn[1]) || 0, z: spawn[2],
+    yaw: Math.atan2(-(owner.x-spawn[0]), -(owner.z-spawn[2])), pitch: 0,
+    health: 100, maxHealth: 100, shield: 0, kills: 0, deaths: 0,
+    ultimateCharge: 0, ultimateType: "skyfall", ultimateActiveUntil: 0,
+    ultimateAnchor: null, skyfallImpactPending: false, skyfallImpactId: null,
+    weapon: "rifle", weaponSlots: ["rifle","marksman"], activeWeaponSlot: 0,
+    ammo: WEAPONS.rifle.magazineSize, weaponAmmo: [WEAPONS.rifle.magazineSize,WEAPONS.marksman.magazineSize],
+    reloadingUntil: 0, lastFire: 0, velocityY: 0, grounded: true, lastGroundedAt: now,
+    jumpQueuedUntil: 0, input: {forward:0,strafe:0,crouch:false,jumpHeld:false},
+    crouched: false, flying: false, slidingUntil: 0, slideDirectionX: 0, slideDirectionZ: 0,
+    respawnAt: 0, invulnerableUntil: now + 1200, damageHitstopUntil: 0, damageSlowUntil: 0,
+    botThinkAt: 0, botOffset: Math.random()*1000, botTactic: "push",
+    botTacticUntil: 0, botStrafeSign: Math.random()<0.5?-1:1, botAggression: 0.8
+  });
+}
+
 function syncBots() {
   const humanPlayers = Array.from(players.values()).filter((p) => !p.isBot && (p.mode || MAP_MODE) === MAP_MODE);
   const bots = Array.from(players.values()).filter((p) => p.isBot && (p.mode || MAP_MODE) === MAP_MODE);
@@ -2742,7 +2789,7 @@ function respawnBot(p, now) {
     p.botHasLeftRespawnArea = !getPayloadRespawnZoneAt(getMapForPlayer(p), p.x, p.z);
   }
   p.yaw = p.mode === PAYLOAD_MODE ? -Math.PI / 2 : p.mode === BUILD_MODE ? Math.PI : 0; p.pitch = 0;
-  p.velocityY = 0; p.grounded = true; p.lastGroundedAt = now;
+  p.velocityY = 0; p.grounded = true; p.flying = false; p.flightMaxY = 0; p.lastFlightJumpTapAt = 0; p.lastGroundedAt = now;
   p.health = Number(p.maxHealth) || 100;
   p.ultimateActiveUntil = 0;
   p.ultimateAnchor = null;
@@ -3271,9 +3318,11 @@ function movePlayer(p, dt) {
   if (p.flying) {
     const verticalInput = (p.input.jumpHeld ? 1 : 0) - (p.input.crouch ? 1 : 0);
     p.velocityY = verticalInput * PLAYER_SPEED;
-    const nextFlightY = p.y + p.velocityY * dt;
+    const flightCeiling = Number.isFinite(p.flightMaxY) ? p.flightMaxY : p.y + 30;
+    const nextFlightY = Math.min(flightCeiling, p.y + p.velocityY * dt);
     if (!collides(p.x, p.z, nextFlightY, currentHeight, p)) p.y = nextFlightY;
     else p.velocityY = 0;
+    if (p.y >= flightCeiling - 0.001 && p.velocityY > 0) p.velocityY = 0;
   } else if (!p.grounded) {
     p.velocityY -= GRAVITY * dt;
     p.y += p.velocityY * dt;
@@ -3346,7 +3395,7 @@ function movePlayer(p, dt) {
     p.velocityY = 0;
     p.grounded = true;
     p.lastGroundedAt = now;
-    if (p.flying) p.flying = false;
+    if (p.flying) { p.flying = false; p.flightMaxY = 0; p.lastFlightJumpTapAt = 0; }
   } else {
     p.grounded = false;
   }
@@ -4902,7 +4951,11 @@ io.on("connection", (socket) => {
     }
     if (requestedMode === TRAINING_MODE) createTrainingBotsForPlayer(players.get(socket.id));
     else if (requestedMode === BUILD_MODE) syncBuildBots(socket.id);
-    else if (requestedMode !== "Wander") syncBots();
+    else if (requestedMode === "Wander" && data.botEnabled === true) {
+      const wanderPlayer = players.get(socket.id);
+      if (wanderPlayer) wanderPlayer.wanderBotsEnabled = true;
+      createWanderBotForPlayer(wanderPlayer);
+    } else if (requestedMode !== "Wander") syncBots();
     socket.emit("joined", { player: publicPlayer(players.get(socket.id), true) });
     broadcastPlayers();
   });
@@ -5156,6 +5209,15 @@ io.on("connection", (socket) => {
       if (!p.flying) {
         p.flying = true;
         p.velocityY = 0;
+        p.flightMaxY = getGroundHeight(p.x, p.z, p.y, p) + 30;
+        p.lastFlightJumpTapAt = 0;
+      } else if (p.lastFlightJumpTapAt && now - p.lastFlightJumpTapAt <= 350) {
+        p.flying = false;
+        p.velocityY = 0;
+        p.flightMaxY = 0;
+        p.lastFlightJumpTapAt = 0;
+      } else {
+        p.lastFlightJumpTapAt = now;
       }
       return;
     }
