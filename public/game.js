@@ -2880,6 +2880,10 @@ function updateSmokeVisuals(now, dt) {
       });
       bodyMeshCount++;
       if (insideSmoke) obscuredBodyMeshCount++;
+      // 煙幕内で薄く表示されるスキン本体には、輪郭線を重ねて表示しない。
+      for (const child of part.children) {
+        if (child.userData?.skinOutline) child.visible = !insideSmoke;
+      }
       for (const original of part.userData.smokeOriginalMaterials) {
         const material = original.material;
         if (!material) continue;
@@ -2911,6 +2915,12 @@ function updateSmokeVisuals(now, dt) {
       obj.userData.nameSprite.visible = bodyMeshCount > 0
         && obscuredBodyMeshCount / bodyMeshCount <= 0.5
         && !smokeBlocksName;
+      // 煙幕が視線を遮っている場合は、煙幕内判定で残った輪郭線も隠す。
+      if (smokeBlocksName) {
+        obj.traverse((part) => {
+          if (part.userData?.skinOutline) part.visible = false;
+        });
+      }
     }
   }
 }
@@ -3100,6 +3110,7 @@ function createRemotePlayer() {
     const outline = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), skinOutlineMaterial.clone());
     outline.scale.setScalar(1.006);
     outline.renderOrder = 3;
+    outline.userData.skinOutline = true;
     mesh.add(outline);
   }
 
