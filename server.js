@@ -3983,10 +3983,11 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     damageBuildStructureOnRay(shooter, origin, dir, weapon.range, weapon.damage || 10);
     const cartDistance = rayHitsPayloadCart(origin, dir, weapon.range, shooter);
     let bestHit = null;
+    let bowArrowSpeed = 0;
 
     if (shooter.weapon === "bow") {
       // 矢の軌道を一度だけ走査し、壁・カート・最初に当たったプレイヤーで停止する。
-      const arrowSpeed = Math.max(1.5, 12.48 * Math.pow(bowCharge, 3));
+      const arrowSpeed = bowArrowSpeed = Math.max(1.5, 12.48 * Math.pow(bowCharge, 3));
       const gravity = 1.3;
       const stepTime = 0.025;
       const maxFlightTime = Math.min(weapon.range / arrowSpeed, 3.0);
@@ -4040,6 +4041,58 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
 
     if (!bestHit) continue;
+
+    // 弓は着弾予定時刻までダメージを適用しない。矢の飛行時間に合わせて処理する。
+    if (shooter.weapon === "bow") {
+      const target = bestHit.target;
+      const impactDelay = Math.max(0, bestHit.t / Math.max(0.01, bowArrowSpeed) * 1000);
+      const impact = {
+        x: bestHit.x ?? origin.x + dir.x * bestHit.t,
+        y: bestHit.y ?? origin.y + dir.y * bestHit.t,
+        z: bestHit.z ?? origin.z + dir.z * bestHit.t,
+        t: bestHit.t,
+        multiplier: bestHit.multiplier,
+        zone: bestHit.zone
+      };
+      setTimeout(() => {
+        const currentShooter = players.get(shooter.id);
+        const currentTarget = players.get(target.id);
+        if (!currentShooter || !currentTarget || currentTarget.health <= 0 || currentTarget.finished ||
+            !isSameGame(currentShooter, currentTarget) ||
+            (isTeamMatchMode(currentShooter.mode) && currentTarget.team === currentShooter.team)) return;
+        const distanceMultiplier = getDistanceDamageMultiplier(weapon, impact.t);
+        const baseShotDamage = 5 + 135 * bowCharge;
+        const bowSpeedDamageMultiplier = clamp(bowArrowSpeed / 12.48, 0.2, 1);
+        const damage = baseShotDamage * bowSpeedDamageMultiplier * impact.multiplier * distanceMultiplier;
+        const split = applyIncomingDamage(currentTarget, damage, true);
+        addUltimateCharge(currentShooter, damage);
+        io.to(currentShooter.id).emit("damageDealt", {
+          targetId: currentTarget.id, damage: Math.round(split.totalDamage),
+          shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage),
+          zone: impact.zone, x: impact.x, y: impact.y, z: impact.z
+        });
+        io.to(currentTarget.id).emit("damageTaken", { damage: Math.round(split.totalDamage), zone: impact.zone });
+        if (currentTarget.health <= 0) {
+          currentShooter.health = Number(currentShooter.maxHealth) || 100;
+          clearBurnStatus(currentShooter);
+          currentTarget.health = 0;
+          currentTarget.respawnAt = Date.now() + 5000;
+          currentTarget.kills = currentTarget.kills || 0;
+          currentShooter.kills = (currentShooter.kills || 0) + 1;
+          currentTarget.deaths = (currentTarget.deaths || 0) + 1;
+          if (currentTarget.mode === "Duel") resolveDuelRound(currentShooter, currentTarget);
+          currentTarget.invisibleUntil = 0;
+          if (currentTarget.riftDuelId) finishRiftDuel(currentTarget);
+          if (currentShooter.invisibleUntil > Date.now()) currentShooter.invisibleUntil = 0;
+          broadcastGameEvent(currentShooter, "elimination", {
+            killerId: currentShooter.id, killerName: currentShooter.name,
+            victimId: currentTarget.id, victimName: currentTarget.name,
+            killerKills: currentShooter.kills, zone: impact.zone
+          });
+        }
+      }, impactDelay);
+      continue;
+    }
 
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
