@@ -3784,7 +3784,7 @@ function startRailgunCharge() {
   hud?.classList.remove("hidden");
   if (railgunChargeTimer) clearInterval(railgunChargeTimer);
   railgunChargeTimer = setInterval(() => {
-    if (fill) fill.style.width = Math.min(100, (performance.now() - railgunChargeStartedAt) / 10) + "%";
+    if (fill) fill.style.width = Math.min(100, (performance.now() - railgunChargeStartedAt) / 15) + "%";
   }, 30);
 }
 function releaseRailgunCharge() {
@@ -3800,7 +3800,7 @@ function releaseRailgunCharge() {
   const label = hud?.querySelector("span");
   if (label) label.textContent = "弓のチャージ";
   hud?.setAttribute("aria-label", "弓のチャージ");
-  if (elapsed >= 1000 && selectedWeapon === "railgun") socket.emit("railgunRelease");
+  if (elapsed >= 1500 && selectedWeapon === "railgun") socket.emit("railgunRelease");
 }
 function startBowCharge() {
   if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt || performance.now() < bowNextChargeAt) return;
