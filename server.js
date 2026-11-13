@@ -5341,9 +5341,9 @@ io.on("connection", (socket) => {
   socket.on("requestCannonState", () => { const p = players.get(socket.id); if (p) emitCannonState(socket, p); });
   socket.on("fire", (fireData = {}) => {
     const p = players.get(socket.id);
-    if (!p || p.health <= 0 || p.finished || ["bow", "minigun", "railgun", "formingGun", "flamethrower", "laserBeam", "freezeCannon"].includes(p.weapon) || p.frozenUntil > Date.now()) return;
+    const now = Date.now();
+    if (!p || p.health <= 0 || p.finished || ["bow", "minigun", "railgun", "formingGun", "flamethrower", "laserBeam", "freezeCannon"].includes(p.weapon) || p.frozenUntil > now) return;
     if (p.weapon === "sword") {
-      const now = Date.now();
       const jumpGrace = now - (Number(p.lastJumpInputAt) || 0) <= 900;
       // 剣はクライアント入力の重複に依存せず、サーバー側で攻撃間隔を一元管理する。
       if (now < Number(p.swordMeleeReadyAt || 0) || now < Number(p.swordLeapReadyAt || 0)) return;
