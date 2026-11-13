@@ -2713,11 +2713,42 @@ function updateWeaponBeamVisuals() {
         scene.add(beam);
         weaponBeamMeshes.set(id, beam);
       }
-      // ShapeGeometryを地面へ寝かせ、照準方向に合わせた扇形を足元から表示する。
+      // 壁・建築物より奥の床には攻撃範囲を描かない。扇形の各方向へ地面と平行に
+      // レイを飛ばし、最初の遮蔽物までで扇形の輪郭を切り詰める。
       beam.position.set(playerX, playerY + 0.055, playerZ);
       beam.rotation.order = "YXZ";
       beam.rotation.set(Math.PI / 2, yawValue, 0);
       beam.scale.set(1, 1, 1);
+      const clippedShape = new THREE.Shape();
+      const clippedEdgePoints = [new THREE.Vector3(0, 0, 0)];
+      const fanRaycaster = new THREE.Raycaster();
+      const rayOrigin = new THREE.Vector3(playerX, playerY + 0.12, playerZ);
+      const arcSegments = 48;
+      clippedShape.moveTo(0, 0);
+      for (let i = 0; i <= arcSegments; i++) {
+        const angle = -Math.PI / 2 - halfAngle + (2 * halfAngle * i / arcSegments);
+        const worldDirection = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0)
+          .applyEuler(beam.rotation).setY(0).normalize();
+        fanRaycaster.set(rayOrigin, worldDirection);
+        fanRaycaster.far = range;
+        const blockers = fanRaycaster.intersectObjects(worldGroup.children, true);
+        const distance = blockers.length ? Math.max(0, Math.min(range, blockers[0].distance - 0.12)) : range;
+        const localX = Math.cos(angle) * distance;
+        const localY = Math.sin(angle) * distance;
+        clippedShape.lineTo(localX, localY);
+        clippedEdgePoints.push(new THREE.Vector3(localX, localY, 0));
+      }
+      clippedShape.lineTo(0, 0);
+      const fanFill = beam.children[0];
+      const fanOutline = beam.children[1];
+      if (fanFill) {
+        fanFill.geometry.dispose();
+        fanFill.geometry = new THREE.ShapeGeometry(clippedShape, 1);
+      }
+      if (fanOutline) {
+        fanOutline.geometry.dispose();
+        fanOutline.geometry = new THREE.BufferGeometry().setFromPoints(clippedEdgePoints);
+      }
     } else {
       if (!beam || beam.userData.weapon !== weapon || beam.userData.groundFan) {
         removeWeaponBeamVisual(id);
