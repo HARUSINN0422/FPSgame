@@ -222,7 +222,7 @@ const weaponConfig = {
   shotgun: { fireInterval: 750, automatic: false },
   marksman: { fireInterval: 220, automatic: true },
   formingGun: { fireInterval: 1000, automatic: false },
-  sniper: { fireInterval: 1200, automatic: false },
+  sniper: { fireInterval: 400, automatic: false },
   bow: { fireInterval: 1, automatic: false },
   minigun: { fireInterval: 107 / 3, automatic: false },
   railgun: { fireInterval: 1, automatic: false }, flamethrower: { fireInterval: 500, automatic: true }, laserBeam: { fireInterval: 500, automatic: true }, freezeCannon: { fireInterval: 500, automatic: true }
@@ -2676,7 +2676,7 @@ function updateWeaponBeamVisuals() {
       direction = directionFromAngles(yawValue, pitchValue);
     }
     const isFan = weapon === "flamethrower" || weapon === "freezeCannon";
-    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 18 : 10.5;
+    const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 9 : 5.25;
     const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     let beam = weaponBeamMeshes.get(id);
     if (isFan) {
@@ -3795,7 +3795,7 @@ function startRailgunCharge() {
   hud?.classList.remove("hidden");
   if (railgunChargeTimer) clearInterval(railgunChargeTimer);
   railgunChargeTimer = setInterval(() => {
-    if (fill) fill.style.width = Math.min(100, (performance.now() - railgunChargeStartedAt) / 15) + "%";
+    if (fill) fill.style.width = Math.min(100, (performance.now() - railgunChargeStartedAt) / 20) + "%";
   }, 30);
 }
 function releaseRailgunCharge() {
