@@ -1366,7 +1366,7 @@ function updatePlayerCannons(now = Date.now()) {
     if (target.health <= 0) {
       owner.health = Number(owner.maxHealth) || 100;
       clearBurnStatus(owner);
-      target.health=0; target.respawnAt=now+5000; target.deaths=(target.deaths||0)+1;
+      target.health=0; target.respawnAt=now+5000; target.deaths=(target.deaths||0)+1; owner.kills=(owner.kills||0)+1;
       if(target.mode==="Duel") resolveDuelRound(owner,target);
       target.invisibleUntil=0; if(target.riftDuelId) finishRiftDuel(target);
       broadcastGameEvent(owner,"elimination",{killerId:owner.id,killerName:owner.name,victimId:target.id,victimName:target.name,killerKills:owner.kills,zone:"body"});
