@@ -3993,14 +3993,15 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
       let hitInfo = null;
       if (shooter.weapon === "bow") {
-        // 弓矢は一定速度で飛び、飛行時間に応じて重力で落下する軌道をたどる。
-        // 基本速度を従来の半分にし、引きの弱さが飛距離に強く響くよう3乗カーブにする。
-        // ほぼ引かずに放った矢は初速がほとんど出ず、すぐに落下する。
-        const arrowSpeed = 65 * 0.8 * 2 * 0.2 * 0.5 * (0.02 + 0.98 * Math.pow(bowCharge, 3));
+        // チャージ量をそのまま初速へ反映する。未チャージなら初速0で、通常速度の矢は出ない。
+        const arrowSpeed = 65 * 0.8 * 2 * 0.2 * 0.5 * Math.pow(bowCharge, 3);
         const gravity = 100;
         const stepTime = 0.04;
+        // 重力100では矢は短時間で地面へ落ちる。低速時に range / speed を使うと
+        // 数万回のループになり、Socket.IOの応答まで止めて切断を招くため飛行時間に上限を設ける。
+        const maxFlightTime = Math.min(weapon.range / Math.max(arrowSpeed, 0.001), 0.75);
         let previous = { ...origin };
-        for (let elapsed = stepTime; elapsed <= weapon.range / arrowSpeed; elapsed += stepTime) {
+        for (let elapsed = stepTime; arrowSpeed > 0.05 && elapsed <= maxFlightTime; elapsed += stepTime) {
           const current = {
             x: origin.x + dir.x * arrowSpeed * elapsed,
             y: origin.y + dir.y * arrowSpeed * elapsed - 0.5 * gravity * elapsed * elapsed,
