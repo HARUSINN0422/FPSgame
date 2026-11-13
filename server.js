@@ -250,7 +250,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   shockwaveLauncher: "着弾地点の周囲の敵を吹き飛ばす。ダメージ: 0。",
   grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。ダメージ: 0。リロード不要。",
   marksman: "中〜遠距離向けの精密連射武器。ダメージ: 1発40。装弾数30発。",
-  formingGun: "長押しでチャージし、最大まで溜めて離すと誘導弾を1発発射。半径5m以内で遮蔽物のない敵を追尾し、命中時30ダメージ。",
+  formingGun: "長押しでチャージし、最大まで溜めて離すと誘導弾を1発発射。半径15m以内で遮蔽物のない敵を追尾し、命中時30ダメージ。",
   sniper: "遠距離向けのボルトアクション式狙撃銃。ダメージ: 1発85（距離により減衰）。装弾数6発。",
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
@@ -323,7 +323,7 @@ for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 140;
 WEAPONS.bow.description = DEFAULT_WEAPON_DESCRIPTIONS.bow;
-WEAPONS.marksman.fireInterval = 225 * 1.25;
+WEAPONS.marksman.fireInterval = 225 * 1.25 / 1.5;
 WEAPONS.marksman.magazineSize = 30;
 WEAPONS.pistol.magazineSize = 6;
 WEAPONS.pistol.damage = 70;
@@ -335,12 +335,12 @@ WEAPONS.marksman.minDamageMultiplier = 1;
 WEAPONS.marksman.description = "連射可能 / 胴体40ダメージ / 距離減衰なし / 装弾数30発";
 WEAPONS.shotgun.damage = 25;
 WEAPONS.shotgun.fireInterval = 750 * 1.25;
-WEAPONS.shotgun.magazineSize = 3;
+WEAPONS.shotgun.magazineSize = 8;
 WEAPONS.shotgun.pellets = 8;
 WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
 WEAPONS.shotgun.minDamageMultiplier = 1;
-WEAPONS.shotgun.spread = 0.24 * 0.7;
-WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 装弾数3発・近距離向け";
+WEAPONS.shotgun.spread = 0.24 * 0.35;
+WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 装弾数8発・近距離向け";
 WEAPONS.flamethrower.damage = 10;
 WEAPONS.flamethrower.fireInterval = 125;
 WEAPONS.flamethrower.range = 18;
@@ -1810,7 +1810,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
           const center = { x: candidate.x, y: candidate.y + (candidate.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.55, z: candidate.z };
           const dx = center.x - projectile.x, dy = center.y - projectile.y, dz = center.z - projectile.z;
           const distance = Math.hypot(dx, dy, dz);
-          if (distance > 5 || (nearest && distance >= nearest.distance)) continue;
+          if (distance > 15 || (nearest && distance >= nearest.distance)) continue;
           const dir = { x: dx / Math.max(distance, 1e-6), y: dy / Math.max(distance, 1e-6), z: dz / Math.max(distance, 1e-6) };
           const sightOrigin = { x: projectile.x, y: projectile.y, z: projectile.z };
           const mapWall = rayHitsObstacle(sightOrigin, dir, distance, owner);
@@ -1840,7 +1840,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
           projectile.targetId = null;
         } else {
           const current = { x: projectile.vx / projectile.speed, y: projectile.vy / projectile.speed, z: projectile.vz / projectile.speed };
-          const blend = Math.min(1, dt * 16);
+          const blend = Math.min(1, dt * 48);
           const nx = current.x + (dir.x - current.x) * blend;
           const ny = current.y + (dir.y - current.y) * blend;
           const nz = current.z + (dir.z - current.z) * blend;
