@@ -3993,9 +3993,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
       let hitInfo = null;
       if (shooter.weapon === "bow") {
-        // チャージ量をそのまま初速へ反映する。未チャージなら初速0で、通常速度の矢は出ない。
+        // チャージが弱いほど初速を強く落とし、重力も増やす。弱い矢は急角度で落下する。
         const arrowSpeed = 65 * 0.8 * 2 * 0.2 * 0.5 * Math.pow(bowCharge, 3);
-        const gravity = 100;
+        const gravity = 100 + 900 * (1 - bowCharge);
         const stepTime = 0.04;
         // 重力100では矢は短時間で地面へ落ちる。低速時に range / speed を使うと
         // 数万回のループになり、Socket.IOの応答まで止めて切断を招くため飛行時間に上限を設ける。
@@ -4171,6 +4171,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     yaw: shooter.yaw,
     pitch: shooter.pitch,
     weapon: shooter.weapon,
+    bowCharge: shooter.weapon === "bow" ? bowCharge : undefined,
     action: shooter.weapon === "sword" ? "swing" : undefined,
     hit,
     tracers: visualTracers
