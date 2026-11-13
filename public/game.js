@@ -4886,6 +4886,8 @@ function removeCannonVisual(id) {
   cannonMeshes.delete(id);
 }
 function showCannonShot(data) {
+  const cannon = cannonMeshes.get(data.id);
+  if (cannon) cannon.rotation.y = Math.atan2(-(data.targetX-data.x), -(data.targetZ-data.z));
   const start=new THREE.Vector3(data.x,data.y,data.z),end=new THREE.Vector3(data.targetX,data.targetY,data.targetZ);
   const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([start,end]),new THREE.LineBasicMaterial({color:0xffbd59,transparent:true,opacity:0.9}));
   scene.add(line); tracers.push({line,dot:null,start,end,born:performance.now(),life:100});
