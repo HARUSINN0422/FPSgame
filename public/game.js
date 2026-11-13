@@ -4264,6 +4264,25 @@ function addKillLog(event) {
 }
 
 function createTracer(event) {
+  if (event.weapon === "bow") {
+    const start = new THREE.Vector3(event.x, event.y, event.z);
+    const dir = directionFromAngles(event.yaw, event.pitch);
+    const charge = THREE.MathUtils.clamp(Number(event.bowCharge) || 0, 0, 1);
+    const speed = 10.4 * Math.pow(charge, 3);
+    const gravity = 100 + 900 * (1 - charge);
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.085, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffd27a })
+    );
+    dot.position.copy(start);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([start, start]),
+      new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.85 })
+    );
+    scene.add(line, dot);
+    tracers.push({ line, dot, start, dir, speed, gravity, born: performance.now(), life: 750, ballistic: true });
+    return;
+  }
   if (event.weapon === "railgun") {
     const start = new THREE.Vector3(event.x, event.y, event.z);
     const pellet = event.tracers?.[0] || {};
@@ -6166,7 +6185,13 @@ function animate(now) {
     const tracer = tracers[i];
     const life = tracer.life || 120;
     const progress = THREE.MathUtils.clamp((now - tracer.born) / life, 0, 1);
-    if (tracer.dot && tracer.start && tracer.end) {
+    if (tracer.ballistic && tracer.dot && tracer.start && tracer.dir) {
+      const elapsed = Math.min(life, now - tracer.born) / 1000;
+      const current = tracer.start.clone().addScaledVector(tracer.dir, tracer.speed * elapsed);
+      current.y -= 0.5 * tracer.gravity * elapsed * elapsed;
+      tracer.dot.position.copy(current);
+      if (tracer.line) tracer.line.geometry.setFromPoints([tracer.start, current]);
+    } else if (tracer.dot && tracer.start && tracer.end) {
       tracer.dot.position.lerpVectors(tracer.start, tracer.end, progress);
 
       if (tracer.line) {
