@@ -196,6 +196,7 @@ const joystick = {
 };
 
 let crouchHeld = false;
+let jumpHeld = false;
 
 let yaw = 0;
 let pitch = 0;
@@ -3445,6 +3446,7 @@ function pollGamepad(now) {
   if (ultimatePressed && !gamepadUltimateHeld) activateUltimate();
   gamepadUltimateHeld = ultimatePressed;
 
+  jumpHeld = jumpPressed;
   if (jumpPressed && !gamepadJumpHeld && selectedGameMode !== "Build") {
     if (myState?.health <= 0) {
       requestRespawn();
@@ -3478,7 +3480,7 @@ function pollGamepad(now) {
     socket.emit("input", {
       forward: joystick.forward * scopeMoveMultiplier,
       strafe: joystick.strafe * scopeMoveMultiplier,
-      crouch: crouchHeld, yaw, pitch
+      crouch: crouchHeld, jumpHeld, yaw, pitch
     });
     lastInputSent = now;
   }
@@ -3502,7 +3504,7 @@ function sendInput(now) {
   pitch = THREE.MathUtils.clamp(pitch, -1.35, 1.35);
   const strafe = THREE.MathUtils.clamp(keyboardStrafe + joystick.strafe, -1, 1) * scopeMoveMultiplier;
 
-  socket.emit("input", { forward, strafe, crouch: crouchHeld, yaw, pitch });
+  socket.emit("input", { forward, strafe, crouch: crouchHeld, jumpHeld, yaw, pitch });
   lastInputSent = now;
 }
 
@@ -3511,6 +3513,10 @@ function jump() {
   if (!joined || myState?.health <= 0) return;
   lastLocalJumpInputAt = Date.now();
   socket.emit("jump");
+}
+
+function setJumpHeld(held) {
+  jumpHeld = Boolean(held);
 }
 
 function setCrouch(held) {
@@ -4700,7 +4706,7 @@ socket.on("joined", ({ player }) => {
   weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(player.charm) ? player.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(player.charm) ? player.charm : "none";
   selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
@@ -5074,7 +5080,7 @@ function updateLoadoutSelectionUi() {
   document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const status = document.getElementById("loadoutSelectionStatus");
-  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り", body: "身体のお守り" };
+  const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り", body: "身体のお守り", slide: "スライディングのお守り", flight: "飛行のお守り" };
   const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁", invisible: "幽影", rift: "鏡界" };
   document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
   document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
@@ -5093,7 +5099,7 @@ document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListene
 }));
 document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(card.dataset.charm) ? card.dataset.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
 }));
 for (const button of document.querySelectorAll(".weapon-card")) {
@@ -5482,8 +5488,11 @@ jumpButton.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   jumpButton.setPointerCapture?.(e.pointerId);
   beginJumpCrouchLookGesture(e);
+  setJumpHeld(true);
   jump();
 });
+jumpButton.addEventListener("pointerup", () => setJumpHeld(false));
+jumpButton.addEventListener("pointercancel", () => setJumpHeld(false));
 
 crouchButton?.addEventListener("pointerdown", (e) => {
   if (layoutEditing) return;
@@ -5886,6 +5895,7 @@ function performBoundAction(action, pressed, isRepeat = false) {
     case "lookLeft": keyboardLook.left = pressed; break;
     case "crouch": setCrouch(pressed); break;
     case "jump":
+      setJumpHeld(pressed);
       if (pressed && !isRepeat) {
         if (myState?.health <= 0) requestRespawn();
         else jump();
@@ -5966,6 +5976,7 @@ window.addEventListener("blur", () => {
   keyboardLook.up = keyboardLook.down = keyboardLook.left = keyboardLook.right = false;
   lastKeyboardLookAt = 0;
   setCrouch(false);
+  setJumpHeld(false);
 });
 
 window.addEventListener("gamepadconnected", () => updateGamepadStatus());
