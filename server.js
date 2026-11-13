@@ -3683,9 +3683,10 @@ function rayHitsPayloadCart(origin, direction, maxDistance, player = null) {
 
 function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  let headHit = null;
 
-  // 頭部は胴体の大きな球判定から独立させる。
-  // 先に頭部球との交点を調べることで、頭を通る弾が胴体側の判定に埋もれない。
+  // 頭と胴体の両方を調べ、弾道上で手前にある部位を採用する。
+  // 頭部判定を常に優先すると、胴体に先に当たる軌道でも頭部扱いになる。
   if (hitRadiusOverride === null) {
     const headCenter = {
       x: target.x,
@@ -3703,7 +3704,7 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
       const nearHead = (-hb - Math.sqrt(hd)) / 2;
       const farHead = (-hb + Math.sqrt(hd)) / 2;
       const headT = nearHead >= 0 ? nearHead : farHead;
-      if (headT >= 0) return { t: headT, multiplier: 2.0, zone: "head" };
+      if (headT >= 0) headHit = { t: headT, multiplier: 2.0, zone: "head" };
     }
   }
 
@@ -3712,34 +3713,36 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const oy = origin.y - targetCenter.y;
   const oz = origin.z - targetCenter.z;
 
-  // 通常武器は従来の判定半径。レールガンは指定された5mの判定半径を使用する。
+  // 通常武器は従来の判定半径。レールガンは指定された判定半径を使用する。
   const hitRadius = Number.isFinite(Number(hitRadiusOverride)) && hitRadiusOverride !== null
     ? Math.max(0, Number(hitRadiusOverride))
     : PLAYER_RADIUS * 2;
   const b = 2 * (ox * direction.x + oy * direction.y + oz * direction.z);
   const c = ox * ox + oy * oy + oz * oz - hitRadius * hitRadius;
   const disc = b * b - 4 * c;
-  if (disc < 0) return null;
-
-  const t1 = (-b - Math.sqrt(disc)) / 2;
-  const t2 = (-b + Math.sqrt(disc)) / 2;
-  const t = t1 >= 0 ? t1 : t2;
-  if (t < 0) return null;
-
-  const hitY = origin.y + direction.y * t - target.y;
-  let multiplier = 1.0;
-  let zone = "body";
-
-  // レールガンなど頭部専用判定を使わない呼び出しでは、従来の高さ判定を維持する。
-  if (hitRadiusOverride !== null && hitY >= 1.42) {
-    multiplier = 2.0;
-    zone = "head";
-  } else if (hitY < 0.58) {
-    multiplier = 0.75;
-    zone = "legs";
+  let bodyHit = null;
+  if (disc >= 0) {
+    const root = Math.sqrt(disc);
+    const t1 = (-b - root) / 2;
+    const t2 = (-b + root) / 2;
+    const t = t1 >= 0 ? t1 : t2;
+    if (t >= 0) {
+      const hitY = origin.y + direction.y * t - target.y;
+      let multiplier = 1.0;
+      let zone = "body";
+      if (hitRadiusOverride !== null && hitY >= 1.42) {
+        multiplier = 2.0;
+        zone = "head";
+      } else if (hitY < 0.58) {
+        multiplier = 0.75;
+        zone = "legs";
+      }
+      bodyHit = { t, multiplier, zone };
+    }
   }
 
-  return { t, multiplier, zone };
+  if (headHit && (!bodyHit || headHit.t < bodyHit.t)) return headHit;
+  return bodyHit;
 }
 
 function finishReload(p, now = Date.now()) {
