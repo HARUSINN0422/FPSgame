@@ -305,7 +305,7 @@ WEAPONS.rifle.fireInterval = 160 / 1.8;
 WEAPONS.railgun.damage = 35;
 WEAPONS.railgun.fireInterval = 2000;
 WEAPONS.sniper.fireInterval = 400;
-WEAPONS.minigun.fireInterval = (107 / 3) * 1.3;
+WEAPONS.minigun.fireInterval = (107 / 3) * 1.3 * 0.4;
 WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
 WEAPONS.rocketLauncher.magazineSize = 3;
 WEAPONS.rocketLauncher.reloadTime = 2400;
@@ -351,7 +351,7 @@ WEAPONS.shotgun.magazineSize = 8;
 WEAPONS.shotgun.pellets = 8;
 WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
 WEAPONS.shotgun.minDamageMultiplier = 1;
-WEAPONS.shotgun.spread = 0.24 * 0.35 * 1.1;
+WEAPONS.shotgun.spread = 0.24 * 0.35 * 1.1 * 1.5;
 WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 装弾数8発・近距離向け";
 WEAPONS.flamethrower.damage = 10;
 WEAPONS.flamethrower.fireInterval = 500;
@@ -3994,8 +3994,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       let hitInfo = null;
       if (shooter.weapon === "bow") {
         // 弓矢は一定速度で飛び、飛行時間に応じて重力で落下する軌道をたどる。
-        const arrowSpeed = 65 * 0.8;
-        const gravity = 24;
+        const arrowSpeed = 65 * 0.8 * (0.12 + 0.88 * bowCharge);
+        const gravity = 34;
         const stepTime = 0.04;
         let previous = { ...origin };
         for (let elapsed = stepTime; elapsed <= weapon.range / arrowSpeed; elapsed += stepTime) {
