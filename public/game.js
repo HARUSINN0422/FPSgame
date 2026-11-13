@@ -4292,7 +4292,7 @@ function createTracer(event) {
     const arrow = createTracer.bowArrowTemplate.clone(true);
     arrow.position.copy(start);
     scene.add(arrow);
-    tracers.push({ arrow, start, dir, speed, gravity, born: performance.now(), life: 750, ballistic: true });
+    tracers.push({ arrow, start, dir, speed, gravity, born: performance.now(), life: 3000, ballistic: true });
     return;
   }
   if (event.weapon === "railgun") {
