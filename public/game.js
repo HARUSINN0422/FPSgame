@@ -4268,30 +4268,28 @@ function createTracer(event) {
     const start = new THREE.Vector3(event.x, event.y, event.z);
     const dir = directionFromAngles(event.yaw, event.pitch);
     const charge = THREE.MathUtils.clamp(Number(event.bowCharge) || 0, 0, 1);
-    const speed = 10.4 * Math.pow(charge, 3);
-    const gravity = 2;
+    const speed = Math.max(1.5, 10.4 * Math.pow(charge, 3));
+    const gravity = 1.3;
 
-    // 弓専用の矢モデル（木製の軸、金属の鏃、後端の羽根）。
-    // 軌跡を示す黄色い線は描画せず、矢そのものだけを表示する。
-    const arrow = new THREE.Group();
-    const shaftMaterial = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
-    const tipMaterial = new THREE.MeshStandardMaterial({ color: 0xc7cdd3, metalness: 0.75, roughness: 0.3 });
-    const featherMaterial = new THREE.MeshStandardMaterial({ color: 0xb53a24, roughness: 0.7 });
-
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.78, 7), shaftMaterial);
-    arrow.add(shaft);
-
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 7), tipMaterial);
-    tip.position.y = 0.49;
-    arrow.add(tip);
-
-    for (let n = 0; n < 3; n++) {
-      const feather = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.16, 0.09), featherMaterial);
-      feather.position.set(0, -0.34, 0);
-      feather.rotation.y = n * Math.PI * 2 / 3;
-      arrow.add(feather);
+    // 形状・材質は共有テンプレートを使い、発射ごとのGeometry/Material生成を避ける。
+    if (!createTracer.bowArrowTemplate) {
+      const template = new THREE.Group();
+      const shaftMaterial = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
+      const tipMaterial = new THREE.MeshStandardMaterial({ color: 0xc7cdd3, metalness: 0.75, roughness: 0.3 });
+      const featherMaterial = new THREE.MeshStandardMaterial({ color: 0xb53a24, roughness: 0.7 });
+      template.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.78, 7), shaftMaterial));
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 7), tipMaterial);
+      tip.position.y = 0.49;
+      template.add(tip);
+      for (let n = 0; n < 3; n++) {
+        const feather = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.16, 0.09), featherMaterial);
+        feather.position.set(0, -0.34, 0);
+        feather.rotation.y = n * Math.PI * 2 / 3;
+        template.add(feather);
+      }
+      createTracer.bowArrowTemplate = template;
     }
-
+    const arrow = createTracer.bowArrowTemplate.clone(true);
     arrow.position.copy(start);
     scene.add(arrow);
     tracers.push({ arrow, start, dir, speed, gravity, born: performance.now(), life: 750, ballistic: true });
@@ -6233,14 +6231,8 @@ function animate(now) {
 
     if (now - tracer.born > life) {
       if (tracers[i].arrow) {
+        // Geometry/Materialは共有テンプレートのため破棄せず、表示オブジェクトだけ外す。
         scene.remove(tracers[i].arrow);
-        tracers[i].arrow.traverse((object) => {
-          if (object.isMesh) {
-            object.geometry.dispose();
-            if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
-            else object.material.dispose();
-          }
-        });
       }
       if (tracers[i].line) {
         scene.remove(tracers[i].line);
