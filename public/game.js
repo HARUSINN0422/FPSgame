@@ -224,7 +224,7 @@ const weaponConfig = {
   formingGun: { fireInterval: 1000, automatic: false },
   sniper: { fireInterval: 400, automatic: false },
   bow: { fireInterval: 1, automatic: false },
-  minigun: { fireInterval: (107 / 3) * 1.3, automatic: false },
+  minigun: { fireInterval: (107 / 3) * 1.3 * 0.4, automatic: false },
   railgun: { fireInterval: 1, automatic: false }, flamethrower: { fireInterval: 500, automatic: true }, laserBeam: { fireInterval: 500, automatic: true }, freezeCannon: { fireInterval: 500, automatic: true }
 };
 
@@ -1641,6 +1641,7 @@ function makeRamp(ramp, color = 0x71808d) {
   mesh.receiveShadow = false;
   mesh.frustumCulled = false;
   mesh.renderOrder = 1;
+  mesh.userData.blocksWeaponBeam = true;
   if (ramp.buildStructureId) mesh.userData.buildSupportSurface = true;
   worldGroup.add(mesh);
   return mesh;
@@ -1833,10 +1834,12 @@ function buildWorld(data) {
       gate.position.set(o.x, o.h / 2, o.z);
       gate.renderOrder = 3;
       gate.userData.role = o.teamOnlyRole;
+      gate.userData.blocksWeaponBeam = true;
       payloadGateMeshes.push(gate);
       worldGroup.add(gate);
     } else {
       const obstacleMesh = makeBox(o.w, o.h, o.d, o.x, o.ceiling ? o.y + o.h / 2 : o.h / 2, o.z, 0x687582);
+      obstacleMesh.userData.blocksWeaponBeam = true;
       if (o.buildStructureId) obstacleMesh.userData.buildSupportSurface = true;
     }
   }
@@ -2731,7 +2734,8 @@ function updateWeaponBeamVisuals() {
           .applyEuler(beam.rotation).setY(0).normalize();
         fanRaycaster.set(rayOrigin, worldDirection);
         fanRaycaster.far = range;
-        const blockers = fanRaycaster.intersectObjects(worldGroup.children, true);
+        const beamBlockers = worldGroup.children.filter(object => object.userData?.blocksWeaponBeam);
+        const blockers = fanRaycaster.intersectObjects(beamBlockers, true);
         const distance = blockers.length ? Math.max(0, Math.min(range, blockers[0].distance - 0.12)) : range;
         const localX = Math.cos(angle) * distance;
         const localY = Math.sin(angle) * distance;
