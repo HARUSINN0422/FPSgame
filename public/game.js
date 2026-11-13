@@ -4268,7 +4268,7 @@ function createTracer(event) {
     const start = new THREE.Vector3(event.x, event.y, event.z);
     const dir = directionFromAngles(event.yaw, event.pitch);
     const charge = THREE.MathUtils.clamp(Number(event.bowCharge) || 0, 0, 1);
-    const speed = Math.max(1.5, 10.4 * Math.pow(charge, 3));
+    const speed = Math.max(1.5, 12.48 * Math.pow(charge, 3));
     const gravity = 1.3;
 
     // 形状・材質は共有テンプレートを使い、発射ごとのGeometry/Material生成を避ける。
