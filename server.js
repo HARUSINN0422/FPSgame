@@ -3987,8 +3987,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     if (shooter.weapon === "bow") {
       // 矢の軌道を一度だけ走査し、壁・カート・最初に当たったプレイヤーで停止する。
-      const arrowSpeed = bowArrowSpeed = Math.max(1.5, 12.48 * Math.pow(bowCharge, 3));
-      const gravity = 1.3;
+      const arrowSpeed = bowArrowSpeed = Math.max(1.5, 18.72 * Math.pow(bowCharge, 3));
+      const gravity = 1.0;
       const stepTime = 0.025;
       const maxFlightTime = Math.min(weapon.range / arrowSpeed, 3.0);
       let previous = { ...origin };
@@ -4062,7 +4062,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
             (isTeamMatchMode(currentShooter.mode) && currentTarget.team === currentShooter.team)) return;
         const distanceMultiplier = getDistanceDamageMultiplier(weapon, impact.t);
         const baseShotDamage = 5 + 135 * bowCharge;
-        const bowSpeedDamageMultiplier = clamp(bowArrowSpeed / 12.48, 0.2, 1);
+        const bowSpeedDamageMultiplier = clamp(bowArrowSpeed / 18.72, 0.2, 1);
         const damage = baseShotDamage * bowSpeedDamageMultiplier * impact.multiplier * distanceMultiplier;
         const split = applyIncomingDamage(currentTarget, damage, true);
         addUltimateCharge(currentShooter, damage);
@@ -4097,7 +4097,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
     const bowSpeedDamageMultiplier = shooter.weapon === "bow"
-      ? clamp(Math.max(1.5, 12.48 * Math.pow(bowCharge, 3)) / 12.48, 0.2, 1)
+      ? clamp(Math.max(1.5, 18.72 * Math.pow(bowCharge, 3)) / 18.72, 0.2, 1)
       : 1;
     const damage = baseShotDamage * bowSpeedDamageMultiplier * bestHit.multiplier * distanceMultiplier;
     const split = applyIncomingDamage(bestHit.target, damage, true);
