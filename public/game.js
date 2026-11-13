@@ -219,7 +219,7 @@ const weaponConfig = {
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160 / 1.5, automatic: true },
   shotgun: { fireInterval: 750, automatic: false },
-  marksman: { fireInterval: 450, automatic: true },
+  marksman: { fireInterval: 220, automatic: true },
   formingGun: { fireInterval: 1000, automatic: false },
   sniper: { fireInterval: 1200, automatic: false },
   bow: { fireInterval: 1, automatic: false },
