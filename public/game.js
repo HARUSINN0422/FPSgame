@@ -5135,6 +5135,18 @@ document.getElementById("backToLoadoutButton")?.addEventListener("click", () => 
 
 let wanderMapsLoaded = false;
 let wanderMaps = [];
+let wanderBotsEnabled = false;
+const wanderBotToggle = document.getElementById("wanderBotToggle");
+const updateWanderBotToggle = () => {
+  if (!wanderBotToggle) return;
+  wanderBotToggle.textContent = "BOT追加: " + (wanderBotsEnabled ? "ON" : "OFF");
+  wanderBotToggle.setAttribute("aria-pressed", String(wanderBotsEnabled));
+};
+wanderBotToggle?.addEventListener("click", () => {
+  wanderBotsEnabled = !wanderBotsEnabled;
+  updateWanderBotToggle();
+});
+updateWanderBotToggle();
 const wanderMapChoices = document.getElementById("wanderMapChoices");
 socket.on("wanderMaps", (maps = []) => {
   wanderMaps = maps;
@@ -5171,6 +5183,7 @@ function startWanderOnMap(map) {
       ultimateType: selectedUltimate,
     mode: "Wander",
     mapId: map.id,
+    botEnabled: wanderBotsEnabled,
     skin: window.getPlayerSkinData?.()
   });
 }
