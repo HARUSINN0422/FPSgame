@@ -165,7 +165,7 @@ const WEAPONS = {
   sword: { name: "剣", damage: 50, fireInterval: 650, range: 6.4, spread: 0, falloffStart: 6.4, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false, melee: true },
   pistol: {
     name: "ハンドガン",
-    damage: 70,
+    damage: 90,
     fireInterval: 400,
     range: 68,
     spread: 0.018,
@@ -183,14 +183,14 @@ const WEAPONS = {
     spread: 0.045,
     falloffStart: 20,
     minDamageMultiplier: 0.45,
-    magazineSize: 60,
+    magazineSize: 90,
     reloadTime: 1300,
     automatic: true
   },
   rifle: {
     name: "アサルトライフル",
-    damage: 30,
-    fireInterval: 160 / 1.5,
+    damage: 40,
+    fireInterval: 160 / 1.8,
     range: 78,
     spread: 0.032,
     falloffStart: 24,
@@ -201,7 +201,7 @@ const WEAPONS = {
   },
   shotgun: {
     name: "ショットガン", damage: 10, fireInterval: 750, range: 40, pellets: 8,
-    spread: 0.24, falloffStart: 10, minDamageMultiplier: 0.30,
+    spread: 0.24 * 0.35 * 1.1, falloffStart: 10, minDamageMultiplier: 0.30,
     magazineSize: 6, reloadTime: 1400, automatic: false
   },
   grenadeLauncher: {
@@ -219,17 +219,17 @@ const WEAPONS = {
     falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
   },
   sniper: {
-    name: "スナイパーライフル", damage: 85, fireInterval: 1200, range: 130, spread: 0.0015,
+    name: "スナイパーライフル", damage: 85, fireInterval: 400, range: 130, spread: 0.0015,
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 6,
     reloadTime: 1900, automatic: false
   },
   bow: { name: "弓", damage: 140, fireInterval: 100, range: 130, spread: 0, falloffStart: 130, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
-  minigun: { name: "ミニガン", damage: 7, fireInterval: 107 / 3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
+  minigun: { name: "ミニガン", damage: 7, fireInterval: (107 / 3) * 1.3, range: 68, spread: 0.055, falloffStart: 20, minDamageMultiplier: 0.45, magazineSize: 0, reloadTime: 0, automatic: false },
   shockwaveLauncher: { name: "ショックウェーブランチャー", damage: 0, fireInterval: 900, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   grappler: { name: "グラップラー", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
-  railgun: { name: "レールガン", damage: 35, fireInterval: 1000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
-  rocketLauncher: { name: "ロケットランチャー", damage: 150, fireInterval: 1250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 3, reloadTime: 2400, automatic: false },
-  cannonLauncher: { name: "キャノンランチャー", damage: 20, fireInterval: 250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 1, magazineSize: 1, reloadTime: 5000, automatic: false },
+  railgun: { name: "レールガン", damage: 35, fireInterval: 2000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
+  rocketLauncher: { name: "ロケットランチャー", damage: 180, fireInterval: 1250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 3, reloadTime: 2400, automatic: false },
+  cannonLauncher: { name: "キャノンランチャー", damage: 10, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 1, magazineSize: 1, reloadTime: 5000, automatic: false },
   flamethrower: { name: "火炎放射器", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   laserBeam: { name: "レーザービーム", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   freezeCannon: { name: "フリーズキャノン", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
@@ -242,25 +242,25 @@ const WEAPON_LABELS = {
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃。ダメージ: 120。弾薬・リロード不要。",
   sword: "剣を振る近接攻撃。ダメージ: 50。長押しで飛び道具のダメージを50%軽減。空中で使用すると前方20mへ山なりに飛び、着地時に半径10mの衝撃波を放つ。",
-  smoke: "煙幕弾を投げ、着弾地点の周囲の視界を遮る。ダメージ: 0。",
-  pistol: "精度を活かして狙う単発拳銃。ダメージ: 70（距離により減衰）。装弾数6発。",
-  smg: "近距離向けの高速連射武器。ダメージ: 1発9。装弾数60発。",
-  rifle: "扱いやすいフルオート武器。ダメージ: 1発30（距離により減衰）。装弾数20発。",
+  smoke: "煙幕弾を投げ、着弾地点の周囲の視界を遮る。",
+  pistol: "精度を活かして狙う単発拳銃。ダメージ: 90（距離により減衰）。装弾数6発。",
+  smg: "近距離向けの高速連射武器。ダメージ: 1発9。装弾数90発。",
+  rifle: "扱いやすいフルオート武器。ダメージ: 1発40（距離により減衰）。装弾数20発。",
   shotgun: "近距離向けの散弾銃。ダメージ: 散弾1発25（最大8発）。装弾数3発。",
   grenadeLauncher: "着弾地点で爆発するグレネード。ダメージ: 最大110（距離で減衰）。装弾数6発。",
-  shockwaveLauncher: "着弾地点の周囲の敵を吹き飛ばす。ダメージ: 0。",
-  grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。ダメージ: 0。リロード不要。",
+  shockwaveLauncher: "着弾地点の周囲の敵を吹き飛ばす。",
+  grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。リロード不要。",
   marksman: "中〜遠距離向けの精密連射武器。ダメージ: 1発40。装弾数30発。",
   formingGun: "長押しでチャージし、最大まで溜めて離すと誘導弾を3発連続発射。半径15m以内で遮蔽物のない敵を追尾し、1発5ダメージ。",
-  sniper: "遠距離向けのボルトアクション式狙撃銃。ダメージ: 1発85（距離により減衰）。装弾数6発。",
+  sniper: "遠距離向けのボルトアクション式狙撃銃。次弾まで0.4秒。ダメージ: 1発85（距離により減衰）。装弾数6発。",
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
-  railgun: "1.5秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要.",
-  rocketLauncher: "やや遅いロケット弾を発射し、壁・床・プレイヤーへの着弾で爆発。爆発半径6.5m、自分にもダメージ。中心150ダメージから最小30ダメージまで距離に応じて減衰。装弾数3発.",
-  cannonLauncher: "足元にキャノンを設置。遮蔽物のない敵へ250msごとに20ダメージ。10秒で消滅。リロード5秒。",
-  flamethrower: "前方へ炎を連続噴射（水平方向の扇形範囲・上下±3m）。壁の向こうには命中せず、命中時に燃焼。ダメージ: 1回10（燃焼ダメージは別）。",
+  railgun: "2秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要.",
+  rocketLauncher: "やや遅いロケット弾を発射し、壁・床・プレイヤーへの着弾で爆発。爆発半径13m、自分にもダメージ。中心180ダメージから最小50ダメージまで距離に応じて減衰。装弾数3発.",
+  cannonLauncher: "足元にキャノンを設置。遮蔽物のない敵へ1秒ごとに10ダメージ。10秒で消滅。リロード3秒。",
+  flamethrower: "前方へ炎を連続噴射（射程9mの扇形範囲・上下±3m）。壁の向こうには命中せず、0.5秒ごとに10ダメージ。命中時に燃焼。",
   laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
-  freezeCannon: "前方へ冷気を連続噴射（水平方向の扇形範囲・上下±3m）。壁の向こうには命中せず、命中を重ねると凍結。ダメージ: 1回4."
+  freezeCannon: "前方へ冷気を連続噴射（射程5.25mの扇形範囲・上下±3m）。壁の向こうには命中せず、0.5秒ごとに4ダメージ。命中を重ねると凍結."
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -300,19 +300,19 @@ for (const [id, description] of Object.entries(DEFAULT_WEAPON_DESCRIPTIONS)) {
 WEAPONS.sniper.magazineSize = 6;
 WEAPONS.sniper.description = DEFAULT_WEAPON_DESCRIPTIONS.sniper;
 WEAPONS.smg.fireInterval = 107 / 4.5;
-WEAPONS.rifle.damage = 30;
-WEAPONS.rifle.fireInterval = 160 / 1.5;
+WEAPONS.rifle.damage = 40;
+WEAPONS.rifle.fireInterval = 160 / 1.8;
 WEAPONS.railgun.damage = 35;
-WEAPONS.railgun.fireInterval = 1500;
+WEAPONS.railgun.fireInterval = 2000;
 WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
 WEAPONS.rocketLauncher.magazineSize = 3;
 WEAPONS.rocketLauncher.reloadTime = 2400;
-WEAPONS.rocketLauncher.damage = 150;
+WEAPONS.rocketLauncher.damage = 180;
 WEAPONS.rocketLauncher.description = DEFAULT_WEAPON_DESCRIPTIONS.rocketLauncher;
 WEAPONS.cannonLauncher.magazineSize = 1;
-WEAPONS.cannonLauncher.reloadTime = 5000;
-WEAPONS.cannonLauncher.fireInterval = 250;
-WEAPONS.cannonLauncher.damage = 20;
+WEAPONS.cannonLauncher.reloadTime = 3000;
+WEAPONS.cannonLauncher.fireInterval = 1000;
+WEAPONS.cannonLauncher.damage = 10;
 WEAPONS.cannonLauncher.description = DEFAULT_WEAPON_DESCRIPTIONS.cannonLauncher;
 WEAPONS.pickaxe.damage = 120;
 WEAPONS.sword.damage = 50;
@@ -320,7 +320,7 @@ WEAPONS.sword.range = 6.4;
 WEAPONS.sword.description = DEFAULT_WEAPON_DESCRIPTIONS.sword;
 WEAPONS.grenadeLauncher.damage = 110;
 WEAPONS.rifle.description = DEFAULT_WEAPON_DESCRIPTIONS.rifle;
-WEAPONS.smg.magazineSize = 60;
+WEAPONS.smg.magazineSize = 90;
 WEAPONS.smg.description = DEFAULT_WEAPON_DESCRIPTIONS.smg;
 WEAPONS.grappler.magazineSize = 0;
 WEAPONS.grappler.description = DEFAULT_WEAPON_DESCRIPTIONS.grappler;
@@ -336,7 +336,7 @@ WEAPONS.bow.description = DEFAULT_WEAPON_DESCRIPTIONS.bow;
 WEAPONS.marksman.fireInterval = 220;
 WEAPONS.marksman.magazineSize = 30;
 WEAPONS.pistol.magazineSize = 6;
-WEAPONS.pistol.damage = 70;
+WEAPONS.pistol.damage = 90;
 WEAPONS.pistol.falloffStart = 22;
 WEAPONS.pistol.minDamageMultiplier = 0.55;
 WEAPONS.marksman.falloffStart = WEAPONS.marksman.range;
@@ -349,11 +349,11 @@ WEAPONS.shotgun.magazineSize = 8;
 WEAPONS.shotgun.pellets = 8;
 WEAPONS.shotgun.falloffStart = WEAPONS.shotgun.range;
 WEAPONS.shotgun.minDamageMultiplier = 1;
-WEAPONS.shotgun.spread = 0.24 * 0.35;
+WEAPONS.shotgun.spread = 0.24 * 0.35 * 1.1;
 WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全弾命中で200ダメージ） / 装弾数8発・近距離向け";
 WEAPONS.flamethrower.damage = 10;
-WEAPONS.flamethrower.fireInterval = 125;
-WEAPONS.flamethrower.range = 18;
+WEAPONS.flamethrower.fireInterval = 500;
+WEAPONS.flamethrower.range = 9;
 WEAPONS.flamethrower.description = "長押しで連続噴射 / 扇形範囲・上下±3m / 壁の向こうには命中しない / 125msごとに10ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要";
 
 const app = express();
@@ -1343,7 +1343,7 @@ function updatePlayerCannons(now = Date.now()) {
       playerCannons.delete(cannon.id); if (owner) broadcastGameEvent(owner, "cannonRemove", { id: cannon.id }); continue;
     }
     if (now < cannon.nextShotAt) continue;
-    cannon.nextShotAt = now + 250;
+    cannon.nextShotAt = now + 1000;
     let best = null;
     for (const target of players.values()) {
       if (target.id === cannon.ownerId || target.health <= 0 || target.finished || !isSameGame(owner, target)) continue;
@@ -1359,7 +1359,7 @@ function updatePlayerCannons(now = Date.now()) {
     }
     if (!best) continue;
     const target = best.target, origin = {x:cannon.x,y:cannon.y+0.55,z:cannon.z};
-    const dealt = applyIncomingDamage(target,20,true).totalDamage;
+    const dealt = applyIncomingDamage(target,10,true).totalDamage;
     if (dealt > 0) addUltimateCharge(owner,dealt);
     io.to(target.id).emit("damageTaken",{damage:Math.round(dealt),zone:"body",source:"cannon"});
     io.to(owner.id).emit("damageDealt",{damage:Math.round(dealt),targetId:target.id,targetName:target.name,zone:"body"});
@@ -1638,7 +1638,7 @@ function applyShockwave(projectile, position, now = Date.now()) {
 }
 
 function explodeRocket(projectile, position, now = Date.now()) {
-  const radius = 6.5, maxDamage = 150, minDamage = 30;
+  const radius = 13, maxDamage = 180, minDamage = 50;
   damageBuildStructuresInRadius(projectile.owner, position, radius, maxDamage);
   const id = "rocket-explosion-" + (++smokeSequence);
   broadcastGameEvent(projectile.owner, "grenadeExplosion", { id, x: position.x, y: position.y, z: position.z, radius, expiresAt: now + 520 });
@@ -3132,7 +3132,7 @@ function startSwordLeap(player, now = Date.now()) {
   const bounds = getMapForPlayer(player).world;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
   const candidates = [];
-  const leapDistance = 12.8;
+  const leapDistance = 12.8 * 0.6;
   for (let d = 0.5; d <= leapDistance; d += 0.5) {
     const t = d / leapDistance;
     const x = clamp(player.x + fx * d, bounds.minX + PLAYER_RADIUS, bounds.maxX - PLAYER_RADIUS);
@@ -3990,8 +3990,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       let hitInfo = null;
       if (shooter.weapon === "bow") {
         // 弓矢は一定速度で飛び、飛行時間に応じて重力で落下する軌道をたどる。
-        const arrowSpeed = 65;
-        const gravity = 18;
+        const arrowSpeed = 65 * 0.8;
+        const gravity = 24;
         const stepTime = 0.04;
         let previous = { ...origin };
         for (let elapsed = stepTime; elapsed <= weapon.range / arrowSpeed; elapsed += stepTime) {
@@ -5371,7 +5371,7 @@ io.on("connection", (socket) => {
   });
   socket.on("railgunRelease", () => {
     const p=players.get(socket.id),now=Date.now();
-    if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<1450||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return;
+    if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<2000||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return;
     p.railgunChargeStartedAt=0;
     p.lastFire=0;
     fireShot(p);
@@ -5382,7 +5382,7 @@ io.on("connection", (socket) => {
     p.beamLastHitAt=new Map(); const beamTick=()=>{
       const a=players.get(socket.id),t=Date.now(); if(!a||a.health<=0||a.finished||!["flamethrower","laserBeam","freezeCannon"].includes(a.weapon)||a.frozenUntil>t){if(a?.beamTimer){clearInterval(a.beamTimer);broadcastGameEvent(a,"weaponBeam",{id:a.id,weapon:a.weapon,active:false,x:a.x,y:a.y,z:a.z,yaw:a.yaw,pitch:a.pitch});}if(a)a.beamTimer=null;return;}
       const origin={x:a.x,y:a.y+(a.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT)-.15,z:a.z},dir=directionFromAngles(a.yaw,a.pitch),seen=new Set();
-      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?18:10.5;
+      const range=a.weapon==="laserBeam"?100:a.weapon==="flamethrower"?9:5.25;
       damageBuildStructureOnRay(a, origin, dir, range, (a.weapon === "laserBeam" || a.weapon === "freezeCannon") ? 4 : 5);
       const fanHalfAngle=(a.weapon==="flamethrower"||a.weapon==="freezeCannon")?Math.PI/4:0;
       const fanCos=Math.cos(fanHalfAngle);
@@ -5420,7 +5420,7 @@ io.on("connection", (socket) => {
           beamDamage = 4 * Math.pow(2, q.laserStreak - 1);
         } else if (a.weapon === "flamethrower") {
           beamDamage = 10;
-          q.burnExposure = (q.burnExposure || 0) + 0.125;
+          q.burnExposure = (q.burnExposure || 0) + 0.5;
           // 直接炎ダメージが止まってから500ms後に延焼ダメージを開始する。
           q.burnStartAt = t + 500;
           q.burnUntil = t + q.burnExposure * 1000 + 500;
@@ -5479,7 +5479,7 @@ io.on("connection", (socket) => {
       }
       for(const q of players.values()){if(!seen.has(q.id)){if(a.weapon==="freezeCannon")q.freezeChance=Math.max(0,(q.freezeChance||0)-2.5);if(a.weapon==="laserBeam")q.laserStreak=0;}}
       broadcastPlayers();
-    }; if(p.weapon==="laserBeam") beamTick(); p.beamTimer=setInterval(beamTick,p.weapon==="laserBeam"?500:125);p.beamTimer.unref?.();
+    }; if(p.weapon==="laserBeam") beamTick(); p.beamTimer=setInterval(beamTick,500);p.beamTimer.unref?.();
   });
   socket.on("beamStop",()=>{const p=players.get(socket.id);if(p?.beamTimer)clearInterval(p.beamTimer);if(p){broadcastGameEvent(p,"weaponBeam",{id:p.id,weapon:p.weapon,active:false,x:p.x,y:p.y,z:p.z,yaw:p.yaw,pitch:p.pitch});p.beamTimer=null;p.beamLastHitAt=null;}});
   socket.on("bowChargeStart", () => {
