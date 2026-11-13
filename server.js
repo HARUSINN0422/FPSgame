@@ -4855,6 +4855,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
+    if (player?.mode === "Wander") players.delete("bot:wander:" + player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     if (player) players.delete(socket.id);
     if (player?.mode === BUILD_MODE) syncBuildBots(player.matchId);
@@ -5581,6 +5582,7 @@ io.on("connection", (socket) => {
       return;
     }
     if (player?.mode === TRAINING_MODE) removeTrainingBots(player.matchId);
+    if (player?.mode === "Wander") players.delete("bot:wander:" + player.matchId);
     if (player?.mode === "Duel") removeDuelPlayer(socket.id, player.duelRoomId);
     players.delete(socket.id);
     if (player?.mode === BUILD_MODE) syncBuildBots(player.matchId);
