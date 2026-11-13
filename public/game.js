@@ -215,6 +215,7 @@ const weaponConfig = {
   shockwaveLauncher: { fireInterval: 900, automatic: false },
   grappler: { fireInterval: 1100, automatic: false },
   rocketLauncher: { fireInterval: 1250, automatic: false },
+  cannonLauncher: { fireInterval: 250, automatic: false },
   pistol: { fireInterval: 400, automatic: false },
   smg: { fireInterval: 107, automatic: true },
   rifle: { fireInterval: 160 / 1.5, automatic: true },
@@ -2207,6 +2208,12 @@ function createWeaponMesh(weapon) {
   }
 
   if (weapon === "grappler") { const grip=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,.55,10),new THREE.MeshStandardMaterial({color:0x394653,metalness:.6}));grip.rotation.x=Math.PI/2;group.add(grip);const cup=new THREE.Mesh(new THREE.CylinderGeometry(.19,.13,.16,16),new THREE.MeshStandardMaterial({color:0xe04d43}));cup.rotation.x=Math.PI/2;cup.position.z=-.35;group.add(cup);group.position.set(.34,1.02,-.22);group.rotation.x=-.08;return group; }
+  if (weapon === "cannonLauncher") {
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.2,0.9,12),new THREE.MeshStandardMaterial({color:0x58636d,metalness:0.72,roughness:0.32}));
+    tube.rotation.x=Math.PI/2; group.add(tube);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.18,0.035,8,16),new THREE.MeshStandardMaterial({color:0xd99a3d,metalness:0.5})); ring.position.z=-0.45; group.add(ring);
+    group.position.set(0.34,1.02,-0.22); group.rotation.x=-0.08; return group;
+  }
   if (weapon === "rocketLauncher") {
     const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x3b4148, metalness: 0.68, roughness: 0.32 });
     const muzzleMaterial = new THREE.MeshStandardMaterial({ color: 0xd85a35, metalness: 0.35, roughness: 0.42, emissive: 0x5a1b0c, emissiveIntensity: 0.35 });
@@ -2285,7 +2292,7 @@ function createWeaponMesh(weapon) {
 }
 
 function refreshLocalWeaponViewModel() {
-  const shouldShow = joined && ["pickaxe", "sword", "smoke", "grenadeLauncher", "rocketLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
+  const shouldShow = joined && ["pickaxe", "sword", "smoke", "grenadeLauncher", "rocketLauncher", "cannonLauncher", "shockwaveLauncher", "grappler"].includes(selectedWeapon);
   if (!shouldShow) {
     if (localWeaponViewModel) camera.remove(localWeaponViewModel);
     localWeaponViewModel = null;
@@ -3561,7 +3568,7 @@ function reload(preserveFiring = false) {
 }
 
 function weaponDisplayName(id) {
-  return ({ rocketLauncher:"ロケットランチャー",formingGun:"ホーミングガン",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
+  return ({ rocketLauncher:"ロケットランチャー",cannonLauncher:"キャノンランチャー",formingGun:"ホーミングガン",railgun:"レールガン",flamethrower:"火炎放射器",laserBeam:"レーザービーム",freezeCannon:"フリーズキャノン", pickaxe: "ツルハシ", sword: "剣", smoke: "煙幕", grenadeLauncher: "グレネード", shockwaveLauncher: "ショックウェーブランチャー", grappler: "グラップラー", pistol: "ハンドガン", smg: "サブマシンガン", rifle: "アサルトライフル", shotgun: "ショットガン", marksman: "マークスマン", sniper: "スナイパーライフル", bow: "弓", minigun: "ミニガン" })[id] || String(id || "武器");
 }
 
 function updateWeaponReticle() {
@@ -3575,6 +3582,7 @@ function updateWeaponReticle() {
     smoke: ["weapon-smoke", "○"],
     grenadeLauncher: ["weapon-grenade", "◎"],
     rocketLauncher: ["weapon-grenade", "◎"],
+    cannonLauncher: ["weapon-grenade", "⊙"],
     shockwaveLauncher: ["weapon-grenade", "◉"], grappler: ["weapon-grenade", "⊂"],
     pistol: ["weapon-pistol", "+"],
     smg: ["weapon-smg", "┼"],
@@ -4230,7 +4238,7 @@ function createTracer(event) {
     tracers.push({ line, dot: null, start, end, born: performance.now(), life: 110 });
     return;
   }
-  if (event.weapon === "pickaxe" || event.weapon === "sword" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "rocketLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
+  if (event.weapon === "pickaxe" || event.weapon === "sword" || event.weapon === "smoke" || event.weapon === "grenadeLauncher" || event.weapon === "rocketLauncher" || event.weapon === "cannonLauncher" || event.weapon === "shockwaveLauncher" || event.weapon === "grappler") {
     if (event.id !== myId) startRemoteWeaponAction(event);
     else if (event.weapon === "sword" && event.action === "leap") startLocalWeaponAction("swordLeap");
     return;
@@ -4694,6 +4702,7 @@ socket.on("joined", ({ player }) => {
   joined = true;
   socket.emit("requestSmokeState");
   socket.emit("requestGrenadeState");
+  socket.emit("requestCannonState");
   // join時の初回world通知に依存せず、参加確定後にマップデータを再取得する。
   socket.emit("requestWorld");
   wasJoinedBeforeDisconnect = true;
@@ -4858,6 +4867,33 @@ socket.on("grappleImpact", data => {
   scene.add(line); grappleTethers.set(ownerId, line);
   setTimeout(() => { if (grappleTethers.get(ownerId) === line) { scene.remove(line); line.geometry.dispose(); line.material.dispose(); grappleTethers.delete(ownerId); } }, 900);
 });
+const cannonMeshes = new Map();
+function createCannonVisual(data) {
+  if (!data?.id) return;
+  if (!cannonMeshes.has(data.id)) {
+    const group=new THREE.Group();
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(0.48,0.55,0.28,12),new THREE.MeshStandardMaterial({color:0x343b45,metalness:0.68,roughness:0.4}));
+    const barrel=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.25,0.9,12),new THREE.MeshStandardMaterial({color:0x64717c,metalness:0.78,roughness:0.3}));
+    barrel.rotation.x=Math.PI/2; barrel.position.set(0,0.5,-0.18);
+    const muzzle=new THREE.Mesh(new THREE.TorusGeometry(0.2,0.04,8,16),new THREE.MeshStandardMaterial({color:0xe5a34a,metalness:0.5}));
+    muzzle.position.set(0,0.5,-0.64); group.add(base,barrel,muzzle); scene.add(group); cannonMeshes.set(data.id,group);
+  }
+  cannonMeshes.get(data.id).position.set(data.x,data.y,data.z);
+}
+function removeCannonVisual(id) {
+  const group=cannonMeshes.get(id); if(!group)return; scene.remove(group);
+  group.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}});
+  cannonMeshes.delete(id);
+}
+function showCannonShot(data) {
+  const start=new THREE.Vector3(data.x,data.y,data.z),end=new THREE.Vector3(data.targetX,data.targetY,data.targetZ);
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([start,end]),new THREE.LineBasicMaterial({color:0xffbd59,transparent:true,opacity:0.9}));
+  scene.add(line); tracers.push({line,dot:null,start,end,born:performance.now(),life:100});
+}
+socket.on("cannonSpawn",createCannonVisual);
+socket.on("cannonState",(items=[])=>items.forEach(createCannonVisual));
+socket.on("cannonRemove",({id})=>removeCannonVisual(id));
+socket.on("cannonFire",showCannonShot);
 socket.on("grenadeProjectileSpawn", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileUpdate", createGrenadeProjectileVisual);
 socket.on("grenadeProjectileRemove", ({ id }) => removeGrenadeProjectileVisual(id));
