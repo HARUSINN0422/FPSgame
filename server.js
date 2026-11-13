@@ -258,9 +258,9 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   railgun: "1秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要。",
   rocketLauncher: "やや遅いロケット弾を発射し、壁・床・プレイヤーへの着弾で爆発。爆発半径6.5m、自分にもダメージ。中心150ダメージから最小30ダメージまで距離に応じて減衰。装弾数3発.",
   cannonLauncher: "足元にキャノンを設置。遮蔽物のない敵へ250msごとに20ダメージ。10秒で消滅。リロード5秒。",
-  flamethrower: "前方へ炎を連続噴射し、命中時に燃焼させる。ダメージ: 1回10（燃焼ダメージは別）。",
+  flamethrower: "前方へ炎を連続噴射（水平方向の扇形範囲・上下±3m）。壁の向こうには命中せず、命中時に燃焼。ダメージ: 1回10（燃焼ダメージは別）。",
   laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
-  freezeCannon: "前方へ冷気を連続噴射し、命中を重ねると凍結させる。ダメージ: 1回4。"
+  freezeCannon: "前方へ冷気を連続噴射（水平方向の扇形範囲・上下±3m）。壁の向こうには命中せず、命中を重ねると凍結。ダメージ: 1回4."
 };
 const WEAPON_CONFIG_FILE = path.join(__dirname, "data", "weapons.json");
 for (const [id, weapon] of Object.entries(WEAPONS)) {
@@ -353,7 +353,7 @@ WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全
 WEAPONS.flamethrower.damage = 10;
 WEAPONS.flamethrower.fireInterval = 125;
 WEAPONS.flamethrower.range = 18;
-WEAPONS.flamethrower.description = "長押しで連続噴射 / 半径2倍・壁越しに命中 / 125msごとに10ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要";
+WEAPONS.flamethrower.description = "長押しで連続噴射 / 扇形範囲・上下±3m / 壁の向こうには命中しない / 125msごとに10ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要";
 
 const app = express();
 
@@ -5361,13 +5361,16 @@ io.on("connection", (socket) => {
           const side=Math.abs(dx*forwardZ-dz*forwardX);
           const targetPadding=0.45;
           if(forward<=0||forward>range||side>Math.tan(fanHalfAngle)*forward+targetPadding)continue;
+          // 両武器とも、攻撃者の高さを基準に上下3m以内の相手だけに命中する。
+          if(Math.abs(q.y-a.y)>3)continue;
           const targetHeight=q.crouched?CROUCH_HEIGHT:PLAYER_HEIGHT;
           const target={x:q.x,y:q.y+targetHeight*0.5,z:q.z};
           const vx=target.x-origin.x,vy=target.y-origin.y,vz=target.z-origin.z;
           const distance=Math.hypot(vx,vy,vz);
           const wallDir={x:vx/distance,y:vy/distance,z:vz/distance};
           const wall=rayHitsObstacle(origin,wallDir,distance,a);
-          if(a.weapon!=="flamethrower"&&wall!==null&&wall<distance-0.35)continue;
+          // 火炎放射器もフリーズキャノンも、遮蔽物の向こう側には命中しない。
+          if(wall!==null&&wall<distance-0.35)continue;
         }else{
           const h=rayHitsPlayer(origin,dir,q,a.weapon==="laserBeam"?PLAYER_RADIUS*4:null);
           if(!h||h.t>range)continue;
