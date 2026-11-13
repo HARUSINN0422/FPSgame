@@ -2010,3 +2010,36 @@ body.controller-mode #settingsButton {
     height: calc(100dvh - 28px);
   }
 }
+
+/* PCなど横幅の広い画面では4列にし、説明文が収まる共通カード高さを確保 */
+@media (min-width: 901px) {
+  #weaponScreen .weapon-grid-all {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 180px;
+    align-content: start;
+    gap: 12px;
+  }
+  #weaponScreen .weapon-grid-all .weapon-card {
+    box-sizing: border-box;
+    width: 100%;
+    height: 180px;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    padding: 14px;
+  }
+  #weaponScreen .weapon-grid-all .weapon-card strong {
+    flex: 0 0 auto;
+    line-height: 1.25;
+  }
+  #weaponScreen .weapon-grid-all .weapon-card span {
+    flex: 0 0 auto;
+    line-height: 1.4;
+    white-space: normal;
+  }
+}
+
