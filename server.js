@@ -356,7 +356,9 @@ WEAPONS.shotgun.description = "単発 / 8発の散弾（1発25ダメージ・全
 WEAPONS.flamethrower.damage = 10;
 WEAPONS.flamethrower.fireInterval = 500;
 WEAPONS.flamethrower.range = 9;
-WEAPONS.flamethrower.description = "長押しで連続噴射 / 扇形範囲・上下±3m / 壁の向こうには命中しない / 125msごとに10ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要";
+WEAPONS.freezeCannon.fireInterval = 500;
+WEAPONS.freezeCannon.range = 5.25;
+WEAPONS.flamethrower.description = "長押しで連続噴射 / 射程9mの扇形範囲・上下±3m / 壁の向こうには命中しない / 0.5秒ごとに10ダメージ / 炎から離れた後も、炎に触れていた時間と同じ長さだけ燃焼（125msごとに8ダメージ） / 弾薬・リロード不要";
 
 const app = express();
 
