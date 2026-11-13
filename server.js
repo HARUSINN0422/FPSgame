@@ -4009,7 +4009,14 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
           const hit = rayHitsPlayer(previous, segmentDir, target);
           if (hit && hit.t <= segmentLength && (wallDistance === null || wallDistance > hit.t) &&
               (cartHit === null || cartHit > hit.t)) {
-            hitInfo = { ...hit, t: elapsed * arrowSpeed };
+            const hitRatio = clamp(hit.t / segmentLength, 0, 1);
+            hitInfo = {
+              ...hit,
+              t: elapsed * arrowSpeed,
+              x: previous.x + dx * hitRatio,
+              y: previous.y + dy * hitRatio,
+              z: previous.z + dz * hitRatio
+            };
             break;
           }
           if ((wallDistance !== null && wallDistance <= segmentLength) ||
@@ -4057,9 +4064,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       target: bestHit.target,
       damage,
       zone: bestHit.zone,
-      x: origin.x + dir.x * bestHit.t,
-      y: origin.y + dir.y * bestHit.t,
-      z: origin.z + dir.z * bestHit.t
+      x: bestHit.x ?? origin.x + dir.x * bestHit.t,
+      y: bestHit.y ?? origin.y + dir.y * bestHit.t,
+      z: bestHit.z ?? origin.z + dir.z * bestHit.t
     });
   }
 
