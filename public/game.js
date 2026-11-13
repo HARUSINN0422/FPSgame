@@ -224,7 +224,7 @@ const weaponConfig = {
   formingGun: { fireInterval: 1000, automatic: false },
   sniper: { fireInterval: 400, automatic: false },
   bow: { fireInterval: 1, automatic: false },
-  minigun: { fireInterval: 107 / 3, automatic: false },
+  minigun: { fireInterval: (107 / 3) * 1.3, automatic: false },
   railgun: { fireInterval: 1, automatic: false }, flamethrower: { fireInterval: 500, automatic: true }, laserBeam: { fireInterval: 500, automatic: true }, freezeCannon: { fireInterval: 500, automatic: true }
 };
 
@@ -3842,7 +3842,7 @@ function releaseRailgunCharge() {
   const label = hud?.querySelector("span");
   if (label) label.textContent = "弓のチャージ";
   hud?.setAttribute("aria-label", "弓のチャージ");
-  if (elapsed >= 1500 && selectedWeapon === "railgun") socket.emit("railgunRelease");
+  if (elapsed >= 2000 && selectedWeapon === "railgun") socket.emit("railgunRelease");
 }
 function startBowCharge() {
   if (!joined || selectedWeapon !== "bow" || myState?.health <= 0 || bowChargeStartedAt || performance.now() < bowNextChargeAt) return;
