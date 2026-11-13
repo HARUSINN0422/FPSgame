@@ -525,6 +525,13 @@ function updateSettingsUi() {
   if (jumpSizeSlider) jumpSizeSlider.value = String(jumpSize);
   if (jumpSizeValue) jumpSizeValue.textContent = Math.round(jumpSize) + "px";
 
+  const crouchSizeSlider = document.getElementById("crouchButtonSizeSlider");
+  const crouchSizeValue = document.getElementById("crouchButtonSizeValue");
+  const crouchSize = THREE.MathUtils.clamp(Number(gameSettings.layout.crouchButton.size) || 72, 48, 160);
+  gameSettings.layout.crouchButton.size = Math.round(crouchSize);
+  if (crouchSizeSlider) crouchSizeSlider.value = String(crouchSize);
+  if (crouchSizeValue) crouchSizeValue.textContent = Math.round(crouchSize) + "px";
+
   const autoRespawnToggle = document.getElementById("autoRespawnToggle");
   if (autoRespawnToggle) {
     autoRespawnToggle.checked = gameSettings.autoRespawnEnabled === true;
@@ -838,6 +845,13 @@ function setupSettings() {
   jumpSizeSlider?.addEventListener("input", () => {
     const size = THREE.MathUtils.clamp(Number(jumpSizeSlider.value) || 72, 48, 160);
     gameSettings.layout.jumpButton.size = Math.round(size);
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+
+  const crouchSizeSlider = document.getElementById("crouchButtonSizeSlider");
+  crouchSizeSlider?.addEventListener("input", () => {
+    const size = THREE.MathUtils.clamp(Number(crouchSizeSlider.value) || 72, 48, 160);
+    gameSettings.layout.crouchButton.size = Math.round(size);
     applyButtonLayout(); updateSettingsUi(); saveGameSettings();
   });
 
