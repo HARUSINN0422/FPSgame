@@ -323,7 +323,7 @@ for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 140;
 WEAPONS.bow.description = DEFAULT_WEAPON_DESCRIPTIONS.bow;
-WEAPONS.marksman.fireInterval = 225 * 1.25 / 1.5;
+WEAPONS.marksman.fireInterval = 220;
 WEAPONS.marksman.magazineSize = 30;
 WEAPONS.pistol.magazineSize = 6;
 WEAPONS.pistol.damage = 70;
@@ -2216,8 +2216,12 @@ function syncBots() {
     grounded: true,
     lastGroundedAt: Date.now(),
     jumpQueuedUntil: 0,
-    input: { forward: 0, strafe: 0, crouch: false },
+    input: { forward: 0, strafe: 0, crouch: false, jumpHeld: false },
     crouched: false,
+    flying: false,
+    slidingUntil: 0,
+    slideDirectionX: 0,
+    slideDirectionZ: 0,
     respawnAt: 0,
     invulnerableUntil: 0,
     damageHitstopUntil: 0,
@@ -2904,6 +2908,10 @@ function canStand(p) {
 }
 
 function updateCrouchState(p) {
+  if (p.flying) {
+    p.crouched = false;
+    return;
+  }
   if (p.input.crouch) {
     p.crouched = true;
     return;
@@ -3155,7 +3163,7 @@ function movePlayer(p, dt) {
   const weaponMoveMultiplier =
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
-  const charmMoveMultiplier = p.charm === "speed" ? 1.8 : 1;
+  const charmMoveMultiplier = p.charm === "speed" ? 1.8 : p.charm === "slide" ? 1.5 : 1;
   let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
   if (p.grapplePullTarget) {
     const target = p.grapplePullTarget;
@@ -3181,6 +3189,17 @@ function movePlayer(p, dt) {
   const knockbackZ = Number(p.knockbackVelocityZ) || 0;
   let dx = (-sin * forward + cos * strafe) * moveSpeed * dt + knockbackX * dt;
   let dz = (-cos * forward - sin * strafe) * moveSpeed * dt + knockbackZ * dt;
+  if (p.slidingUntil > now) {
+    const slideProgress = clamp((p.slidingUntil - now) / 700, 0, 1);
+    const slideSpeed = PLAYER_SPEED * 1.5 * (0.55 + 0.45 * slideProgress);
+    dx = (Number(p.slideDirectionX) || 0) * slideSpeed * dt + knockbackX * dt;
+    dz = (Number(p.slideDirectionZ) || 0) * slideSpeed * dt + knockbackZ * dt;
+    p.crouched = true;
+  } else if (p.slidingUntil) {
+    p.slidingUntil = 0;
+    p.slideDirectionX = 0;
+    p.slideDirectionZ = 0;
+  }
   const cartContact = getPayloadCartCollisionInfo(p);
   if (cartContact) {
     const onDeck = p.y >= cartContact.deckTop - 0.22 &&
@@ -3249,7 +3268,13 @@ function movePlayer(p, dt) {
 
   // ジャンプ中/空中では必ず重力を適用する。
   const previousY = p.y;
-  if (!p.grounded) {
+  if (p.flying) {
+    const verticalInput = (p.input.jumpHeld ? 1 : 0) - (p.input.crouch ? 1 : 0);
+    p.velocityY = verticalInput * PLAYER_SPEED;
+    const nextFlightY = p.y + p.velocityY * dt;
+    if (!collides(p.x, p.z, nextFlightY, currentHeight, p)) p.y = nextFlightY;
+    else p.velocityY = 0;
+  } else if (!p.grounded) {
     p.velocityY -= GRAVITY * dt;
     p.y += p.velocityY * dt;
   }
@@ -3321,6 +3346,7 @@ function movePlayer(p, dt) {
     p.velocityY = 0;
     p.grounded = true;
     p.lastGroundedAt = now;
+    if (p.flying) p.flying = false;
   } else {
     p.grounded = false;
   }
@@ -4116,7 +4142,7 @@ function publicPlayer(p, includeSkin = false) {
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
     shield: Math.max(0, Number(p.shield) || 0),
     ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(p.charm) ? p.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
@@ -4137,7 +4163,7 @@ function publicPlayer(p, includeSkin = false) {
 
 function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0, mode = AREA_MODE, role = null }, spawn) {
   const now = Date.now();
-  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(charm) ? charm : "none";
+  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
   return {
     id,
@@ -4278,7 +4304,7 @@ function queueAreaPlayer(socket, data = {}) {
     skin: sanitizeSkin(data.skin),
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(data.charm) ? data.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(data.charm) ? data.charm : "none",
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
   };
@@ -4561,7 +4587,7 @@ const PAYLOAD_BOT_NAMES=["Avery","Ethan","Mason","Logan","Eli","Mila","Aria","Le
 const PAYLOAD_ROUND_TIME_MS=480000,PAYLOAD_CAPTURE_RADIUS=9;
 function payloadQueueStatus(){const remainingMs=Math.max(0,AREA_QUEUE_DURATION_MS-(Date.now()-payloadQueueStartedAt));return{waiting:payloadQueue.length,required:6,remainingMs,secondsRemaining:Math.ceil(remainingMs/1000)};}
 function broadcastPayloadQueueStatus(){const status=payloadQueueStatus();for(const e of payloadQueue)io.to(e.socketId).emit("payloadQueueStatus",status);}
-function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,reconnectToken:typeof data.reconnectToken==="string"?data.reconnectToken.slice(0,128):"",name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate","body"].includes(data.charm)?data.charm:"none",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
+function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,reconnectToken:typeof data.reconnectToken==="string"?data.reconnectToken.slice(0,128):"",name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate","body","slide","flight"].includes(data.charm)?data.charm:"none",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
 function tryJoinExistingPayloadMatch(socket,entry){for(const match of payloadMatches.values()){if(match.finished||match.playerIds.length>=6)continue;const counts={blue:0,red:0};for(const id of match.humanIds){const p=players.get(id);if(p?.team)counts[p.team]++;}const order=counts.blue===counts.red?["blue","red"]:[counts.blue<counts.red?"blue":"red"];let botId=null;for(const team of order){botId=match.playerIds.find(id=>{const p=players.get(id);return p?.isBot&&p.mode===PAYLOAD_MODE&&p.team===team;});if(botId)break;}if(!botId)continue;const bot=players.get(botId);const player=createPayloadPlayer({id:socket.id,name:entry.name,skin:entry.skin,weapon:entry.weapon,secondaryWeapon:entry.secondaryWeapon,charm:entry.charm,ultimateType:entry.ultimateType,team:bot.team,role:bot.role,matchId:match.id,isBot:false},[bot.x,bot.y,bot.z]);player.reconnectToken=entry.reconnectToken;players.delete(botId);match.playerIds[match.playerIds.indexOf(botId)]=socket.id;match.humanIds.push(socket.id);players.set(socket.id,player);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(player,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:player.team,role:player.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);return true;}return false;}
 function queuePayloadPlayer(socket,data={}){if(players.has(socket.id)){socket.emit("payloadQueueError",{message:"現在の対戦を終了してからモードを変更してください。"});return;}if(payloadQueue.some(e=>e.socketId===socket.id)){socket.emit("payloadQueueStatus",payloadQueueStatus());return;}const entry=buildPayloadQueueEntry(socket,data);if(entry.reconnectToken){const pending=pendingPayloadDisconnects.get(entry.reconnectToken);const oldPlayer=pending&&players.get(pending.playerId);const match=oldPlayer&&payloadMatches.get(oldPlayer.matchId);if(oldPlayer&&match&&!match.finished&&oldPlayer.mode===PAYLOAD_MODE&&oldPlayer.disconnectedAt&&Date.now()-oldPlayer.disconnectedAt<=PAYLOAD_RECONNECT_GRACE_MS){clearTimeout(pending.timer);pendingPayloadDisconnects.delete(entry.reconnectToken);players.delete(oldPlayer.id);oldPlayer.id=socket.id;oldPlayer.disconnectedAt=0;oldPlayer.reconnectToken=entry.reconnectToken;players.set(socket.id,oldPlayer);match.playerIds=match.playerIds.map(id=>id===pending.playerId?socket.id:id);match.humanIds=match.humanIds.map(id=>id===pending.playerId?socket.id:id);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(oldPlayer,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:oldPlayer.team,role:oldPlayer.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 切断前の試合へ復帰:",match.id);return;}}if(tryJoinExistingPayloadMatch(socket,entry))return;if(!payloadQueue.length){payloadQueueStartedAt=Date.now();lastPayloadQueueSecond=null;}payloadQueue.push(entry);broadcastPayloadQueueStatus();if(payloadQueue.length>=6)startPayloadMatch(false);}
 function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQueue=payloadQueue.filter(e=>e.socketId!==socketId);if(!payloadQueue.length){payloadQueueStartedAt=0;lastPayloadQueueSecond=null;}else broadcastPayloadQueueStatus();if(before!==payloadQueue.length)io.to(socketId).emit("payloadQueueCancelled");}
@@ -4801,7 +4827,7 @@ io.on("connection", (socket) => {
         : weapon === "rifle" ? "shotgun" : "rifle";
     }
     const weaponSlots = [weapon, secondaryWeapon];
-    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body"].includes(data.charm) ? data.charm : "none";
+    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(data.charm) ? data.charm : "none";
     const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
@@ -5002,9 +5028,21 @@ io.on("connection", (socket) => {
     if (!p || p.finished) return;
     p.lastPresenceAt = Date.now();
 
+    const previousCrouch = Boolean(p.input.crouch);
     p.input.forward = clamp(Number(input.forward) || 0, -1, 1);
     p.input.strafe = clamp(Number(input.strafe) || 0, -1, 1);
     p.input.crouch = Boolean(input.crouch);
+    p.input.jumpHeld = Boolean(input.jumpHeld);
+    const inputMagnitude = Math.hypot(p.input.forward, p.input.strafe);
+    if (p.charm === "slide" && p.input.crouch && !previousCrouch && p.grounded && inputMagnitude >= 0.95) {
+      const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
+      const dirX = -sin * p.input.forward + cos * p.input.strafe;
+      const dirZ = -cos * p.input.forward - sin * p.input.strafe;
+      const dirLength = Math.hypot(dirX, dirZ) || 1;
+      p.slideDirectionX = dirX / dirLength;
+      p.slideDirectionZ = dirZ / dirLength;
+      p.slidingUntil = Date.now() + 700;
+    }
     if (Number.isFinite(Number(input.yaw))) p.yaw = Number(input.yaw);
     if (Number.isFinite(Number(input.pitch))) p.pitch = clamp(Number(input.pitch), -1.35, 1.35);
   });
@@ -5114,6 +5152,13 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (p.charm === "flight" && !p.grounded) {
+      if (!p.flying) {
+        p.flying = true;
+        p.velocityY = 0;
+      }
+      return;
+    }
     // 120msだけ入力を保持し、移動中の同時入力でもジャンプを取りこぼさない。
     p.jumpQueuedUntil = now + 120;
   });
