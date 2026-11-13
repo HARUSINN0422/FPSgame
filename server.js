@@ -255,7 +255,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   sniper: "遠距離向けのボルトアクション式狙撃銃。ダメージ: 1発85（距離により減衰）。装弾数6発。",
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
-  railgun: "1秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要。",
+  railgun: "1.5秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要.",
   rocketLauncher: "やや遅いロケット弾を発射し、壁・床・プレイヤーへの着弾で爆発。爆発半径6.5m、自分にもダメージ。中心150ダメージから最小30ダメージまで距離に応じて減衰。装弾数3発.",
   cannonLauncher: "足元にキャノンを設置。遮蔽物のない敵へ250msごとに20ダメージ。10秒で消滅。リロード5秒。",
   flamethrower: "前方へ炎を連続噴射（水平方向の扇形範囲・上下±3m）。壁の向こうには命中せず、命中時に燃焼。ダメージ: 1回10（燃焼ダメージは別）。",
@@ -303,6 +303,7 @@ WEAPONS.smg.fireInterval = 107 / 4.5;
 WEAPONS.rifle.damage = 30;
 WEAPONS.rifle.fireInterval = 160 / 1.5;
 WEAPONS.railgun.damage = 35;
+WEAPONS.railgun.fireInterval = 1500;
 WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
 WEAPONS.rocketLauncher.magazineSize = 3;
 WEAPONS.rocketLauncher.reloadTime = 2400;
@@ -3786,7 +3787,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   // リスポーン直後3秒間・凍結中は、BOTを含めて射撃できない。
   if (shooter.invulnerableUntil > now || shooter.frozenUntil > now) return;
   if (shooter.weapon === "railgun") {
-    if (now - shooter.lastFire < 1000) return;
+    if (now - shooter.lastFire < 1500) return;
     shooter.lastFire = now;
     const dir = directionFromAngles(shooter.yaw, shooter.pitch);
     const eyeY = shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15;
@@ -3986,17 +3987,45 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       // リスポーン直後3秒間は被弾しない。
       if (target.invulnerableUntil > now) continue;
 
-      const hitInfo = rayHitsPlayer(origin, dir, target);
-      if (hitInfo === null || hitInfo.t > weapon.range) continue;
-      if (cartDistance !== null && cartDistance <= hitInfo.t + 0.001) continue;
-
-      // プレイヤーより手前に壁がある場合は、その弾丸を無効にする。
-      const wallDistance = rayHitsObstacle(origin, dir, hitInfo.t, shooter);
-      if (wallDistance !== null && wallDistance <= hitInfo.t + 0.001) continue;
-
-      if (!bestHit || hitInfo.t < bestHit.t) {
-        bestHit = { target, ...hitInfo };
+      let hitInfo = null;
+      if (shooter.weapon === "bow") {
+        // 弓矢は一定速度で飛び、飛行時間に応じて重力で落下する軌道をたどる。
+        const arrowSpeed = 65;
+        const gravity = 18;
+        const stepTime = 0.04;
+        let previous = { ...origin };
+        for (let elapsed = stepTime; elapsed <= weapon.range / arrowSpeed; elapsed += stepTime) {
+          const current = {
+            x: origin.x + dir.x * arrowSpeed * elapsed,
+            y: origin.y + dir.y * arrowSpeed * elapsed - 0.5 * gravity * elapsed * elapsed,
+            z: origin.z + dir.z * arrowSpeed * elapsed
+          };
+          const dx = current.x - previous.x, dy = current.y - previous.y, dz = current.z - previous.z;
+          const segmentLength = Math.hypot(dx, dy, dz);
+          if (segmentLength <= 1e-6) { previous = current; continue; }
+          const segmentDir = { x: dx / segmentLength, y: dy / segmentLength, z: dz / segmentLength };
+          const wallDistance = rayHitsObstacle(previous, segmentDir, segmentLength, shooter);
+          const cartHit = rayHitsPayloadCart(previous, segmentDir, segmentLength, shooter);
+          const hit = rayHitsPlayer(previous, segmentDir, target);
+          if (hit && hit.t <= segmentLength && (wallDistance === null || wallDistance > hit.t) &&
+              (cartHit === null || cartHit > hit.t)) {
+            hitInfo = { ...hit, t: elapsed * arrowSpeed };
+            break;
+          }
+          if ((wallDistance !== null && wallDistance <= segmentLength) ||
+              (cartHit !== null && cartHit <= segmentLength)) break;
+          previous = current;
+        }
+      } else {
+        hitInfo = rayHitsPlayer(origin, dir, target);
+        if (hitInfo === null || hitInfo.t > weapon.range) continue;
+        if (cartDistance !== null && cartDistance <= hitInfo.t + 0.001) continue;
+        // プレイヤーより手前に壁がある場合は、その弾丸を無効にする。
+        const wallDistance = rayHitsObstacle(origin, dir, hitInfo.t, shooter);
+        if (wallDistance !== null && wallDistance <= hitInfo.t + 0.001) continue;
       }
+      if (!hitInfo) continue;
+      if (!bestHit || hitInfo.t < bestHit.t) bestHit = { target, ...hitInfo };
     }
 
     if (!bestHit) continue;
@@ -5335,7 +5364,7 @@ io.on("connection", (socket) => {
   });
   socket.on("railgunRelease", () => {
     const p=players.get(socket.id),now=Date.now();
-    if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<950||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return;
+    if(!p||p.weapon!=="railgun"||!p.railgunChargeStartedAt||now-p.railgunChargeStartedAt<1450||p.health<=0||p.finished||p.invulnerableUntil>now||p.frozenUntil>now)return;
     p.railgunChargeStartedAt=0;
     p.lastFire=0;
     fireShot(p);
