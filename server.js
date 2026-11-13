@@ -241,7 +241,7 @@ const WEAPON_LABELS = {
 };
 const DEFAULT_WEAPON_DESCRIPTIONS = {
   pickaxe: "近接攻撃。ダメージ: 120。弾薬・リロード不要。",
-  sword: "剣を振る近接攻撃。ダメージ: 50。長押しで飛び道具のダメージを50%軽減。空中で使用すると前方20mへ山なりに飛び、着地時に半径10mの衝撃波を放つ。",
+  sword: "剣を振る近接攻撃。ダメージ: 50。長押しで飛び道具のダメージを50%軽減。空中で使用すると前方約7.7mへ山なりに飛び、着地時に半径10mの衝撃波を放つ。",
   smoke: "煙幕弾を投げ、着弾地点の周囲の視界を遮る。",
   pistol: "精度を活かして狙う単発拳銃。ダメージ: 90（距離により減衰）。装弾数6発。",
   smg: "近距離向けの高速連射武器。ダメージ: 1発9。装弾数90発。",
@@ -304,6 +304,8 @@ WEAPONS.rifle.damage = 40;
 WEAPONS.rifle.fireInterval = 160 / 1.8;
 WEAPONS.railgun.damage = 35;
 WEAPONS.railgun.fireInterval = 2000;
+WEAPONS.sniper.fireInterval = 400;
+WEAPONS.minigun.fireInterval = (107 / 3) * 1.3;
 WEAPONS.railgun.description = DEFAULT_WEAPON_DESCRIPTIONS.railgun;
 WEAPONS.rocketLauncher.magazineSize = 3;
 WEAPONS.rocketLauncher.reloadTime = 2400;
