@@ -213,7 +213,7 @@ const WEAPONS = {
     falloffStart: 100, minDamageMultiplier: 1, magazineSize: 30,
     reloadTime: 1300, automatic: true
   },
-  formingGun: { name: "ホーミングガン", damage: 30, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
+  formingGun: { name: "ホーミングガン", damage: 5, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   smoke: {
     name: "煙幕", damage: 0, fireInterval: 1300, range: 0, spread: 0,
     falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
@@ -251,7 +251,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   shockwaveLauncher: "着弾地点の周囲の敵を吹き飛ばす。ダメージ: 0。",
   grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。ダメージ: 0。リロード不要。",
   marksman: "中〜遠距離向けの精密連射武器。ダメージ: 1発40。装弾数30発。",
-  formingGun: "長押しでチャージし、最大まで溜めて離すと誘導弾を1発発射。半径15m以内で遮蔽物のない敵を追尾し、命中時30ダメージ。",
+  formingGun: "長押しでチャージし、最大まで溜めて離すと誘導弾を3発連続発射。半径15m以内で遮蔽物のない敵を追尾し、1発5ダメージ。",
   sniper: "遠距離向けのボルトアクション式狙撃銃。ダメージ: 1発85（距離により減衰）。装弾数6発。",
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
@@ -327,6 +327,8 @@ WEAPONS.grappler.description = DEFAULT_WEAPON_DESCRIPTIONS.grappler;
 for (const id of ["railgun", "flamethrower", "laserBeam", "freezeCannon"]) {
   if (!String(WEAPONS[id].description || "").trim()) WEAPONS[id].description = DEFAULT_WEAPON_DESCRIPTIONS[id];
 }
+WEAPONS.formingGun.damage = 5;
+WEAPONS.formingGun.description = DEFAULT_WEAPON_DESCRIPTIONS.formingGun;
 WEAPONS.bow.fireInterval = 100;
 WEAPONS.bow.damage = 140;
 WEAPONS.bow.description = DEFAULT_WEAPON_DESCRIPTIONS.bow;
@@ -1362,7 +1364,9 @@ function updatePlayerCannons(now = Date.now()) {
     io.to(owner.id).emit("damageDealt",{damage:Math.round(dealt),targetId:target.id,targetName:target.name,zone:"body"});
     broadcastGameEvent(owner,"cannonFire",{id:cannon.id,x:origin.x,y:origin.y,z:origin.z,targetX:target.x,targetY:target.y+0.9,targetZ:target.z});
     if (target.health <= 0) {
-      target.health=0; target.respawnAt=now+5000; target.deaths=(target.deaths||0)+1; owner.kills=(owner.kills||0)+1;
+      owner.health = Number(owner.maxHealth) || 100;
+      clearBurnStatus(owner);
+      target.health=0; target.respawnAt=now+5000; target.deaths=(target.deaths||0)+1;
       if(target.mode==="Duel") resolveDuelRound(owner,target);
       target.invisibleUntil=0; if(target.riftDuelId) finishRiftDuel(target);
       broadcastGameEvent(owner,"elimination",{killerId:owner.id,killerName:owner.name,victimId:target.id,victimName:target.name,killerKills:owner.kills,zone:"body"});
@@ -1480,8 +1484,8 @@ function spawnFormingProjectile(shooter, now = Date.now(), shotIndex = 0) {
   const height = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   const forward = directionFromAngles(shooter.yaw, shooter.pitch);
   const rightX = Math.cos(shooter.yaw), rightZ = -Math.sin(shooter.yaw);
-  // 6発とも同じ銃口から発射し、連射ごとにごく小さく照準をずらす。
-  const spread = (shotIndex - 2.5) * 0.009;
+  // 3発とも同じ銃口から発射し、連射ごとにごく小さく照準をずらす。
+  const spread = (shotIndex - 1) * 0.009;
   const direction = directionFromAngles(shooter.yaw + spread, shooter.pitch);
   const origin = {
     x: shooter.x + forward.x * 0.85,
@@ -1502,7 +1506,7 @@ function spawnFormingProjectile(shooter, now = Date.now(), shotIndex = 0) {
 }
 
 function spawnFormingBurst(shooter, now = Date.now()) {
-  const shotCount = 6;
+  const shotCount = 3;
   const intervalMs = 115;
   for (let index = 0; index < shotCount; index++) {
     setTimeout(() => {
@@ -1916,7 +1920,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       let collidedProjectile = null;
       for (const other of grenadeProjectiles.values()) {
         if (other.id === projectile.id || other.pendingShockwaveAt || !["forming", "rocket", "grenade", "shockwave", "smoke", "grapple", "tornado"].includes(other.type)) continue;
-        // ホーミングガンの6発は同じ所有者から同時発射されるため、味方弾同士では衝突させない。
+        // ホーミングガンの3発は同じ所有者から連続発射されるため、味方弾同士では衝突させない。
         if (projectile.type === "forming" && other.type === "forming" && other.ownerId === projectile.ownerId) continue;
         const otherOwner = other.owner;
         if (!otherOwner || !isSameGame(owner, otherOwner)) continue;
@@ -1963,12 +1967,14 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       const wallDistance = mapWallDistance === null ? cartWallDistance
         : cartWallDistance === null ? mapWallDistance : Math.min(mapWallDistance, cartWallDistance);
       if (hitTarget && (wallDistance === null || wallDistance > hitInfo.t)) {
-        const damage = 10;
+        const damage = 5;
         const split = applyIncomingDamage(hitTarget, damage, true);
         addUltimateCharge(owner, split.totalDamage);
         io.to(owner.id).emit("damageDealt", { targetId: hitTarget.id, damage: Math.round(split.totalDamage), shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage), zone: hitInfo.zone || "body", x: next.x, y: next.y, z: next.z });
         io.to(hitTarget.id).emit("damageTaken", { damage: Math.round(split.totalDamage), zone: hitInfo.zone || "body" });
         if (hitTarget.health <= 0) {
+          owner.health = Number(owner.maxHealth) || 100;
+          clearBurnStatus(owner);
           hitTarget.health = 0;
           hitTarget.respawnAt = now + 5000;
           hitTarget.deaths = (hitTarget.deaths || 0) + 1;
