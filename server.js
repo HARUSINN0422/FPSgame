@@ -3799,15 +3799,199 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const origin = { x: shooter.x, y: eyeY, z: shooter.z };
     damageBuildStructureOnRay(shooter, origin, dir, 150, 35);
     let best = null;
+    for (const target of players.values()) {
+      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target) ||
+          (shooter.mode === TRAINING_MODE && !target.isBot) ||
+          (isTeamMatchMode(shooter.mode) && target.team === shooter.team) || target.invulnerableUntil > now) continue;
+      const hit = rayHitsPlayer(origin, dir, target, 2.0);
+      if (hit && hit.t <= 150 && (!best || hit.t < best.t)) best = { target, ...hit };
+    }
+
+    // レールガンは移動弾を生成せず、発射フレームで照準上の最初の相手に即着弾する。
+    // 既存仕様どおり壁は貫通し、射程は150m。
+    if (best) {
+      const damage = 35; // 頭部・胴体ともに固定35ダメージ
+      const split = applyIncomingDamage(best.target, damage, true);
+      addUltimateCharge(shooter, damage);
+      const hitX = origin.x + dir.x * best.t;
+      const hitY = origin.y + dir.y * best.t;
+      const hitZ = origin.z + dir.z * best.t;
+
+      io.to(shooter.id).emit("damageDealt", {
+        targetId: best.target.id,
+        damage: Math.round(split.totalDamage),
+        shieldDamage: Math.round(split.shieldDamage),
+        healthDamage: Math.round(split.healthDamage),
+        zone: best.zone || "body",
+        x: hitX, y: hitY, z: hitZ
+      });
+      io.to(best.target.id).emit("damageTaken", {
+        damage: Math.round(split.totalDamage),
+        zone: best.zone || "body"
+      });
+
+      if (best.target.health <= 0) {
+        shooter.health = Number(shooter.maxHealth) || 100;
+        clearBurnStatus(shooter);
+        best.target.health = 0;
+        best.target.respawnAt = now + 5000;
+        best.target.kills = best.target.kills || 0;
+        shooter.kills = (shooter.kills || 0) + 1;
+        best.target.deaths = (best.target.deaths || 0) + 1;
+        if (best.target.mode === "Duel") resolveDuelRound(shooter, best.target);
+        best.target.invisibleUntil = 0;
+        if (best.target.riftDuelId) finishRiftDuel(best.target);
+        if (shooter.invisibleUntil > Date.now()) shooter.invisibleUntil = 0;
+        broadcastGameEvent(shooter, "elimination", {
+          killerId: shooter.id,
+          killerName: shooter.name,
+          victimId: best.target.id,
+          victimName: best.target.name,
+          killerKills: shooter.kills,
+          zone: best.zone || "body"
+        });
+      }
+    }
+
+    // トレーサーは着弾点までの一直線を一度に描画する。移動弾の速度・補間処理は使わない。
+    broadcastGameEvent(shooter, "shot", {
+      id: shooter.id,
+      x: origin.x, y: origin.y, z: origin.z,
+      yaw: shooter.yaw, pitch: shooter.pitch,
+      weapon: "railgun",
+      hit: Boolean(best),
+      tracers: [{ yaw: shooter.yaw, pitch: shooter.pitch, distance: best?.t || 150 }]
+    });
+    return;
+  }
+
+  finishReload(shooter, now);
+  if (shooter.reloadingUntil > now) return;
+  if (shooter.weapon === "sword" && now < Number(shooter.swordMeleeReadyAt || 0)) return;
+  if (now - shooter.lastFire < weapon.fireInterval) return;
+
+  if (shooter.weapon === "smoke") {
+    shooter.lastFire = now;
+    spawnSmokeProjectile(shooter, now);
+    return;
+  }
+  if (shooter.weapon === "shockwaveLauncher") {
+    shooter.lastFire = now;
+    spawnGrenadeProjectile(shooter, now, "shockwave");
+    return;
+  }
+  if (shooter.weapon === "grappler") {
+    shooter.lastFire = now;
+    spawnGrappleProjectile(shooter, now);
+    return;
+  }
+
+  if (shooter.weapon === "bow") {
+    bowCharge = clamp(Number(bowCharge) || 0, 0, 1);
+  } else if (!["minigun", "shockwaveLauncher", "grappler"].includes(shooter.weapon) && !weapon.melee && shooter.ammo <= 0) {
+    startReload(shooter);
+    return;
+  }
+
+  shooter.lastFire = now;
+  if (shooter.weapon === "sword") shooter.swordMeleeReadyAt = now + weapon.fireInterval;
+  if (!weapon.melee && !["bow", "minigun", "shockwaveLauncher", "grappler"].includes(shooter.weapon)) {
+    shooter.ammo -= 1;
+    if (Array.isArray(shooter.weaponAmmo)) shooter.weaponAmmo[shooter.activeWeaponSlot || 0] = shooter.ammo;
+  }
+  if (shooter.weapon === "grenadeLauncher") {
+    spawnGrenadeProjectile(shooter, now);
+    return;
+  }
+  if (shooter.weapon === "rocketLauncher") {
+    spawnRocketProjectile(shooter, now);
+    return;
+  }
+  if (shooter.weapon === "cannonLauncher") {
+    placePlayerCannon(shooter, now);
+    broadcastGameEvent(shooter, "shot", { id: shooter.id, x: shooter.x, y: shooter.y, z: shooter.z, yaw: shooter.yaw, pitch: shooter.pitch, weapon: "cannonLauncher", hit: null, tracers: [] });
+    return;
+  }
+
+  const pelletCount = weapon.pellets || 1;
+  const shooterHeight = shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+  const origin = {
+    x: shooter.x,
+    y: shooter.y + shooterHeight - 0.15,
+    z: shooter.z
+  };
+
+  const hitResults = [];
+  const damageByTarget = new Map();
+
+  // ツルハシは弾丸を生成せず、正面の近距離にいる相手だけを近接判定する。
+  if (weapon.melee) {
+    const forward = directionFromAngles(shooter.yaw, shooter.pitch);
+    damageBuildStructureOnRay(shooter, { x: shooter.x, y: shooter.y + 0.8, z: shooter.z }, { x: forward.x, y: 0, z: forward.z }, weapon.range * 1.8, weapon.damage);
+    let best = null;
+    for (const target of players.values()) {
+      if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
+      if (shooter.mode === TRAINING_MODE && !target.isBot) continue;
+      if (isTeamMatchMode(shooter.mode) && target.team === shooter.team) continue;
+      if (target.invulnerableUntil > now) continue;
+      const dx = target.x - shooter.x;
+      const dz = target.z - shooter.z;
+      // 正面に伸びる長方形。横幅はレティクルの角度（halfAngle = acos(0.9））に合わせる。
+      const forwardDistance = forward.x * dx + forward.z * dz;
+      if (forwardDistance <= 0 || forwardDistance > weapon.range * 1.8) continue;
+      const lateralDistance = Math.abs(forward.x * dz - forward.z * dx);
+      const halfAngle = Math.acos(0.9);
+      const halfWidth = weapon.range * Math.tan(halfAngle) * 0.8;
+      if (lateralDistance > halfWidth) continue;
+      const distance = Math.hypot(dx, dz);
+      const verticalDiff = Math.abs((target.y + (target.crouched ? 0.75 : 1.0)) - (shooter.y + shooterHeight * 0.72));
+      if (verticalDiff > (shooter.weapon === "sword" ? 2.15 : 1.6)) continue;
+      const meleeDirection = {x: dx / distance, y: 0, z: dz / distance};
+      const wallDistance = rayHitsObstacle(origin, meleeDirection, distance, shooter);
+      if (wallDistance !== null && wallDistance < distance - 0.35) continue;
+      if (!best || distance < best.distance) best = {target, distance};
+    }
+    if (best) {
+      const damage = weapon.damage;
+      const split = applyIncomingDamage(best.target, damage);
+      addUltimateCharge(shooter, damage);
+      damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage, zone: "body"});
+      hitResults.push({target: best.target, damage, zone: "body", x: best.target.x, y: best.target.y + 1, z: best.target.z});
+    }
+  }
+
+  for (let pellet = 0; !weapon.melee && pellet < pelletCount; pellet++) {
+    let yaw = shooter.yaw;
+    let pitch = shooter.pitch;
+
+    if (weapon.spread) {
+      // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
+      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 3.25 : 1;
+      const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
+        Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
+      const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
+      const jumpCharmSpreadMultiplier = shooter.charm === "jump" ? 0.5 : 1;
+      const movementSpreadMultiplier = (shooter.grounded ? 1 : 2.0) *
+        movingShotMultiplier * getMovementSpeedSpreadMultiplier(shooter, now) * jumpCharmSpreadMultiplier;
+      const sniperUnscopedMultiplier = shooter.weapon === "sniper" && !sniperScoped ? 3.2 : 1;
+      const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier * sniperUnscopedMultiplier;
+      yaw += (Math.random() - 0.5) * spread;
+      pitch += (Math.random() - 0.5) * spread;
+    }
+
+    const dir = directionFromAngles(yaw, pitch);
+    damageBuildStructureOnRay(shooter, origin, dir, weapon.range, weapon.damage || 10);
+    const cartDistance = rayHitsPayloadCart(origin, dir, weapon.range, shooter);
+    let bestHit = null;
+
     if (shooter.weapon === "bow") {
-      // 矢の軌道を一度だけ前方へ走査し、壁・カート・最初に当たったプレイヤーで必ず停止する。
+      // 矢の軌道を一度だけ走査し、壁・カート・最初に当たったプレイヤーで停止する。
       const arrowSpeed = Math.max(1.5, 12.48 * Math.pow(bowCharge, 3));
       const gravity = 1.3;
       const stepTime = 0.025;
       const maxFlightTime = Math.min(weapon.range / arrowSpeed, 3.0);
       let previous = { ...origin };
       let traveledDistance = 0;
-
       for (let elapsed = stepTime; elapsed <= maxFlightTime; elapsed += stepTime) {
         const current = {
           x: origin.x + dir.x * arrowSpeed * elapsed,
@@ -3820,37 +4004,22 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
         const segmentDir = { x: dx / segmentLength, y: dy / segmentLength, z: dz / segmentLength };
         const wallDistance = rayHitsObstacle(previous, segmentDir, segmentLength, shooter);
         const cartHit = rayHitsPayloadCart(previous, segmentDir, segmentLength, shooter);
-        const blockerDistance = Math.min(
-          wallDistance === null ? Infinity : wallDistance,
-          cartHit === null ? Infinity : cartHit
-        );
+        const blockerDistance = Math.min(wallDistance === null ? Infinity : wallDistance, cartHit === null ? Infinity : cartHit);
         let segmentBest = null;
-
         for (const target of players.values()) {
           if (target.id === shooter.id || target.health <= 0 || target.finished || !isSameGame(shooter, target)) continue;
           if (shooter.mode === TRAINING_MODE && !target.isBot) continue;
           if (isTeamMatchMode(shooter.mode) && target.team === shooter.team) continue;
           if (target.invulnerableUntil > now) continue;
-
           const hit = rayHitsPlayer(previous, segmentDir, target);
           if (!hit || hit.t < 0 || hit.t > segmentLength || hit.t >= blockerDistance) continue;
           if (!segmentBest || hit.t < segmentBest.t) {
             const ratio = clamp(hit.t / segmentLength, 0, 1);
-            segmentBest = {
-              target,
-              ...hit,
-              t: traveledDistance + hit.t,
-              x: previous.x + dx * ratio,
-              y: previous.y + dy * ratio,
-              z: previous.z + dz * ratio
-            };
+            segmentBest = { target, ...hit, t: traveledDistance + hit.t,
+              x: previous.x + dx * ratio, y: previous.y + dy * ratio, z: previous.z + dz * ratio };
           }
         }
-
-        if (segmentBest) {
-          bestHit = segmentBest;
-          break;
-        }
+        if (segmentBest) { bestHit = segmentBest; break; }
         if (blockerDistance <= segmentLength) break;
         traveledDistance += segmentLength;
         previous = current;
@@ -3875,7 +4044,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
     const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
     const bowSpeedDamageMultiplier = shooter.weapon === "bow"
-      ? clamp(Math.max(1.5, 12.48 * Math.pow(bowCharge, 3)) / 10.4, 0.2, 1)
+      ? clamp(Math.max(1.5, 12.48 * Math.pow(bowCharge, 3)) / 12.48, 0.2, 1)
       : 1;
     const damage = baseShotDamage * bowSpeedDamageMultiplier * bestHit.multiplier * distanceMultiplier;
     const split = applyIncomingDamage(bestHit.target, damage, true);
