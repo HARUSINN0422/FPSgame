@@ -1656,7 +1656,7 @@ function explodeRocket(projectile, position, now = Date.now()) {
     const dx = target.x - position.x, dy = target.y + targetHeight * 0.5 - position.y, dz = target.z - position.z;
     const distance = Math.hypot(dx, dy, dz);
     if (distance > radius) continue;
-    const damage = Math.round(maxDamage - (maxDamage - minDamage) * clamp(distance / radius, 0, 1));
+    const damage = Math.round((maxDamage - (maxDamage - minDamage) * clamp(distance / radius, 0, 1)) * (projectile.owner?.isBot ? 0.5 : 1));
     const split = applyIncomingDamage(target, damage);
     if (!isOwner) addUltimateCharge(projectile.owner, damage);
     io.to(projectile.ownerId).emit("damageDealt", { targetId: target.id, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage, zone: "body", x: target.x, y: target.y + targetHeight * 0.5, z: target.z });
@@ -1694,7 +1694,7 @@ function explodeGrenade(projectile, position, now = Date.now()) {
     const dz = target.z - position.z;
     const distance = Math.hypot(dx, dy, dz);
     if (distance > radius) continue;
-    const damage = Math.round(20 + 90 * (1 - distance / radius));
+    const damage = Math.round((20 + 90 * (1 - distance / radius)) * (projectile.owner?.isBot ? 0.5 : 1));
     if (damage <= 0) continue;
     const damageSplit = applyIncomingDamage(target, damage);
     if (projectile.owner && projectile.owner.id !== target.id) addUltimateCharge(projectile.owner, damage);
@@ -1972,7 +1972,7 @@ function updateGrenadeProjectiles(dt, now = Date.now()) {
       const wallDistance = mapWallDistance === null ? cartWallDistance
         : cartWallDistance === null ? mapWallDistance : Math.min(mapWallDistance, cartWallDistance);
       if (hitTarget && (wallDistance === null || wallDistance > hitInfo.t)) {
-        const damage = 5;
+        const damage = 5 * (owner.isBot ? 0.5 : 1);
         const split = applyIncomingDamage(hitTarget, damage, true);
         addUltimateCharge(owner, split.totalDamage);
         io.to(owner.id).emit("damageDealt", { targetId: hitTarget.id, damage: Math.round(split.totalDamage), shieldDamage: Math.round(split.shieldDamage), healthDamage: Math.round(split.healthDamage), zone: hitInfo.zone || "body", x: next.x, y: next.y, z: next.z });
@@ -3813,7 +3813,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     // レールガンは移動弾を生成せず、発射フレームで照準上の最初の相手に即着弾する。
     // 既存仕様どおり壁は貫通し、射程は150m。
     if (best) {
-      const damage = 35; // 頭部・胴体ともに固定35ダメージ
+      const damage = 35 * (shooter.isBot ? 0.5 : 1); // BOTの武器ダメージは半分
       const split = applyIncomingDamage(best.target, damage, true);
       addUltimateCharge(shooter, damage);
       const hitX = origin.x + dir.x * best.t;
@@ -3955,7 +3955,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       if (!best || distance < best.distance) best = {target, distance};
     }
     if (best) {
-      const damage = weapon.damage;
+      const damage = weapon.damage * (shooter.isBot ? 0.5 : 1);
       const split = applyIncomingDamage(best.target, damage);
       addUltimateCharge(shooter, damage);
       damageByTarget.set(best.target.id, {id: best.target.id, target: best.target, damage, shieldDamage: split.shieldDamage, healthDamage: split.healthDamage, zone: "body"});
@@ -3969,7 +3969,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
 
     if (weapon.spread) {
       // エリアモードのBOTだけ人間プレイヤーより弾が大きくブレる。ジャンプ中はさらに拡大する。
-      const botSpreadMultiplier = shooter.isBot && isTeamMatchMode(shooter.mode) ? 3.25 : 1;
+      const botSpreadMultiplier = shooter.isBot ? 5.0 : 1;
       const isMoving = Math.abs(Number(shooter.input?.forward || 0)) > 0.05 ||
         Math.abs(Number(shooter.input?.strafe || 0)) > 0.05;
       const movingShotMultiplier = shooter.weapon === "sniper" && isMoving ? 2 : 1;
@@ -3980,6 +3980,12 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       const spread = weapon.spread * botSpreadMultiplier * movementSpreadMultiplier * sniperUnscopedMultiplier;
       yaw += (Math.random() - 0.5) * spread;
       pitch += (Math.random() - 0.5) * spread;
+    }
+    // BOTは武器固有のブレがない場合も、照準から少し外れる。
+    if (shooter.isBot) {
+      const botAimError = 0.07;
+      yaw += (Math.random() - 0.5) * botAimError;
+      pitch += (Math.random() - 0.5) * botAimError;
     }
 
     const dir = directionFromAngles(yaw, pitch);
@@ -4064,7 +4070,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
             !isSameGame(currentShooter, currentTarget) ||
             (isTeamMatchMode(currentShooter.mode) && currentTarget.team === currentShooter.team)) return;
         const distanceMultiplier = getDistanceDamageMultiplier(weapon, impact.t);
-        const baseShotDamage = 5 + 135 * bowCharge;
+        const baseShotDamage = (5 + 135 * bowCharge) * (currentShooter.isBot ? 0.5 : 1);
         const bowSpeedDamageMultiplier = clamp(bowArrowSpeed / 18.72, 0.2, 1);
         const damage = baseShotDamage * bowSpeedDamageMultiplier * impact.multiplier * distanceMultiplier;
         const split = applyIncomingDamage(currentTarget, damage, true);
@@ -4098,7 +4104,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
     }
 
     const distanceMultiplier = getDistanceDamageMultiplier(weapon, bestHit.t);
-    const baseShotDamage = shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage;
+    const baseShotDamage = (shooter.weapon === "bow" ? 5 + 135 * bowCharge : weapon.damage) * (shooter.isBot ? 0.5 : 1);
     const bowSpeedDamageMultiplier = shooter.weapon === "bow"
       ? clamp(Math.max(1.5, 18.72 * Math.pow(bowCharge, 3)) / 18.72, 0.2, 1)
       : 1;
