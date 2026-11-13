@@ -2679,10 +2679,10 @@ function updateWeaponBeamVisuals() {
     const range = weapon === "laserBeam" ? 100 : weapon === "flamethrower" ? 9 : 5.25;
     const color = weapon === "flamethrower" ? 0xff6a18 : weapon === "laserBeam" ? 0xff3030 : 0x74dfff;
     let beam = weaponBeamMeshes.get(id);
+    const halfAngle = THREE.MathUtils.degToRad(45);
     if (isFan) {
       if (!beam || beam.userData.weapon !== weapon || !beam.userData.groundFan) {
         removeWeaponBeamVisual(id);
-        const halfAngle = THREE.MathUtils.degToRad(45);
         const shape = new THREE.Shape();
         shape.moveTo(0, 0);
         shape.absarc(0, 0, range, -Math.PI / 2 - halfAngle, -Math.PI / 2 + halfAngle, false);
