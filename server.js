@@ -3998,7 +3998,8 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
         const gravity = 1.3;
         // 判定間隔を広げて軌道サンプル数を削減し、射撃時のサーバー負荷を抑える。
         const stepTime = 0.1;
-        const maxFlightTime = Math.min(weapon.range / arrowSpeed, 0.75);
+        // 低速の矢にも命中判定の時間を確保する。上限3秒で計算量を制限。
+        const maxFlightTime = Math.min(weapon.range / arrowSpeed, 3.0);
         let previous = { ...origin };
         for (let elapsed = stepTime; arrowSpeed > 0.05 && elapsed <= maxFlightTime; elapsed += stepTime) {
           const current = {
