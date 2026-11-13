@@ -3789,7 +3789,7 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
   // リスポーン直後3秒間・凍結中は、BOTを含めて射撃できない。
   if (shooter.invulnerableUntil > now || shooter.frozenUntil > now) return;
   if (shooter.weapon === "railgun") {
-    if (now - shooter.lastFire < 1500) return;
+    if (now - shooter.lastFire < 2000) return;
     shooter.lastFire = now;
     const dir = directionFromAngles(shooter.yaw, shooter.pitch);
     const eyeY = shooter.y + (shooter.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) - 0.15;
