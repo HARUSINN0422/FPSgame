@@ -2011,24 +2011,36 @@ body.controller-mode #settingsButton {
   }
 }
 
-/* PCなど横幅の広い画面では4列にし、説明文が収まる共通カード高さを確保 */
+/* PCでは最も説明が長い武器カードに全カードの高さを合わせる */
 @media (min-width: 901px) {
+  #weaponScreen .weapon-grid-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
   #weaponScreen .weapon-grid-all {
+    display: grid;
+    width: 100%;
+    height: max-content;
+    min-height: 100%;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-auto-rows: 180px;
+    grid-auto-rows: 1fr;
     align-content: start;
     gap: 12px;
+    overflow: visible;
   }
   #weaponScreen .weapon-grid-all .weapon-card {
     box-sizing: border-box;
     width: 100%;
-    height: 180px;
-    min-height: 180px;
+    height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
-    overflow-y: auto;
+    overflow: visible;
     overflow-wrap: anywhere;
     padding: 14px;
   }
