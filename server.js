@@ -3994,7 +3994,9 @@ function fireShot(shooter, sniperScoped = false, bowCharge = 1) {
       let hitInfo = null;
       if (shooter.weapon === "bow") {
         // 弓矢は一定速度で飛び、飛行時間に応じて重力で落下する軌道をたどる。
-        const arrowSpeed = 65 * 0.8 * 2 * 0.2 * (0.12 + 0.88 * bowCharge);
+        // 基本速度を従来の半分にし、引きの弱さが飛距離に強く響くよう3乗カーブにする。
+        // ほぼ引かずに放った矢は初速がほとんど出ず、すぐに落下する。
+        const arrowSpeed = 65 * 0.8 * 2 * 0.2 * 0.5 * (0.02 + 0.98 * Math.pow(bowCharge, 3));
         const gravity = 100;
         const stepTime = 0.04;
         let previous = { ...origin };
