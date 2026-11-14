@@ -229,7 +229,7 @@ const WEAPONS = {
   grappler: { name: "グラップラー", damage: 0, fireInterval: 1100, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 0, reloadTime: 0, automatic: false },
   railgun: { name: "レールガン", damage: 35, fireInterval: 2000, range: 150, spread: 0, falloffStart: 150, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false },
   rocketLauncher: { name: "ロケットランチャー", damage: 180, fireInterval: 1250, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 0, magazineSize: 3, reloadTime: 2400, automatic: false },
-  cannonLauncher: { name: "キャノンランチャー", damage: 10, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 1, magazineSize: 1, reloadTime: 5000, automatic: false },
+  cannonLauncher: { name: "キャノンランチャー", damage: 1, fireInterval: 1000, range: 0, spread: 0, falloffStart: 0, minDamageMultiplier: 1, magazineSize: 1, reloadTime: 10000, automatic: false },
   flamethrower: { name: "火炎放射器", damage: 5, fireInterval: 500, range: 12, spread: 0, falloffStart: 12, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   laserBeam: { name: "レーザービーム", damage: 4, fireInterval: 500, range: 100, spread: 0, falloffStart: 100, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true },
   freezeCannon: { name: "フリーズキャノン", damage: 4, fireInterval: 500, range: 14, spread: 0, falloffStart: 14, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: true }
@@ -257,7 +257,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
   railgun: "2秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要.",
   rocketLauncher: "やや遅いロケット弾を発射し、壁・床・プレイヤーへの着弾で爆発。爆発半径13m、自分にもダメージ。中心180ダメージから最小50ダメージまで距離に応じて減衰。装弾数3発.",
-  cannonLauncher: "足元にキャノンを設置。遮蔽物のない敵へ1秒ごとに10ダメージ。10秒で消滅。リロード3秒。",
+  cannonLauncher: "足元にキャノンを設置。遮蔽物のない敵へ1秒ごとに1ダメージ。5秒で消滅。リロード10秒。",
   flamethrower: "前方へ炎を連続噴射（射程9mの扇形範囲・上下±3m）。壁の向こうには命中せず、0.5秒ごとに10ダメージ。命中時に燃焼。",
   laserBeam: "長押しでレーザーを連続照射。同じ相手への連続命中で威力上昇。ダメージ: 1回4から最大128。",
   freezeCannon: "前方へ冷気を連続噴射（射程5.25mの扇形範囲・上下±3m）。壁の向こうには命中せず、0.5秒ごとに4ダメージ。命中を重ねると凍結."
@@ -312,9 +312,9 @@ WEAPONS.rocketLauncher.reloadTime = 2400;
 WEAPONS.rocketLauncher.damage = 180;
 WEAPONS.rocketLauncher.description = DEFAULT_WEAPON_DESCRIPTIONS.rocketLauncher;
 WEAPONS.cannonLauncher.magazineSize = 1;
-WEAPONS.cannonLauncher.reloadTime = 3000;
+WEAPONS.cannonLauncher.reloadTime = 10000;
 WEAPONS.cannonLauncher.fireInterval = 1000;
-WEAPONS.cannonLauncher.damage = 10;
+WEAPONS.cannonLauncher.damage = 1;
 WEAPONS.cannonLauncher.description = DEFAULT_WEAPON_DESCRIPTIONS.cannonLauncher;
 WEAPONS.pickaxe.damage = 120;
 WEAPONS.sword.damage = 50;
@@ -1346,7 +1346,7 @@ function emitCannonState(socket, player) {
 }
 function placePlayerCannon(owner, now = Date.now()) {
   const y = getGroundHeight(owner.x, owner.z, owner.y, owner);
-  const cannon = { id: "player-cannon-" + (++cannonSequence), owner, ownerId: owner.id, x: owner.x, y, z: owner.z, expiresAt: now + 10000, nextShotAt: now };
+  const cannon = { id: "player-cannon-" + (++cannonSequence), owner, ownerId: owner.id, x: owner.x, y, z: owner.z, expiresAt: now + 5000, nextShotAt: now };
   playerCannons.set(cannon.id, cannon);
   broadcastGameEvent(owner, "cannonSpawn", cannonPayload(cannon));
 }
@@ -1373,7 +1373,7 @@ function updatePlayerCannons(now = Date.now()) {
     }
     if (!best) continue;
     const target = best.target, origin = {x:cannon.x,y:cannon.y+0.55,z:cannon.z};
-    const dealt = applyIncomingDamage(target,10,true).totalDamage;
+    const dealt = applyIncomingDamage(target,1,true).totalDamage;
     if (dealt > 0) addUltimateCharge(owner,dealt);
     io.to(target.id).emit("damageTaken",{damage:Math.round(dealt),zone:"body",source:"cannon"});
     io.to(owner.id).emit("damageDealt",{damage:Math.round(dealt),targetId:target.id,targetName:target.name,zone:"body"});
