@@ -1,9 +1,14 @@
 import * as THREE from "three";
 
 const isVercelFrontend = location.hostname === "test-gamma-two-87.vercel.app";
-const socketPath = isVercelFrontend || location.pathname.startsWith("/FPSgame/")
-  ? "/FPSgame/socket.io/"
-  : "/socket.io/";
+const appBasePath = (() => {
+  const pathname = location.pathname;
+  return pathname === "/FPSgame" || pathname.startsWith("/FPSgame/")
+    ? "/FPSgame/"
+    : "/";
+})();
+const apiBase = isVercelFrontend ? "https://harusinn.com" + appBasePath : appBasePath;
+const socketPath = appBasePath + "socket.io/";
 const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
 
 const socket = io(socketOrigin, {
@@ -230,9 +235,6 @@ const weaponConfig = {
 
 async function refreshPublicWeaponSettings() {
   try {
-    const apiBase = location.hostname === "test-gamma-two-87.vercel.app"
-      ? "https://harusinn.com/FPSgame/"
-      : (location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/");
     const response = await fetch(apiBase + "api/weapons", { cache: "no-store" });
     if (!response.ok) return;
     const data = await response.json();
@@ -1116,10 +1118,7 @@ async function setupPushNotifications() {
   const button = document.getElementById("pushNotificationToggle");
   const status = document.getElementById("pushNotificationStatus");
   if (!button || !status) return;
-  const base = location.hostname === "test-gamma-two-87.vercel.app"
-    ? "https://harusinn.com/FPSgame/"
-    : (location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/");
-  const api = (path, options = {}) => fetch(base + "api/push/" + path, {
+  const api = (path, options = {}) => fetch(apiBase + "api/push/" + path, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options.headers || {}) }
   });
@@ -1217,12 +1216,9 @@ const modePlayerCountElements = {
   build: document.getElementById("buildPlayerCount")
 };
 const topNoticeList = document.getElementById("topNoticeList");
-const lobbyApiBase = location.hostname === "test-gamma-two-87.vercel.app"
-  ? "https://harusinn.com/FPSgame/"
-  : (location.pathname.startsWith("/FPSgame/") ? "/FPSgame/" : "/");
 async function refreshLobbyInfo() {
   try {
-    const response = await fetch(lobbyApiBase + "api/lobby-info", { cache: "no-store" });
+    const response = await fetch(apiBase + "api/lobby-info", { cache: "no-store" });
     if (!response.ok) return;
     const info = await response.json();
     const onlinePlayers = Math.max(0, Number(info.onlinePlayers) || 0);
