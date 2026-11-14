@@ -463,9 +463,9 @@ function checkForUpdates() {
 const server = http.createServer(app);
 const VERCEL_FRONTEND_ORIGIN = "https://test-gamma-two-87.vercel.app";
 const io = new Server(server, {
-  // Raspberry Piや一時的なCPU負荷でheartbeat応答が遅れても即切断しない。
-  pingInterval: 20000,
-  pingTimeout: 60000,
+  // WebSocketのheartbeat。短いCPU負荷や一時的な回線遅延で切断しにくくする。
+  pingInterval: 25000,
+  pingTimeout: 90000,
   upgradeTimeout: 30000,
   cors: {
     origin: [VERCEL_FRONTEND_ORIGIN],
@@ -473,7 +473,17 @@ const io = new Server(server, {
   }
 });
 
-// iOSのホーム画面アプリがバックグラウンドで停止し、接続が残る場合の検知。
+// Socket.IOのハンドシェイク失敗を記録し、プロキシ・TLS・通信方式の問題を特定できるようにする。
+io.engine.on("connection_error", (error) => {
+  appendServerLog("SOCKET-CONNECTION-ERROR", [
+    "code=" + String(error.code),
+    "message=" + String(error.message),
+    "transport=" + String(error.req?.url || ""),
+    "address=" + String(error.req?.socket?.remoteAddress || "unknown")
+  ]);
+});
+
+// iOSのホーム画面アプリがバックグラウンドで停止し、接続が残る場合の検知.
 setInterval(() => {
   const now = Date.now();
   for (const [id, player] of players) {
@@ -5724,6 +5734,13 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", (reason) => {
     const disconnectedPlayer = players.get(socket.id);
+    appendServerLog("SOCKET-DISCONNECT", [
+      "reason=" + String(reason),
+      "transport=" + String(socket.conn?.transport?.name || "unknown"),
+      "id=" + String(socket.id),
+      "name=" + String(disconnectedPlayer?.name || "not-joined"),
+      "mode=" + String(disconnectedPlayer?.mode || "lobby")
+    ]);
     if (disconnectedPlayer?.mode === PAYLOAD_MODE) {
       appendServerLog("PAYLOAD-DISCONNECT", [
         "reason=" + String(reason),
