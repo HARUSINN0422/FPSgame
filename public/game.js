@@ -13,9 +13,9 @@ const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
 
 const socket = io(socketOrigin, {
   path: socketPath,
-  // LAN・ドメイン・VercelのすべてでWebSocketに統一する。
-  // PollingからWebSocketへの昇格時にプロキシ経由で接続が切り替わる問題を避ける。
-  transports: ["websocket"],
+  // VercelはWebSocket専用プロキシを使うためWebSocket固定。
+  // LAN・通常ドメインはPollingで確実に初期マップを受信し、WebSocketへ自動昇格する。
+  ...(isVercelFrontend ? { transports: ["websocket"] } : {}),
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
