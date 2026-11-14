@@ -13,15 +13,14 @@ const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
 
 const socket = io(socketOrigin, {
   path: socketPath,
-  // Vercel側はApacheのWebSocketプロキシ経由で接続する。
-  // HTTP long-pollingは /FPSgame/socket.io/ のWS専用プロキシでは通らないため、
-  // Vercelフロントエンドでは最初からWebSocket接続に限定する。
-  ...(isVercelFrontend ? { transports: ["websocket"] } : {}),
+  // LAN・ドメイン・VercelのすべてでWebSocketに統一する。
+  // PollingからWebSocketへの昇格時にプロキシ経由で接続が切り替わる問題を避ける。
+  transports: ["websocket"],
   reconnection: true,
   reconnectionAttempts: Infinity,
-  reconnectionDelay: 500,
+  reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
-  timeout: 10000
+  timeout: 20000
 });
 
 let wasJoinedBeforeDisconnect = false;
@@ -5030,6 +5029,7 @@ function setConnectionStatus(text, connected = false) {
 }
 
 socket.on("connect", () => {
+  console.info("[Socket.IO] 接続:", socket.io.engine?.transport?.name || "unknown");
   setConnectionStatus("接続済み", true);
 
   if (wasJoinedBeforeDisconnect && playerName) {
@@ -5138,7 +5138,8 @@ setInterval(() => {
   }
 }, 10000);
 
-socket.on("disconnect", () => {
+socket.on("disconnect", (reason) => {
+  console.warn("[Socket.IO] 切断:", reason, "transport:", socket.io.engine?.transport?.name || "unknown");
   setConnectionStatus("接続中…", false);
 
   if (joined || (selectedGameMode === "Area" && areaQueuePanel && !areaQueuePanel.classList.contains("hidden")) || (selectedGameMode === "Payload" && payloadQueuePanel && !payloadQueuePanel.classList.contains("hidden"))) {
@@ -5148,6 +5149,11 @@ socket.on("disconnect", () => {
     stopAllControls();
     showMessage("サーバーとの接続が切れました。再接続しています…");
   }
+});
+
+socket.on("connect_error", (error) => {
+  console.warn("[Socket.IO] 接続エラー:", error?.message || error);
+  setConnectionStatus("接続を再試行中…", false);
 });
 
 // iPad/iPhoneのホーム画面アプリがバックグラウンドへ移動したら、プレイヤー枠を明示的に解放する。
