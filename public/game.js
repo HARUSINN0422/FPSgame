@@ -10,15 +10,11 @@ const appBasePath = (() => {
 const apiBase = isVercelFrontend ? "https://harusinn.com" + appBasePath : appBasePath;
 const socketPath = appBasePath + "socket.io/";
 const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
-// Tinyproxy経由のHTTP接続ではWebSocket Upgradeが400になるため、
-// Raspberry PiのIPアドレスへHTTP接続する場合はPollingのみを使用する。
-const usePollingOnly = location.protocol === "http:" && location.hostname === "192.168.1.3";
-
 const socket = io(socketOrigin, {
   path: socketPath,
   // VercelはWebSocket専用プロキシを使うためWebSocket固定。
-  // Tinyproxy経由のHTTP接続ではPollingに固定し、失敗するUpgradeを試さない。
-  ...(isVercelFrontend ? { transports: ["websocket"] } : usePollingOnly ? { transports: ["polling"] } : {}),
+  // それ以外はPollingで接続後、WebSocketへ自動昇格して低遅延通信を使う。
+  ...(isVercelFrontend ? { transports: ["websocket"] } : {}),
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
