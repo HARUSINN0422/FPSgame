@@ -10,11 +10,16 @@ const appBasePath = (() => {
 const apiBase = isVercelFrontend ? "https://harusinn.com" + appBasePath : appBasePath;
 const socketPath = appBasePath + "socket.io/";
 const socketOrigin = isVercelFrontend ? "https://harusinn.com" : undefined;
+const isDirectIpAccess = location.hostname === "192.168.1.3";
 const socket = io(socketOrigin, {
   path: socketPath,
-  // VercelはWebSocket専用プロキシを使うためWebSocket固定。
-  // それ以外はPollingで接続後、WebSocketへ自動昇格して低遅延通信を使う。
-  ...(isVercelFrontend ? { transports: ["websocket"] } : {}),
+  // VercelはWebSocket固定。IPアドレス経由はTinyproxy対応のためPolling固定。
+  // ドメイン経由はPollingからWebSocketへ自動昇格する。
+  ...(isVercelFrontend
+    ? { transports: ["websocket"] }
+    : isDirectIpAccess
+      ? { transports: ["polling"] }
+      : {}),
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
