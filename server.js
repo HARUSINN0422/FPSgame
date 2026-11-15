@@ -466,7 +466,7 @@ const io = new Server(server, {
   // WebSocketのheartbeat。短いCPU負荷や一時的な回線遅延で切断しにくくする。
   pingInterval: 25000,
   // HTTPプロキシ経由で一時的に遅延しても、heartbeatの猶予を十分に確保する。
-  pingTimeout: 120000,
+  pingTimeout: 60000,
   upgradeTimeout: 60000,
   cors: {
     origin: [VERCEL_FRONTEND_ORIGIN],
@@ -491,9 +491,9 @@ setInterval(() => {
     if (player.isBot) continue;
     if (!player.lastPresenceAt) player.lastPresenceAt = now;
     // プロキシ経由の遅延・一時停止で誤切断しないよう、Socket.IO heartbeatより長い猶予を設ける。
-    if (now - player.lastPresenceAt <= 150000) continue;
+    if (now - player.lastPresenceAt <= 75000) continue;
     const client = io.sockets.sockets.get(id);
-    appendServerLog("STALE-PRESENCE", ["150秒間応答なしのプレイヤーを切断:", id, player.name]);
+    appendServerLog("STALE-PRESENCE", ["75秒間応答なしのプレイヤーを切断:", id, player.name]);
     if (client) client.disconnect(true);
     else players.delete(id);
   }
