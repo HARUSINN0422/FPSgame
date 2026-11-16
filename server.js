@@ -494,7 +494,7 @@ setInterval(() => {
     // Socket.IOのheartbeatより長い240秒の猶予を設ける。
     if (now - player.lastPresenceAt <= 240000) continue;
     const client = io.sockets.sockets.get(id);
-    appendServerLog("STALE-PRESENCE", ["150秒間応答なしのプレイヤーを切断:", id, player.name]);
+    appendServerLog("STALE-PRESENCE", ["240秒間応答なしのプレイヤーを切断:", id, player.name]);
     if (client) client.disconnect(true);
     else players.delete(id);
   }
