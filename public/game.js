@@ -187,6 +187,9 @@ let lastWeaponSwitchAt = -Infinity;
 const WEAPON_SWITCH_COOLDOWN_MS = 400;
 let playerName = "";
 let lastInputSent = 0;
+// IPアドレス経由はPolling固定のため、Tinyproxy等での通信量を抑える。
+// ブラウザ側からプロキシ利用の有無は判別できないため、IP直アクセス全体に適用する。
+const INPUT_SEND_INTERVAL_MS = isDirectIpAccess ? 83 : 33;
 let lastFrameTime = performance.now();
 let lastMinimapUpdate = 0;
 let lastWorldLodUpdate = 0;
@@ -3541,7 +3544,7 @@ function pollGamepad(now) {
   }
   gamepadFireHeld = firePressed;
 
-  if (now - lastInputSent >= 33) {
+  if (now - lastInputSent >= INPUT_SEND_INTERVAL_MS) {
     const scopeMoveMultiplier = scopeEnabled ? 0.5 : 1;
     socket.emit("input", {
       forward: joystick.forward * scopeMoveMultiplier,
@@ -3553,7 +3556,7 @@ function pollGamepad(now) {
 }
 
 function sendInput(now) {
-  if (!joined || myState?.health <= 0 || now - lastInputSent < 33) return;
+  if (!joined || myState?.health <= 0 || now - lastInputSent < INPUT_SEND_INTERVAL_MS) return;
 
   const keyboardForward = (movement.forward ? 1 : 0) + (movement.back ? -1 : 0);
   const keyboardStrafe = (movement.right ? 1 : 0) + (movement.left ? -1 : 0);
