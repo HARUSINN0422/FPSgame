@@ -463,10 +463,10 @@ function checkForUpdates() {
 const server = http.createServer(app);
 const VERCEL_FRONTEND_ORIGIN = "https://test-gamma-two-87.vercel.app";
 const io = new Server(server, {
-  // WebSocketのheartbeat。短いCPU負荷や一時的な回線遅延で切断しにくくする。
+  // WebSocket / HTTP Polling共通のheartbeat。プロキシ経由の一時的な遅延を許容する。
   pingInterval: 25000,
-  // Tinyproxy経由のPollingでは応答が遅れることがあるため、pingTimeoutは120秒確保する。
-  pingTimeout: 120000,
+  // Tinyproxy経由ではPolling応答が遅れる場合があるため、切断判定まで180秒待つ。
+  pingTimeout: 180000,
   upgradeTimeout: 60000,
   cors: {
     origin: [VERCEL_FRONTEND_ORIGIN],
@@ -490,8 +490,9 @@ setInterval(() => {
   for (const [id, player] of players) {
     if (player.isBot) continue;
     if (!player.lastPresenceAt) player.lastPresenceAt = now;
-    // HTTPプロキシの一時停止やPolling遅延を誤切断しないよう、150秒間の猶予を設ける。
-    if (now - player.lastPresenceAt <= 150000) continue;
+    // HTTPプロキシの一時停止やPolling遅延でプレイヤー情報を早期削除しないよう、
+    // Socket.IOのheartbeatより長い240秒の猶予を設ける。
+    if (now - player.lastPresenceAt <= 240000) continue;
     const client = io.sockets.sockets.get(id);
     appendServerLog("STALE-PRESENCE", ["150秒間応答なしのプレイヤーを切断:", id, player.name]);
     if (client) client.disconnect(true);
