@@ -465,8 +465,8 @@ const VERCEL_FRONTEND_ORIGIN = "https://test-gamma-two-87.vercel.app";
 const io = new Server(server, {
   // WebSocketのheartbeat。短いCPU負荷や一時的な回線遅延で切断しにくくする。
   pingInterval: 25000,
-  // HTTPプロキシ経由で一時的に遅延しても、heartbeatの猶予を十分に確保する。
-  pingTimeout: 60000,
+  // Tinyproxy経由のPollingでは応答が遅れることがあるため、pingTimeoutは120秒確保する。
+  pingTimeout: 120000,
   upgradeTimeout: 60000,
   cors: {
     origin: [VERCEL_FRONTEND_ORIGIN],
@@ -490,10 +490,10 @@ setInterval(() => {
   for (const [id, player] of players) {
     if (player.isBot) continue;
     if (!player.lastPresenceAt) player.lastPresenceAt = now;
-    // プロキシ経由の遅延・一時停止で誤切断しないよう、Socket.IO heartbeatより長い猶予を設ける。
-    if (now - player.lastPresenceAt <= 75000) continue;
+    // HTTPプロキシの一時停止やPolling遅延を誤切断しないよう、150秒間の猶予を設ける。
+    if (now - player.lastPresenceAt <= 150000) continue;
     const client = io.sockets.sockets.get(id);
-    appendServerLog("STALE-PRESENCE", ["75秒間応答なしのプレイヤーを切断:", id, player.name]);
+    appendServerLog("STALE-PRESENCE", ["150秒間応答なしのプレイヤーを切断:", id, player.name]);
     if (client) client.disconnect(true);
     else players.delete(id);
   }
