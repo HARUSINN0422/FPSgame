@@ -3698,8 +3698,7 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
   const targetHeight = target.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
   let headHit = null;
 
-  // 頭と胴体の両方を調べ、弾道上で手前にある部位を採用する。
-  // 頭部判定を常に優先すると、胴体に先に当たる軌道でも頭部扱いになる。
+  // 頭部は独立した球として判定する。胴体より先に交差した場合だけヘッドショット。
   if (hitRadiusOverride === null) {
     const headCenter = {
       x: target.x,
@@ -3721,36 +3720,77 @@ function rayHitsPlayer(origin, direction, target, hitRadiusOverride = null) {
     }
   }
 
-  const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
-  const ox = origin.x - targetCenter.x;
-  const oy = origin.y - targetCenter.y;
-  const oz = origin.z - targetCenter.z;
-
-  // 通常武器は従来の判定半径。レールガンは指定された判定半径を使用する。
-  const hitRadius = Number.isFinite(Number(hitRadiusOverride)) && hitRadiusOverride !== null
-    ? Math.max(0, Number(hitRadiusOverride))
-    : PLAYER_RADIUS * 2;
-  const b = 2 * (ox * direction.x + oy * direction.y + oz * direction.z);
-  const c = ox * ox + oy * oy + oz * oz - hitRadius * hitRadius;
-  const disc = b * b - 4 * c;
   let bodyHit = null;
-  if (disc >= 0) {
-    const root = Math.sqrt(disc);
-    const t1 = (-b - root) / 2;
-    const t2 = (-b + root) / 2;
-    const t = t1 >= 0 ? t1 : t2;
-    if (t >= 0) {
-      const hitY = origin.y + direction.y * t - target.y;
-      let multiplier = 1.0;
-      let zone = "body";
-      if (hitRadiusOverride !== null && hitY >= 1.42) {
-        multiplier = 2.0;
-        zone = "head";
-      } else if (hitY < 0.58) {
-        multiplier = 0.75;
-        zone = "legs";
+  if (hitRadiusOverride !== null) {
+    // レールガンなど、専用の判定半径を指定する武器は従来の球形判定を維持する。
+    const targetCenter = { x: target.x, y: target.y + targetHeight * 0.5, z: target.z };
+    const ox = origin.x - targetCenter.x;
+    const oy = origin.y - targetCenter.y;
+    const oz = origin.z - targetCenter.z;
+    const hitRadius = Math.max(0, Number(hitRadiusOverride) || 0);
+    const b = 2 * (ox * direction.x + oy * direction.y + oz * direction.z);
+    const c = ox * ox + oy * oy + oz * oz - hitRadius * hitRadius;
+    const disc = b * b - 4 * c;
+    if (disc >= 0) {
+      const root = Math.sqrt(disc);
+      const t1 = (-b - root) / 2;
+      const t2 = (-b + root) / 2;
+      const t = t1 >= 0 ? t1 : t2;
+      if (t >= 0) {
+        const hitY = origin.y + direction.y * t - target.y;
+        let multiplier = 1.0;
+        let zone = "body";
+        if (hitY >= 1.42) {
+          multiplier = 2.0;
+          zone = "head";
+        } else if (hitY < 0.58) {
+          multiplier = 0.75;
+          zone = "legs";
+        }
+        bodyHit = { t, multiplier, zone };
       }
-      bodyHit = { t, multiplier, zone };
+    }
+  } else {
+    // 通常武器の胴体は縦円柱。頭より上や足元より下まで球形判定が膨らむ問題を防ぐ。
+    const bodyRadius = PLAYER_RADIUS * 1.15;
+    const bodyMinY = target.y + 0.18;
+    const headRadius = target.crouched ? 0.27 : 0.32;
+    const bodyMaxY = target.y + targetHeight * 0.88 - headRadius * 0.65;
+    const ox = origin.x - target.x;
+    const oz = origin.z - target.z;
+    const a = direction.x * direction.x + direction.z * direction.z;
+    const b = 2 * (ox * direction.x + oz * direction.z);
+    const c = ox * ox + oz * oz - bodyRadius * bodyRadius;
+
+    let radialMin = -Infinity;
+    let radialMax = Infinity;
+    if (a > 1e-10) {
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) return headHit;
+      const root = Math.sqrt(disc);
+      radialMin = (-b - root) / (2 * a);
+      radialMax = (-b + root) / (2 * a);
+    } else if (c > 0) {
+      return headHit;
+    }
+
+    let verticalMin = -Infinity;
+    let verticalMax = Infinity;
+    if (Math.abs(direction.y) > 1e-10) {
+      const t1 = (bodyMinY - origin.y) / direction.y;
+      const t2 = (bodyMaxY - origin.y) / direction.y;
+      verticalMin = Math.min(t1, t2);
+      verticalMax = Math.max(t1, t2);
+    } else if (origin.y < bodyMinY || origin.y > bodyMaxY) {
+      return headHit;
+    }
+
+    const bodyEntry = Math.max(0, radialMin, verticalMin);
+    const bodyExit = Math.min(radialMax, verticalMax);
+    if (bodyEntry <= bodyExit && Number.isFinite(bodyEntry)) {
+      const hitY = origin.y + direction.y * bodyEntry - target.y;
+      const zone = hitY < 0.58 ? "legs" : "body";
+      bodyHit = { t: bodyEntry, multiplier: zone === "legs" ? 0.75 : 1.0, zone };
     }
   }
 
