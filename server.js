@@ -5105,6 +5105,7 @@ io.on("connection", (socket) => {
     }
     const weaponSlots = [weapon, secondaryWeapon];
     const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(data.charm) ? data.charm : "none";
+    const skillType = ["blink", "flash"].includes(data.skillType) ? data.skillType : "blink";
     const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
     const skin = sanitizeSkin(data.skin);
@@ -5151,6 +5152,8 @@ io.on("connection", (socket) => {
       ultimateAnchor: null,
       skyfallImpactPending: false,
       charm,
+      skillType,
+      skillCooldownUntil: 0,
       kills: 0,
       deaths: 0,
       weapon,
@@ -5386,6 +5389,52 @@ io.on("connection", (socket) => {
     p.ultimateCharge=0;
     broadcastPlayers();
     reply({ ok: true, type });
+  });
+
+  socket.on("skill", (payload = {}, acknowledge) => {
+    const reply = typeof acknowledge === "function" ? acknowledge : () => {};
+    const p = players.get(socket.id), now = Date.now();
+    if (!p || p.health <= 0 || p.finished || p.frozenUntil > now) {
+      reply({ ok: false, message: "現在はスキルを使用できません。" }); return;
+    }
+    if (now < Number(p.skillCooldownUntil || 0)) {
+      reply({ ok: false, message: "スキルはクールタイム中です。" }); return;
+    }
+    const type = p.skillType === "flash" ? "flash" : "blink";
+    if (type === "blink") {
+      const forward = Number(p.input?.forward) || 0, strafe = Number(p.input?.strafe) || 0;
+      let dx = -Math.sin(p.yaw) * forward + Math.cos(p.yaw) * strafe;
+      let dz = -Math.cos(p.yaw) * forward - Math.sin(p.yaw) * strafe;
+      let len = Math.hypot(dx, dz);
+      if (len < 0.15) { dx = -Math.sin(p.yaw); dz = -Math.cos(p.yaw); len = 1; }
+      dx /= len; dz /= len;
+      let dest = null;
+      const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT, map = getMapForPlayer(p);
+      for (let d = 7; d >= 1; d -= 0.5) {
+        const x = p.x + dx * d, z = p.z + dz * d;
+        if (x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS || z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) continue;
+        const y = getGroundHeight(x, z, p.y, p);
+        if (!collides(x, z, y, height, p)) { dest = { x, y, z }; break; }
+      }
+      if (!dest) { reply({ ok: false, message: "前方にブリンクできる場所がありません。" }); return; }
+      p.x = dest.x; p.y = dest.y; p.z = dest.z; p.velocityY = 0; p.grounded = true;
+      broadcastPlayers();
+    } else {
+      const cp = Math.cos(p.pitch || 0);
+      const dir = { x: -Math.sin(p.yaw) * cp, y: Math.sin(p.pitch || 0), z: -Math.cos(p.yaw) * cp };
+      const origin = { x: p.x, y: p.y + (p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.72, z: p.z };
+      const wall = rayHitsObstacle(origin, dir, 10, p);
+      const d = Math.max(0.5, Math.min(10, wall == null ? 10 : wall - 0.25));
+      const center = { x: origin.x + dir.x*d, y: origin.y + dir.y*d, z: origin.z + dir.z*d };
+      for (const target of gamePlayersFor(p)) {
+        if (!target || target.health <= 0 || target.finished) continue;
+        if (Math.hypot(target.x-center.x,target.z-center.z) <= 5 && Math.abs((target.y+PLAYER_HEIGHT*.5)-center.y) <= 5) {
+          if (!target.isBot) io.to(target.id).emit("skillBlinded", { durationMs: 2500 });
+        }
+      }
+    }
+    p.skillCooldownUntil = now + 7000;
+    reply({ ok: true, type, cooldownUntil: p.skillCooldownUntil });
   });
 
   socket.on("jump", () => {
