@@ -171,6 +171,7 @@ let selectedPrimaryWeapon = "pistol";
 let selectedSecondaryWeapon = "rifle";
 let loadoutSlotToEdit = 0;
 let selectedCharm = "none";
+let selectedSkill = "blink";
 let selectedUltimate = "skyfall";
 let scopeEnabled = false;
 const ATTACHMENT_WEAPONS = ["smg", "rifle", "marksman"];
@@ -5212,22 +5213,30 @@ function updateLoadoutSelectionUi() {
     card.classList.toggle("selected-secondary", id === selectedSecondaryWeapon);
     card.classList.toggle("editing-slot", (loadoutSlotToEdit === 0 && id === selectedPrimaryWeapon) || (loadoutSlotToEdit === 1 && id === selectedSecondaryWeapon));
   });
+  document.querySelectorAll(".skill-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.skill === selectedSkill));
   document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.classList.toggle("selected-charm", card.dataset.charm === selectedCharm));
   document.querySelectorAll("[data-loadout-slot]").forEach(button => button.classList.toggle("active", Number(button.dataset.loadoutSlot) === loadoutSlotToEdit));
   document.querySelector(".weapon-grid-all")?.classList.toggle("hidden", loadoutSlotToEdit >= 2);
-  document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
-  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
+  document.getElementById("skillGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 2);
+  document.getElementById("charmGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
+  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 4);
   const status = document.getElementById("loadoutSelectionStatus");
   const charmNames = { hp: "HPのお守り", speed: "移動速度のお守り", reload: "リロードのお守り", jump: "ジャンプのお守り", floor: "床のお守り", aim: "オートエイムのお守り", ultimate: "アルティメットのお守り", body: "身体のお守り", slide: "スライディングのお守り", flight: "飛行のお守り" };
   const ultimateNames = { skyfall: "天墜", teleport: "空間跳躍", aegis: "蒼天障壁", invisible: "幽影", rift: "鏡界" };
   document.querySelectorAll(".ultimate-card").forEach(card => card.classList.toggle("selected-charm", card.dataset.ultimate === selectedUltimate));
-  document.getElementById("ultimateGrid")?.classList.toggle("hidden", loadoutSlotToEdit !== 3);
   const charmName = charmNames[selectedCharm] || "未選択";
-  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ お守り：" + charmName + " ／ アルティメット：" + (ultimateNames[selectedUltimate] || "天墜") + "　（" + (loadoutSlotToEdit === 2 ? "お守り" : loadoutSlotToEdit === 3 ? "アルティメット" : (loadoutSlotToEdit + 1) + "個目") + "を選択中）";
+  const skillNames = { blink: "ブリンク", flash: "フラッシュ" };
+  const editingName = ["1個目の武器", "2個目の武器", "スキル", "お守り", "アルティメット"][loadoutSlotToEdit] || "1個目の武器";
+  if (status) status.textContent = "1個目：" + weaponDisplayName(selectedPrimaryWeapon) + " ／ 2個目：" + weaponDisplayName(selectedSecondaryWeapon) + " ／ スキル：" + (skillNames[selectedSkill] || "ブリンク") + " ／ お守り：" + charmName + " ／ アルティメット：" + (ultimateNames[selectedUltimate] || "天墜") + "　（" + editingName + "を選択中）";
 }
 document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEventListener("click", () => {
   const slot = Number(button.dataset.loadoutSlot);
-  loadoutSlotToEdit = slot >= 0 && slot <= 3 ? slot : 0;
+  loadoutSlotToEdit = slot >= 0 && slot <= 4 ? slot : 0;
+  updateLoadoutSelectionUi();
+}));
+document.querySelectorAll(".skill-card").forEach(card => card.addEventListener("click", () => {
+  if (joined) return;
+  selectedSkill = ["blink", "flash"].includes(card.dataset.skill) ? card.dataset.skill : "blink";
   updateLoadoutSelectionUi();
 }));
 document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListener("click", () => {
