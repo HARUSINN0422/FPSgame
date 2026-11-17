@@ -5409,26 +5409,44 @@ io.on("connection", (socket) => {
     }
     const type = p.skillType === "flash" ? "flash" : "blink";
     if (type === "blink") {
-      const forward = Number(p.input?.forward) || 0, strafe = Number(p.input?.strafe) || 0;
-      let dx = -Math.sin(p.yaw) * forward + Math.cos(p.yaw) * strafe;
-      let dz = -Math.cos(p.yaw) * forward - Math.sin(p.yaw) * strafe;
-      let len = Math.hypot(dx, dz);
-      if (len < 0.15) { dx = -Math.sin(p.yaw); dz = -Math.cos(p.yaw); len = 1; }
-      dx /= len; dz /= len;
+      const forward = Number(p.input?.forward) || 0;
+      const strafe = Number(p.input?.strafe) || 0;
+      const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
+      const movementX = -sin * forward + cos * strafe;
+      const movementZ = -cos * forward - sin * strafe;
+      const movementLength = Math.hypot(movementX, movementZ);
+      const moveX = movementLength > 0.08 ? movementX / movementLength : -sin;
+      const moveZ = movementLength > 0.08 ? movementZ / movementLength : -cos;
+
+      // 移動入力の方向を最優先する。横移動中もその方向へブリンクでき、
+      // その方向が壁などで塞がれている場合だけ別方向の空きを探す。
+      const directions = [
+        [moveX, moveZ],
+        [-sin, -cos],
+        [cos, -sin],
+        [-cos, sin],
+        [sin, cos]
+      ];
+      const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+      const map = getMapForPlayer(p);
       let dest = null;
-      const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT, map = getMapForPlayer(p);
-      for (let d = 6; d >= 0.75; d -= 0.25) {
-        const x = p.x + dx * d, z = p.z + dz * d;
-        if (x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS || z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) continue;
-        const y = getGroundHeight(x, z, p.y, p);
-        if (!collides(x, z, y, height, p)) { dest = { x, y, z }; break; }
+      for (const [dx, dz] of directions) {
+        for (let d = 6; d >= 0.35; d -= 0.25) {
+          const x = p.x + dx * d, z = p.z + dz * d;
+          if (x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS ||
+              z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) continue;
+          const y = getGroundHeight(x, z, p.y, p);
+          if (Number.isFinite(y) && !collides(x, z, y, height, p)) {
+            dest = { x, y, z };
+            break;
+          }
+        }
+        if (dest) break;
       }
       if (!dest) {
-        const x = p.x + dx * 0.75, z = p.z + dz * 0.75;
-        const y = getGroundHeight(x, z, p.y, p);
-        if (Number.isFinite(y) && !collides(x, z, y, height, p)) dest = { x, y, z };
+        reply({ ok: false, message: "ブリンク先に安全な空き場所がありません。" });
+        return;
       }
-      if (!dest) { reply({ ok: false, message: "前方にブリンクできる場所がありません。" }); return; }
       p.x = dest.x; p.y = dest.y; p.z = dest.z; p.velocityY = 0; p.grounded = true;
       broadcastPlayers();
     } else {
