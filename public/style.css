@@ -2070,6 +2070,8 @@ body.controller-mode #settingsButton {
   user-select: none; -webkit-user-select: none;
 }
 #skillButton:disabled { opacity: .68; filter: saturate(.55); }
+#skillButton.layout-editing-target { pointer-events: auto !important; touch-action: none !important; cursor: move !important; outline: 2px dashed rgba(190,130,255,.95); outline-offset: 4px; }
+#skillButton.layout-dragging { filter: brightness(1.35); outline-style: solid; }
 #skillButton:not(:disabled) { border-color: #e0a7ff; box-shadow: 0 0 16px rgba(190,110,255,.48); }
 #flashBlindOverlay { position: fixed; inset: 0; z-index: 10020; pointer-events: none; background: #fff; opacity: 0; transition: opacity .22s ease; }
 #flashBlindOverlay.active { opacity: .16; }
