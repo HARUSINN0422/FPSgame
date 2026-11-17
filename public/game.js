@@ -317,6 +317,7 @@ const DEFAULT_SETTINGS = {
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
     inventoryButton: { x: 310, y: 230, side: "right", size: 88 },
+    skillButton: { x: 14, y: 165, side: "right", size: 72 },
     ultimateButton: { x: 310, y: 320, side: "right", size: 76 },
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
@@ -383,6 +384,7 @@ function loadGameSettings() {
         fireButton: { ...DEFAULT_SETTINGS.layout.fireButton, ...(saved.layout?.fireButton || {}) },
         switchWeaponButton: { ...DEFAULT_SETTINGS.layout.switchWeaponButton, ...(saved.layout?.switchWeaponButton || {}) },
         inventoryButton: { ...DEFAULT_SETTINGS.layout.inventoryButton, ...(saved.layout?.inventoryButton || {}) },
+        skillButton: { ...DEFAULT_SETTINGS.layout.skillButton, ...(saved.layout?.skillButton || {}) },
         ultimateButton: { ...DEFAULT_SETTINGS.layout.ultimateButton, ...(saved.layout?.ultimateButton || {}) },
         scopeButton: { ...DEFAULT_SETTINGS.layout.scopeButton, ...(saved.layout?.scopeButton || {}) },
         minimap: { ...DEFAULT_SETTINGS.layout.minimap, ...(saved.layout?.minimap || {}) },
@@ -413,6 +415,7 @@ function applyButtonLayout() {
     ["fireButton", gameSettings.layout.fireButton],
     ["switchWeaponButton", gameSettings.layout.switchWeaponButton],
     ["inventoryButton", gameSettings.layout.inventoryButton],
+    ["skillButton", gameSettings.layout.skillButton],
     ["ultimateButton", gameSettings.layout.ultimateButton],
     ["scopeButton", gameSettings.layout.scopeButton]
   ];
@@ -554,6 +557,17 @@ function updateSettingsUi() {
     const label = document.getElementById("allowLookToggleValue");
     if (label) label.textContent = allowLookToggle.checked ? "ON（許可）" : "OFF（禁止）";
   }
+
+  const skillSizeSlider = document.getElementById("skillButtonSizeSlider");
+  skillSizeSlider?.addEventListener("input", () => {
+    gameSettings.layout.skillButton.size = Math.round(THREE.MathUtils.clamp(Number(skillSizeSlider.value) || 72, 48, 160));
+    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
+  });
+  const skillSizeValue = document.getElementById("skillButtonSizeValue");
+  const skillSize = THREE.MathUtils.clamp(Number(gameSettings.layout.skillButton.size) || 72, 48, 160);
+  gameSettings.layout.skillButton.size = Math.round(skillSize);
+  if (skillSizeSlider) skillSizeSlider.value = String(skillSize);
+  if (skillSizeValue) skillSizeValue.textContent = Math.round(skillSize) + "px";
 
   const ultimateSizeSlider = document.getElementById("ultimateButtonSizeSlider");
   ultimateSizeSlider?.addEventListener("input", () => {
@@ -728,7 +742,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.toggle("hidden", controllerMode);
     document.getElementById("hud")?.classList.remove("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "buildToolbar"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "skillButton", "ultimateButton", "buildToolbar"]) {
       document.getElementById(id)?.classList.remove("layout-editing-target");
     }
 
@@ -905,7 +919,7 @@ function setupSettings() {
     document.getElementById("touchUi")?.classList.add("layout-editing");
     document.getElementById("hud")?.classList.add("layout-editing");
 
-    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "ultimateButton", "buildToolbar"]) {
+    for (const id of ["minimap", "healthHud", "kdHud", "areaHud", "fullscreenButton", "settingsButton", "ammoHud", "crouchButton", "switchWeaponButton", "scopeButton", "skillButton", "ultimateButton", "buildToolbar"]) {
       document.getElementById(id)?.classList.add("layout-editing-target");
     }
 
