@@ -4416,6 +4416,8 @@ function publicPlayer(p, includeSkin = false) {
     maxHealth: Number(p.maxHealth) || 100,
     ultimateCharge: Math.min(100, Number(p.ultimateCharge) || 0),
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
+    skillType: ["blink", "flash"].includes(p.skillType) ? p.skillType : "blink",
+    skillCooldownUntil: Number(p.skillCooldownUntil) || 0,
     shield: Math.max(0, Number(p.shield) || 0),
     ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
     charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(p.charm) ? p.charm : "none",
@@ -4437,7 +4439,7 @@ function publicPlayer(p, includeSkin = false) {
   };
 }
 
-function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ultimateType, team, matchId, isBot, botSpawnIndex = 0, mode = AREA_MODE, role = null }, spawn) {
+function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, skillType, ultimateType, team, matchId, isBot, botSpawnIndex = 0, mode = AREA_MODE, role = null }, spawn) {
   const now = Date.now();
   const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
@@ -4472,6 +4474,8 @@ function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, ulti
     ultimateAnchor: null,
     skyfallImpactPending: false,
     charm: safeCharm,
+    skillType: !isBot && ["blink", "flash"].includes(skillType) ? skillType : "blink",
+    skillCooldownUntil: 0,
     kills: 0,
     deaths: 0,
     weapon,
@@ -4535,6 +4539,7 @@ function tryJoinExistingAreaMatch(socket, entry) {
       weapon: entry.weapon,
       secondaryWeapon: entry.secondaryWeapon,
       charm: entry.charm,
+      skillType: entry.skillType,
       ultimateType: entry.ultimateType,
       team: bot.team,
       matchId: match.id,
@@ -4581,6 +4586,7 @@ function queueAreaPlayer(socket, data = {}) {
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
     charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(data.charm) ? data.charm : "none",
+    skillType: ["blink", "flash"].includes(data.skillType) ? data.skillType : "blink",
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
   };
@@ -4694,6 +4700,7 @@ function startAreaMatch(fillWithBots) {
       weapon: entry.weapon,
       secondaryWeapon: entry.secondaryWeapon,
       charm: entry.charm,
+      skillType: entry.skillType,
       ultimateType: entry.ultimateType,
       team,
       matchId,
@@ -4863,11 +4870,11 @@ const PAYLOAD_BOT_NAMES=["Avery","Ethan","Mason","Logan","Eli","Mila","Aria","Le
 const PAYLOAD_ROUND_TIME_MS=480000,PAYLOAD_CAPTURE_RADIUS=9;
 function payloadQueueStatus(){const remainingMs=Math.max(0,AREA_QUEUE_DURATION_MS-(Date.now()-payloadQueueStartedAt));return{waiting:payloadQueue.length,required:6,remainingMs,secondsRemaining:Math.ceil(remainingMs/1000)};}
 function broadcastPayloadQueueStatus(){const status=payloadQueueStatus();for(const e of payloadQueue)io.to(e.socketId).emit("payloadQueueStatus",status);}
-function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,reconnectToken:typeof data.reconnectToken==="string"?data.reconnectToken.slice(0,128):"",name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate","body","slide","flight"].includes(data.charm)?data.charm:"none",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
-function tryJoinExistingPayloadMatch(socket,entry){for(const match of payloadMatches.values()){if(match.finished||match.playerIds.length>=6)continue;const counts={blue:0,red:0};for(const id of match.humanIds){const p=players.get(id);if(p?.team)counts[p.team]++;}const order=counts.blue===counts.red?["blue","red"]:[counts.blue<counts.red?"blue":"red"];let botId=null;for(const team of order){botId=match.playerIds.find(id=>{const p=players.get(id);return p?.isBot&&p.mode===PAYLOAD_MODE&&p.team===team;});if(botId)break;}if(!botId)continue;const bot=players.get(botId);const player=createPayloadPlayer({id:socket.id,name:entry.name,skin:entry.skin,weapon:entry.weapon,secondaryWeapon:entry.secondaryWeapon,charm:entry.charm,ultimateType:entry.ultimateType,team:bot.team,role:bot.role,matchId:match.id,isBot:false},[bot.x,bot.y,bot.z]);player.reconnectToken=entry.reconnectToken;players.delete(botId);match.playerIds[match.playerIds.indexOf(botId)]=socket.id;match.humanIds.push(socket.id);players.set(socket.id,player);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(player,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:player.team,role:player.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);return true;}return false;}
+function buildPayloadQueueEntry(socket,data={}){const weapon=sanitizeWeapon(data.weapon);let secondaryWeapon=sanitizeWeapon(data.secondaryWeapon);if(secondaryWeapon===weapon)secondaryWeapon=weapon==="rifle"?"shotgun":"rifle";return{socketId:socket.id,reconnectToken:typeof data.reconnectToken==="string"?data.reconnectToken.slice(0,128):"",name:sanitizeName(data.name),skin:sanitizeSkin(data.skin),weapon,secondaryWeapon,charm:["hp","speed","reload","jump","floor","aim","ultimate","body","slide","flight"].includes(data.charm)?data.charm:"none",skillType:["blink","flash"].includes(data.skillType)?data.skillType:"blink",ultimateType:["skyfall","teleport","aegis"].includes(data.ultimateType)?data.ultimateType:"skyfall",queuedAt:Date.now()};}
+function tryJoinExistingPayloadMatch(socket,entry){for(const match of payloadMatches.values()){if(match.finished||match.playerIds.length>=6)continue;const counts={blue:0,red:0};for(const id of match.humanIds){const p=players.get(id);if(p?.team)counts[p.team]++;}const order=counts.blue===counts.red?["blue","red"]:[counts.blue<counts.red?"blue":"red"];let botId=null;for(const team of order){botId=match.playerIds.find(id=>{const p=players.get(id);return p?.isBot&&p.mode===PAYLOAD_MODE&&p.team===team;});if(botId)break;}if(!botId)continue;const bot=players.get(botId);const player=createPayloadPlayer({id:socket.id,name:entry.name,skin:entry.skin,weapon:entry.weapon,secondaryWeapon:entry.secondaryWeapon,charm:entry.charm,skillType:entry.skillType,ultimateType:entry.ultimateType,team:bot.team,role:bot.role,matchId:match.id,isBot:false},[bot.x,bot.y,bot.z]);player.reconnectToken=entry.reconnectToken;players.delete(botId);match.playerIds[match.playerIds.indexOf(botId)]=socket.id;match.humanIds.push(socket.id);players.set(socket.id,player);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(player,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:player.team,role:player.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);return true;}return false;}
 function queuePayloadPlayer(socket,data={}){if(players.has(socket.id)){socket.emit("payloadQueueError",{message:"現在の対戦を終了してからモードを変更してください。"});return;}if(payloadQueue.some(e=>e.socketId===socket.id)){socket.emit("payloadQueueStatus",payloadQueueStatus());return;}const entry=buildPayloadQueueEntry(socket,data);if(entry.reconnectToken){const pending=pendingPayloadDisconnects.get(entry.reconnectToken);const oldPlayer=pending&&players.get(pending.playerId);const match=oldPlayer&&payloadMatches.get(oldPlayer.matchId);if(oldPlayer&&match&&!match.finished&&oldPlayer.mode===PAYLOAD_MODE&&oldPlayer.disconnectedAt&&Date.now()-oldPlayer.disconnectedAt<=PAYLOAD_RECONNECT_GRACE_MS){clearTimeout(pending.timer);pendingPayloadDisconnects.delete(entry.reconnectToken);players.delete(oldPlayer.id);oldPlayer.id=socket.id;oldPlayer.disconnectedAt=0;oldPlayer.reconnectToken=entry.reconnectToken;players.set(socket.id,oldPlayer);match.playerIds=match.playerIds.map(id=>id===pending.playerId?socket.id:id);match.humanIds=match.humanIds.map(id=>id===pending.playerId?socket.id:id);socket.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));socket.emit("joined",{player:publicPlayer(oldPlayer,true)});socket.emit("payloadMatchStarted",{matchId:match.id,team:oldPlayer.team,role:oldPlayer.role,botCount:match.playerIds.filter(id=>players.get(id)?.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 切断前の試合へ復帰:",match.id);return;}}if(tryJoinExistingPayloadMatch(socket,entry))return;if(!payloadQueue.length){payloadQueueStartedAt=Date.now();lastPayloadQueueSecond=null;}payloadQueue.push(entry);broadcastPayloadQueueStatus();if(payloadQueue.length>=6)startPayloadMatch(false);}
 function cancelPayloadQueue(socketId){const before=payloadQueue.length;payloadQueue=payloadQueue.filter(e=>e.socketId!==socketId);if(!payloadQueue.length){payloadQueueStartedAt=0;lastPayloadQueueSecond=null;}else broadcastPayloadQueueStatus();if(before!==payloadQueue.length)io.to(socketId).emit("payloadQueueCancelled");}
-function startPayloadMatch(fillWithBots){const waiting=payloadQueue.splice(0,6).filter(e=>io.sockets.sockets.has(e.socketId));payloadQueueStartedAt=0;lastPayloadQueueSecond=null;if(!waiting.length)return;const used=new Set(waiting.map(e=>e.name.toLowerCase())),names=PAYLOAD_BOT_NAMES.filter(n=>!used.has(n.toLowerCase()));for(let i=names.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const parts=waiting.map(e=>({...e,isBot:false}));while((fillWithBots||parts.length<6)&&parts.length<6)parts.push({socketId:null,name:names.shift()||("Payload BOT "+(parts.length+1)),skin:"",weapon:Math.random()<.65?"rifle":"marksman",secondaryWeapon:"shotgun",charm:"none",ultimateType:"skyfall",isBot:true});const counts={blue:0,red:0};for(const p of parts.filter(p=>!p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}for(const p of parts.filter(p=>p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}const attackingTeam=Math.random()<.5?"blue":"red",matchId="payload-"+Date.now()+"-"+(++payloadMatchSequence);const match={id:matchId,playerIds:[],humanIds:waiting.map(e=>e.socketId),attackingTeam,defendingTeam:attackingTeam==="blue"?"red":"blue",progress:0,checkpointIndex:0,startedAt:Date.now(),lastStateAt:0,finished:false,overtime:false,status:"playing"};payloadMatches.set(matchId,match);const indexes={blue:0,red:0};parts.forEach((e,i)=>{const role=e.team===attackingTeam?"attack":"defense",id=e.isBot?"bot:"+matchId+":"+i:e.socketId,spawn=getPayloadSpawnPoint({matchId,role},indexes[e.team]++),p=createPayloadPlayer({id,name:e.name,skin:e.skin,weapon:e.weapon,secondaryWeapon:e.secondaryWeapon,charm:e.charm,ultimateType:e.ultimateType,team:e.team,role,matchId,isBot:e.isBot,botSpawnIndex:indexes[e.team]-1},spawn);p.reconnectToken=e.reconnectToken||"";players.set(id,p);match.playerIds.push(id);if(!e.isBot){const c=io.sockets.sockets.get(e.socketId);if(c){c.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));c.emit("joined",{player:publicPlayer(p,true)});c.emit("payloadMatchStarted",{matchId,team:p.team,role:p.role,botCount:parts.filter(q=>q.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});}}});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 試合開始:",matchId);}
+function startPayloadMatch(fillWithBots){const waiting=payloadQueue.splice(0,6).filter(e=>io.sockets.sockets.has(e.socketId));payloadQueueStartedAt=0;lastPayloadQueueSecond=null;if(!waiting.length)return;const used=new Set(waiting.map(e=>e.name.toLowerCase())),names=PAYLOAD_BOT_NAMES.filter(n=>!used.has(n.toLowerCase()));for(let i=names.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[names[i],names[j]]=[names[j],names[i]];}const parts=waiting.map(e=>({...e,isBot:false}));while((fillWithBots||parts.length<6)&&parts.length<6)parts.push({socketId:null,name:names.shift()||("Payload BOT "+(parts.length+1)),skin:"",weapon:Math.random()<.65?"rifle":"marksman",secondaryWeapon:"shotgun",charm:"none",skillType:"blink",ultimateType:"skyfall",isBot:true});const counts={blue:0,red:0};for(const p of parts.filter(p=>!p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}for(const p of parts.filter(p=>p.isBot)){const t=counts.blue===counts.red?(Math.random()<.5?"blue":"red"):counts.blue<counts.red?"blue":"red";p.team=t;counts[t]++;}const attackingTeam=Math.random()<.5?"blue":"red",matchId="payload-"+Date.now()+"-"+(++payloadMatchSequence);const match={id:matchId,playerIds:[],humanIds:waiting.map(e=>e.socketId),attackingTeam,defendingTeam:attackingTeam==="blue"?"red":"blue",progress:0,checkpointIndex:0,startedAt:Date.now(),lastStateAt:0,finished:false,overtime:false,status:"playing"};payloadMatches.set(matchId,match);const indexes={blue:0,red:0};parts.forEach((e,i)=>{const role=e.team===attackingTeam?"attack":"defense",id=e.isBot?"bot:"+matchId+":"+i:e.socketId,spawn=getPayloadSpawnPoint({matchId,role},indexes[e.team]++),p=createPayloadPlayer({id,name:e.name,skin:e.skin,weapon:e.weapon,secondaryWeapon:e.secondaryWeapon,charm:e.charm,skillType:e.skillType,ultimateType:e.ultimateType,team:e.team,role,matchId,isBot:e.isBot,botSpawnIndex:indexes[e.team]-1},spawn);p.reconnectToken=e.reconnectToken||"";players.set(id,p);match.playerIds.push(id);if(!e.isBot){const c=io.sockets.sockets.get(e.socketId);if(c){c.emit("world",getWorldPayloadForMap(payloadMap,PAYLOAD_MODE));c.emit("joined",{player:publicPlayer(p,true)});c.emit("payloadMatchStarted",{matchId,team:p.team,role:p.role,botCount:parts.filter(q=>q.isBot).length,map:getMapInfo(payloadMap,PAYLOAD_MODE)});}}});broadcastPlayers();sendPayloadMatchState(match,true);console.log("[Payload] 試合開始:",matchId);}
 function sendPayloadMatchState(match,force=false){if(!match||match.finished)return;const now=Date.now();if(!force&&now-match.lastStateAt<150)return;match.lastStateAt=now;const cart=getPayloadPointAtDistance(match.progress),near=match.playerIds.map(id=>players.get(id)).filter(p=>p&&p.health>0&&!p.finished&&!p.disconnectedAt&&Math.hypot(p.x-cart.x,p.z-cart.z)<=PAYLOAD_CAPTURE_RADIUS),attackers=near.filter(p=>p.team===match.attackingTeam).length,defenders=near.filter(p=>p.team===match.defendingTeam).length,total=getPayloadTrackLength();const state={matchId:match.id,progress:total?Math.min(100,match.progress/total*100):0,distance:match.progress,totalDistance:total,cart,attackingTeam:match.attackingTeam,defendingTeam:match.defendingTeam,attackers,defenders,timeRemainingMs:Math.max(0,PAYLOAD_ROUND_TIME_MS-(now-match.startedAt)),overtime:match.overtime,checkpointIndex:match.checkpointIndex,status:attackers&&defenders?"contested":attackers?"pushing":"stalled"};for(const id of match.humanIds)io.to(id).emit("payloadState",state);}
 function finishPayloadMatch(match,winnerTeam){if(!match||match.finished)return;match.finished=true;const winnerRole=winnerTeam===match.attackingTeam?"attack":"defense";for(const id of match.playerIds){const p=players.get(id);if(p){p.finished=true;p.input={forward:0,strafe:0,crouch:false};p.jumpQueuedUntil=0;p.respawnAt=0;}}for(const id of match.humanIds){const p=players.get(id);if(p)io.to(id).emit("payloadMatchEnd",{matchId:match.id,won:p.role===winnerRole,team:p.team,role:p.role,winnerRole,progress:Math.min(100,match.progress/getPayloadTrackLength()*100),kills:p.kills,deaths:p.deaths});}broadcastPlayers();}
 function updatePayloadMatches(dt, now) {
@@ -5410,11 +5417,16 @@ io.on("connection", (socket) => {
       dx /= len; dz /= len;
       let dest = null;
       const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT, map = getMapForPlayer(p);
-      for (let d = 7; d >= 1; d -= 0.5) {
+      for (let d = 6; d >= 0.75; d -= 0.25) {
         const x = p.x + dx * d, z = p.z + dz * d;
         if (x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS || z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) continue;
         const y = getGroundHeight(x, z, p.y, p);
         if (!collides(x, z, y, height, p)) { dest = { x, y, z }; break; }
+      }
+      if (!dest) {
+        const x = p.x + dx * 0.75, z = p.z + dz * 0.75;
+        const y = getGroundHeight(x, z, p.y, p);
+        if (Number.isFinite(y) && !collides(x, z, y, height, p)) dest = { x, y, z };
       }
       if (!dest) { reply({ ok: false, message: "前方にブリンクできる場所がありません。" }); return; }
       p.x = dest.x; p.y = dest.y; p.z = dest.z; p.velocityY = 0; p.grounded = true;
@@ -5426,6 +5438,12 @@ io.on("connection", (socket) => {
       const wall = rayHitsObstacle(origin, dir, 10, p);
       const d = Math.max(0.5, Math.min(10, wall == null ? 10 : wall - 0.25));
       const center = { x: origin.x + dir.x*d, y: origin.y + dir.y*d, z: origin.z + dir.z*d };
+      for (const client of io.sockets.sockets.values()) {
+        const viewer = players.get(client.id);
+        if (viewer && viewer.matchId === p.matchId && viewer.mode === p.mode) {
+          client.emit("skillFlash", { start: origin, end: center, durationMs: 350 });
+        }
+      }
       for (const target of gamePlayersFor(p)) {
         if (!target || target.health <= 0 || target.finished) continue;
         if (Math.hypot(target.x-center.x,target.z-center.z) <= 5 && Math.abs((target.y+PLAYER_HEIGHT*.5)-center.y) <= 5) {
