@@ -2055,3 +2055,19 @@ body.controller-mode #settingsButton {
   }
 }
 
+
+
+/* Skill button and flash blindness */
+#skillButton {
+  position: absolute; display: grid; place-items: center; border-radius: 50%;
+  pointer-events: auto; z-index: 18; border: 3px solid rgba(255,255,255,.78);
+  color: #fff; font-weight: 950; font-size: 13px; letter-spacing: .03em;
+  background: radial-gradient(circle, rgba(35,24,48,.97) 58%, transparent 60%),
+    conic-gradient(#d58bff var(--skill-progress, 0%), rgba(255,255,255,.18) 0);
+  box-shadow: 0 3px 14px rgba(0,0,0,.45); touch-action: none;
+  user-select: none; -webkit-user-select: none;
+}
+#skillButton:disabled { opacity: .68; filter: saturate(.55); }
+#skillButton:not(:disabled) { border-color: #e0a7ff; box-shadow: 0 0 16px rgba(190,110,255,.48); }
+#flashBlindOverlay { position: fixed; inset: 0; z-index: 10020; pointer-events: none; background: #fff; opacity: 0; transition: opacity .22s ease; }
+#flashBlindOverlay.active { opacity: .16; }
