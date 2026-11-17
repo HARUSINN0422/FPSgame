@@ -2066,10 +2066,11 @@ body.controller-mode #settingsButton {
   color: #fff; font-weight: 950; font-size: 13px; letter-spacing: .03em;
   background: radial-gradient(circle, rgba(35,24,48,.97) 58%, transparent 60%),
     conic-gradient(#d58bff var(--skill-progress, 0%), rgba(255,255,255,.18) 0);
-  box-shadow: 0 3px 14px rgba(0,0,0,.45); touch-action: none;
+  box-shadow: 0 3px 14px rgba(0,0,0,.45); touch-action: manipulation; z-index: 30;
   user-select: none; -webkit-user-select: none;
 }
-#skillButton:disabled { opacity: .68; filter: saturate(.55); }
+#skillButton:disabled { opacity: .48; filter: saturate(.55); pointer-events: none; }
+#skillButton:not(:disabled) { pointer-events: auto !important; }
 #skillButton.layout-editing-target { pointer-events: auto !important; touch-action: none !important; cursor: move !important; outline: 2px dashed rgba(190,130,255,.95); outline-offset: 4px; }
 #skillButton.layout-dragging { filter: brightness(1.35); outline-style: solid; }
 #skillButton:not(:disabled) { border-color: #e0a7ff; box-shadow: 0 0 16px rgba(190,110,255,.48); }
