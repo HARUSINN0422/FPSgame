@@ -5325,15 +5325,18 @@ socket.on("skillBlinded", ({ durationMs = 2500 } = {}) => {
   const overlay = document.getElementById("flashBlindOverlay");
   if (!overlay) return;
   overlay.classList.add("active");
-  const oldFar = camera.far, oldFogFar = scene.fog?.far;
+  const oldFar = camera.far, oldFogFar = scene.fog?.far, oldFogNear = scene.fog?.near;
   camera.far = Math.min(oldFar, 3);
   camera.updateProjectionMatrix();
-  if (scene.fog) scene.fog.far = 3;
+  if (scene.fog) { scene.fog.near = 0.1; scene.fog.far = 3; }
   setTimeout(() => {
     overlay.classList.remove("active");
     camera.far = oldFar;
     camera.updateProjectionMatrix();
-    if (scene.fog && oldFogFar != null) scene.fog.far = oldFogFar;
+    if (scene.fog) {
+      if (oldFogFar != null) scene.fog.far = oldFogFar;
+      if (oldFogNear != null) scene.fog.near = oldFogNear;
+    }
   }, Math.max(500, Math.min(6000, Number(durationMs) || 2500)));
 });
 document.querySelectorAll(".skill-card").forEach(card => card.addEventListener("click", () => {
