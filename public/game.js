@@ -4866,6 +4866,9 @@ socket.on("joined", ({ player }) => {
   wasJoinedBeforeDisconnect = true;
   reconnecting = false;
   selectedGameMode = player.mode || "Melee";
+  selectedSkill = ["blink", "flash"].includes(player.skillType) ? player.skillType : selectedSkill;
+  skillCooldownEndsAt = Number(player.skillCooldownUntil) > Date.now() ? Number(player.skillCooldownUntil) : 0;
+  updateSkillButtonCooldown();
   areaResultOpen = false;
   playerName = player.name || playerName;
   setCookie("fps_player_name", playerName);
@@ -5311,15 +5314,42 @@ function updateSkillButtonCooldown() {
   skillButton.setAttribute("aria-label", remaining > 0 ? "スキル クールタイム残り " + (remaining / 1000).toFixed(1) + " 秒" : "スキル " + (selectedSkill === "flash" ? "フラッシュ" : "ブリンク"));
 }
 setInterval(updateSkillButtonCooldown, 50);
-skillButton?.addEventListener("click", event => {
+function activateSelectedSkill(event) {
   event.preventDefault();
   event.stopPropagation();
-  if (layoutEditing || !joined || skillCooldownEndsAt > Date.now() || myState?.health <= 0) return;
+  if (layoutEditing || !joined || skillCooldownEndsAt > Date.now() || Number(myState?.health) <= 0) return;
+  if (skillButton) skillButton.disabled = true;
   socket.emit("skill", {}, result => {
-    if (!result?.ok) { if (result?.message) showMessage(result.message); return; }
+    if (!result?.ok) {
+      if (result?.message) showMessage(result.message);
+      updateSkillButtonCooldown();
+      return;
+    }
     skillCooldownEndsAt = Number(result.cooldownUntil) || Date.now() + SKILL_COOLDOWN_MS;
     updateSkillButtonCooldown();
   });
+}
+skillButton?.addEventListener("pointerdown", activateSelectedSkill);
+skillButton?.addEventListener("click", event => {
+  // キーボード操作にも対応。ポインター操作はpointerdown側で処理する。
+  if (event.detail === 0) activateSelectedSkill(event);
+});
+socket.on("skillFlash", ({ start, end, durationMs = 350 } = {}) => {
+  if (!start || !end) return;
+  const material = new THREE.MeshBasicMaterial({ color: 0xffffff, emissive: 0xffffff });
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), material);
+  orb.position.set(start.x, start.y, start.z);
+  scene.add(orb);
+  const began = performance.now();
+  const duration = Math.max(100, Number(durationMs) || 350);
+  const animate = now => {
+    const t = Math.min(1, (now - began) / duration);
+    orb.position.set(start.x + (end.x - start.x) * t, start.y + (end.y - start.y) * t, start.z + (end.z - start.z) * t);
+    orb.scale.setScalar(1 + Math.sin(t * Math.PI) * 0.8);
+    if (t < 1) requestAnimationFrame(animate);
+    else { scene.remove(orb); orb.geometry.dispose(); material.dispose(); }
+  };
+  requestAnimationFrame(animate);
 });
 socket.on("skillBlinded", ({ durationMs = 2500 } = {}) => {
   const overlay = document.getElementById("flashBlindOverlay");
