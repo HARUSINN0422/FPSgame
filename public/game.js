@@ -332,6 +332,13 @@ const DEFAULT_SETTINGS = {
 };
 
 let gameSettings = loadGameSettings();
+// 旧版の初期位置（リロードボタン付近）を使っている場合だけ、新しい配置へ移行する。
+if (gameSettings.layout.skillButton?.side === "right" &&
+    Number(gameSettings.layout.skillButton.x) === 14 &&
+    Number(gameSettings.layout.skillButton.y) === 165) {
+  gameSettings.layout.skillButton = { x: 18, y: 270, side: "right", size: 64 };
+  saveGameSettings();
+}
 function getScopeSensitivityMultiplier() {
   const sniperAiming = selectedWeapon === "sniper" && scopeEnabled;
   const bowAiming = selectedWeapon === "bow" && bowChargeStartedAt > 0 &&
