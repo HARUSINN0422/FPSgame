@@ -5111,13 +5111,10 @@ socket.on("connect", () => {
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       charm: selectedCharm,
-    skillType: selectedSkill,
-    ultimateType: selectedUltimate,
+      skillType: selectedSkill,
+      ultimateType: selectedUltimate,
       skin: window.getPlayerSkinData?.(),
       reconnectToken: payloadReconnectToken,
-      charm: selectedCharm,
-    skillType: selectedSkill,
-    ultimateType: selectedUltimate,
       mode: selectedGameMode === "Build" ? "Build" : selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
@@ -5590,7 +5587,6 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
-    skillType: selectedSkill,
     skillType: selectedSkill,
     ultimateType: selectedUltimate,
     skin: window.getPlayerSkinData?.()
