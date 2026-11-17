@@ -317,7 +317,7 @@ const DEFAULT_SETTINGS = {
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
     inventoryButton: { x: 310, y: 230, side: "right", size: 88 },
-    skillButton: { x: 18, y: 270, side: "right", size: 64 },
+    skillButton: { x: 18, y: 360, side: "right", size: 64 },
     ultimateButton: { x: 310, y: 320, side: "right", size: 76 },
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
@@ -335,8 +335,9 @@ let gameSettings = loadGameSettings();
 // 旧版の初期位置（リロードボタン付近）を使っている場合だけ、新しい配置へ移行する。
 if (gameSettings.layout.skillButton?.side === "right" &&
     Number(gameSettings.layout.skillButton.x) === 14 &&
-    Number(gameSettings.layout.skillButton.y) === 165) {
-  gameSettings.layout.skillButton = { x: 18, y: 270, side: "right", size: 64 };
+    Number(gameSettings.layout.skillButton.y) === 165 ||
+    (gameSettings.layout.skillButton?.side === "right" && Number(gameSettings.layout.skillButton.x) === 18 && Number(gameSettings.layout.skillButton.y) === 270)) {
+  gameSettings.layout.skillButton = { x: 18, y: 360, side: "right", size: 64 };
   saveGameSettings();
 }
 function getScopeSensitivityMultiplier() {
@@ -5110,11 +5111,13 @@ socket.on("connect", () => {
       weapon: weaponSlots[0] || selectedWeapon,
       secondaryWeapon: weaponSlots[1] || selectedSecondaryWeapon,
       charm: selectedCharm,
-      ultimateType: selectedUltimate,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate,
       skin: window.getPlayerSkinData?.(),
       reconnectToken: payloadReconnectToken,
       charm: selectedCharm,
-      ultimateType: selectedUltimate,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate,
       mode: selectedGameMode === "Build" ? "Build" : selectedGameMode === "Training" ? "Training" : selectedGameMode === "Duel" ? "Duel" : "free-for-all",
       ...(selectedGameMode === "Duel" && duelSelectedRoomId ? { duelRoomId: duelSelectedRoomId } : {})
     };
@@ -5297,6 +5300,45 @@ document.querySelectorAll("[data-loadout-slot]").forEach(button => button.addEve
   loadoutSlotToEdit = slot >= 0 && slot <= 4 ? slot : 0;
   updateLoadoutSelectionUi();
 }));
+let skillCooldownEndsAt = 0;
+const SKILL_COOLDOWN_MS = 7000;
+const skillButton = document.getElementById("skillButton");
+function updateSkillButtonCooldown() {
+  if (!skillButton) return;
+  const remaining = Math.max(0, skillCooldownEndsAt - Date.now());
+  const progress = remaining > 0 ? 1 - remaining / SKILL_COOLDOWN_MS : 1;
+  skillButton.style.setProperty("--skill-progress", (progress * 100).toFixed(1) + "%");
+  skillButton.style.opacity = remaining > 0 ? "0.48" : "1";
+  skillButton.disabled = !joined || remaining > 0 || myState?.health <= 0;
+  skillButton.textContent = remaining > 0 ? (remaining / 1000).toFixed(1) + "s" : (selectedSkill === "flash" ? "FLASH" : "BLINK");
+  skillButton.setAttribute("aria-label", remaining > 0 ? "スキル クールタイム残り " + (remaining / 1000).toFixed(1) + " 秒" : "スキル " + (selectedSkill === "flash" ? "フラッシュ" : "ブリンク"));
+}
+setInterval(updateSkillButtonCooldown, 50);
+skillButton?.addEventListener("click", event => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (layoutEditing || !joined || skillCooldownEndsAt > Date.now() || myState?.health <= 0) return;
+  socket.emit("skill", {}, result => {
+    if (!result?.ok) { if (result?.message) showMessage(result.message); return; }
+    skillCooldownEndsAt = Number(result.cooldownUntil) || Date.now() + SKILL_COOLDOWN_MS;
+    updateSkillButtonCooldown();
+  });
+});
+socket.on("skillBlinded", ({ durationMs = 2500 } = {}) => {
+  const overlay = document.getElementById("flashBlindOverlay");
+  if (!overlay) return;
+  overlay.classList.add("active");
+  const oldFar = camera.far, oldFogFar = scene.fog?.far;
+  camera.far = Math.min(oldFar, 3);
+  camera.updateProjectionMatrix();
+  if (scene.fog) scene.fog.far = 3;
+  setTimeout(() => {
+    overlay.classList.remove("active");
+    camera.far = oldFar;
+    camera.updateProjectionMatrix();
+    if (scene.fog && oldFogFar != null) scene.fog.far = oldFogFar;
+  }, Math.max(500, Math.min(6000, Number(durationMs) || 2500)));
+});
 document.querySelectorAll(".skill-card").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
   selectedSkill = ["blink", "flash"].includes(card.dataset.skill) ? card.dataset.skill : "blink";
@@ -5390,7 +5432,8 @@ function startWanderOnMap(map) {
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
-      ultimateType: selectedUltimate,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate,
     mode: "Wander",
     mapId: map.id,
     botEnabled: wanderBotsEnabled,
@@ -5426,7 +5469,8 @@ document.getElementById("shootingRangeModeButton")?.addEventListener("click", ()
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
-      ultimateType: selectedUltimate,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate,
     mode: "Training",
     skin: window.getPlayerSkinData?.()
   });
@@ -5447,7 +5491,8 @@ document.getElementById("freeForAllModeButton")?.addEventListener("click", () =>
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
-      ultimateType: selectedUltimate,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate,
     mode: "free-for-all",
     skin: window.getPlayerSkinData?.()
   });
@@ -5480,7 +5525,7 @@ socket.on("duel:maps",(maps=[])=>{if(!duelMapSelect)return;const old=duelMapSele
 socket.on("duel:rooms",renderDuelRooms);
 socket.on("duel:roomCreated",({room}={})=>{duelSelectedRoomId=room?.id||null;duelCurrentFirstTo=room?.firstTo||3;showDuelScreen(duelWaitScreen);const el=document.getElementById("duelWaitSummary");if(el&&room)el.textContent=(room.mapName||room.mapId)+" ・ "+room.firstTo+"本先取。参加者が入室するまで待機しています。";});
 socket.on("duel:error",({message}={})=>{const el=document.getElementById("duelRulesStatus");if(el)el.textContent=message||"部屋の処理に失敗しました。";if(duelRulesScreen?.classList.contains("hidden")){showDuelScreen(duelRoomScreen);if(duelRoomList){const p=document.createElement("p");p.textContent=message||"部屋の処理に失敗しました。";duelRoomList.prepend(p);}}});
-socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,ultimateType:selectedUltimate,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
+socket.on("duel:matchReady",({roomId,firstTo}={})=>{duelSelectedRoomId=roomId;duelCurrentFirstTo=firstTo||3;selectedGameMode="Duel";selectedWeapon=selectedPrimaryWeapon;weaponSlots=[selectedPrimaryWeapon,selectedSecondaryWeapon];showDuelScreen(null);socket.emit("join",{name:savePlayerName(),weapon:selectedPrimaryWeapon,secondaryWeapon:selectedSecondaryWeapon,charm:selectedCharm,skillType:selectedSkill,ultimateType:selectedUltimate,mode:"Duel",duelRoomId:roomId,skin:window.getPlayerSkinData?.()});});
 function updateDuelScore(data={}){duelCurrentFirstTo=data.firstTo||duelCurrentFirstTo;const my=document.getElementById("duelMyScore"),op=document.getElementById("duelOpponentScore"),name=document.getElementById("duelOpponentName"),label=document.getElementById("duelRoundLabel");if(my)my.textContent=String(data.myScore??0);if(op)op.textContent=String(data.opponentScore??0);if(name)name.textContent=data.opponentName||"対戦相手";if(label)label.textContent="先取 "+duelCurrentFirstTo+" 本";}
 socket.on("duel:score",data=>{updateDuelScore(data);showMessage("ラウンド取得！");});
 socket.on("duel:matchEnd",data=>{updateDuelScore(data);document.getElementById("duelResultMyScore").textContent=String(data.myScore??0);document.getElementById("duelResultOpponentScore").textContent=String(data.opponentScore??0);document.getElementById("duelResultTitle").textContent=data.winnerId===myId?"勝利":"敗北";document.getElementById("duelResultSummary").textContent=(data.opponentName||"対戦相手")+" とのタイマンが終了しました。";document.getElementById("duelRematchStatus").textContent="";document.getElementById("duelRematchReadyButton").classList.add("hidden");document.getElementById("duelResultScreen").classList.remove("hidden");});
@@ -5518,6 +5563,7 @@ document.getElementById("buildModeButton")?.addEventListener("click", () => {
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
+    skillType: selectedSkill,
     ultimateType: selectedUltimate,
     mode: "Build",
     skin: window.getPlayerSkinData?.()
@@ -5544,7 +5590,9 @@ document.getElementById("areaModeButton")?.addEventListener("click",()=>{
     weapon: selectedPrimaryWeapon,
     secondaryWeapon: selectedSecondaryWeapon,
     charm: selectedCharm,
-      ultimateType: selectedUltimate,
+    skillType: selectedSkill,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate,
     skin: window.getPlayerSkinData?.()
   });
 });
@@ -5563,9 +5611,12 @@ document.getElementById("payloadModeButton")?.addEventListener("click", () => {
   if (payloadQueueTimeText) payloadQueueTimeText.textContent = "20秒";
   if (payloadQueueProgressFill) payloadQueueProgressFill.style.width = "0%";
   payloadQueuePanel?.classList.remove("hidden");
-  socket.emit("joinPayloadQueue", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, charm: selectedCharm, ultimateType: selectedUltimate, skin: window.getPlayerSkinData?.(), reconnectToken: payloadReconnectToken });
+  socket.emit("joinPayloadQueue", { name, weapon: selectedPrimaryWeapon, secondaryWeapon: selectedSecondaryWeapon, charm: selectedCharm,
+    skillType: selectedSkill,
+    ultimateType: selectedUltimate, skin: window.getPlayerSkinData?.(), reconnectToken: payloadReconnectToken });
 });
 updateLoadoutSelectionUi();
+updateSkillButtonCooldown();
 
 const fullscreenButton = document.getElementById("fullscreenButton");
 function getFullscreenElement() {
