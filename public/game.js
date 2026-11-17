@@ -317,7 +317,7 @@ const DEFAULT_SETTINGS = {
     fireButton: { x: 14, y: 18, side: "right", size: 100 },
     switchWeaponButton: { x: 310, y: 140, side: "right", size: 76 },
     inventoryButton: { x: 310, y: 230, side: "right", size: 88 },
-    skillButton: { x: 14, y: 165, side: "right", size: 72 },
+    skillButton: { x: 18, y: 270, side: "right", size: 64 },
     ultimateButton: { x: 310, y: 320, side: "right", size: 76 },
     scopeButton: { x: 220, y: 220, side: "right", size: 68 },
     minimap: { x: 0, y: 0 },
@@ -476,6 +476,48 @@ function applyButtonLayout() {
     knob.style.height = size + "px";
   }
 }
+
+// UI配置編集：ボタンをドラッグして位置を保存する。
+function installLayoutDragHandlers() {
+  const ids = ["jumpButton", "crouchButton", "reloadTouchButton", "switchWeaponButton", "inventoryButton", "skillButton", "ultimateButton", "scopeButton", "fireButton"];
+  const active = new Map(ids.map(id => [id, gameSettings.layout[id] || null]));
+  let drag = null;
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    const cfg = active.get(id);
+    if (!el || !cfg) continue;
+    el.addEventListener("pointerdown", event => {
+      if (!layoutEditing || (event.pointerType === "mouse" && event.button !== 0)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      drag = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+        startLeft: el.getBoundingClientRect().left, startTop: el.getBoundingClientRect().top };
+      el.classList.add("layout-dragging");
+    });
+  }
+  document.addEventListener("pointermove", event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const el = document.getElementById(drag.id);
+    const cfg = gameSettings.layout[drag.id];
+    if (!el || !cfg) return;
+    const rect = el.getBoundingClientRect();
+    const left = THREE.MathUtils.clamp(drag.startLeft + event.clientX - drag.startX, 0, innerWidth - rect.width);
+    const top = THREE.MathUtils.clamp(drag.startTop + event.clientY - drag.startY, 0, innerHeight - rect.height);
+    cfg.side = left + rect.width / 2 < innerWidth / 2 ? "left" : "right";
+    cfg.x = Math.round(cfg.side === "left" ? left : innerWidth - left - rect.width);
+    cfg.y = Math.round(innerHeight - top - rect.height);
+    applyButtonLayout();
+  }, { passive: false });
+  const finish = event => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    document.getElementById(drag.id)?.classList.remove("layout-dragging");
+    drag = null;
+    saveGameSettings();
+  };
+  document.addEventListener("pointerup", finish);
+  document.addEventListener("pointercancel", finish);
+}
+installLayoutDragHandlers();
 
 function updateSettingsUi() {
   const sensitivityControls = [
