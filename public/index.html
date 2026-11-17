@@ -147,6 +147,11 @@
             <input id="switchWeaponButtonSizeSlider" type="range" min="60" max="180" step="5" value="76">
           </div>
           <div class="setting-section">
+            <strong>スキルボタンのサイズ</strong>
+            <span class="setting-value"><strong id="skillButtonSizeValue">72px</strong></span>
+            <input id="skillButtonSizeSlider" type="range" min="48" max="160" step="4" value="72">
+          </div>
+          <div class="setting-section">
             <strong>アルティメットボタンのサイズ</strong>
             <span class="setting-value"><strong id="ultimateButtonSizeValue">76px</strong></span>
             <input id="ultimateButtonSizeSlider" type="range" min="48" max="160" step="4" value="76">
@@ -276,10 +281,15 @@
       <div class="loadout-slot-picker">
         <button type="button" class="loadout-slot active" data-loadout-slot="0">1個目の武器</button>
         <button type="button" class="loadout-slot" data-loadout-slot="1">2個目の武器</button>
-        <button type="button" class="loadout-slot" data-loadout-slot="2">お守り</button>
-        <button type="button" class="loadout-slot" data-loadout-slot="3">アルティメット</button>
+        <button type="button" class="loadout-slot" data-loadout-slot="2">スキル</button>
+        <button type="button" class="loadout-slot" data-loadout-slot="3">お守り</button>
+        <button type="button" class="loadout-slot" data-loadout-slot="4">アルティメット</button>
       </div>
       <div id="loadoutSelectionStatus" class="loadout-selection-status">1個目：ハンドガン ／ 2個目：ライフル ／ お守り：未選択</div>
+      <div id="skillGrid" class="charm-grid hidden">
+        <button type="button" class="charm-card skill-card" data-skill="blink"><strong>ブリンク</strong><span>移動方向へ瞬間移動。移動していない場合は視点方向へ移動する。クールタイム7秒。</span></button>
+        <button type="button" class="charm-card skill-card" data-skill="flash"><strong>フラッシュ</strong><span>視点方向へ直進するフラッシュボールを投げる。最大10m、半径5mのプレイヤーを3秒間フラッシュ状態にする。</span></button>
+      </div>
       <div id="charmGrid" class="charm-grid hidden">
         <button type="button" class="charm-card" data-charm="hp"><strong>HPのお守り</strong><span>最大HPが20増加（最大120）</span></button>
         <button type="button" class="charm-card" data-charm="speed"><strong>移動速度のお守り</strong><span>移動速度が1.8倍</span></button>
@@ -497,7 +507,8 @@
     <button id="fullscreenButton" type="button" aria-label="全画面">全画面</button>
     <div id="damageNumbers" aria-hidden="true"></div>
     <div id="hitFlash" aria-hidden="true"></div>
-    <div id="killLog" aria-label="キルログ"></div>
+    <div id="flashBlindOverlay" aria-hidden="true"></div>
+  <div id="killLog" aria-label="キルログ"></div>
     <div id="message"></div>
     <div id="respawnPanel" class="hidden">
       <div id="respawnText">リスポーンまで 5秒</div>
@@ -516,6 +527,7 @@
     <button id="switchWeaponButton" aria-label="武器切替">武器切替
 1/2</button>
     <button id="inventoryButton" aria-label="インベントリーを開く">インベントリー</button>
+    <button id="skillButton" type="button" aria-label="スキル" disabled>SKILL</button>
     <button id="ultimateButton" type="button" aria-label="アルティメット 0%" disabled>ULT</button>
     <button id="scopeButton" class="hidden" aria-label="スコープを覗く">スコープ
 覗く</button>
