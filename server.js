@@ -5449,16 +5449,26 @@ io.on("connection", (socket) => {
       const wall = rayHitsObstacle(origin, dir, 10, p);
       const d = Math.max(0.5, Math.min(10, wall == null ? 10 : wall - 0.25));
       const center = { x: origin.x + dir.x*d, y: origin.y + dir.y*d, z: origin.z + dir.z*d };
+
+      // 発射されたフラッシュ弾を同じ試合の全クライアントへ通知する。
+      // 短すぎて視認できない問題を避け、弾の移動を650ms表示する。
       for (const client of io.sockets.sockets.values()) {
         const viewer = players.get(client.id);
         if (viewer && viewer.matchId === p.matchId && viewer.mode === p.mode) {
-          client.emit("skillFlash", { start: origin, end: center, durationMs: 350 });
+          client.emit("skillFlash", { start: origin, end: center, durationMs: 650 });
         }
       }
+
+      // 着弾地点を中心とした半径5mの球体範囲。発動者自身も対象に含める。
       for (const target of gamePlayersFor(p)) {
         if (!target || target.health <= 0 || target.finished) continue;
-        if (Math.hypot(target.x-center.x,target.z-center.z) <= 5 && Math.abs((target.y+PLAYER_HEIGHT*.5)-center.y) <= 5) {
-          if (!target.isBot) io.to(target.id).emit("skillBlinded", { durationMs: 2500 });
+        const distance = Math.hypot(
+          target.x - center.x,
+          (target.y + PLAYER_HEIGHT * 0.5) - center.y,
+          target.z - center.z
+        );
+        if (distance <= 5 && !target.isBot) {
+          io.to(target.id).emit("skillBlinded", { durationMs: 5000 });
         }
       }
     }
