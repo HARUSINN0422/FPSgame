@@ -5462,13 +5462,12 @@ io.on("connection", (socket) => {
       // 着弾地点を中心とした半径5mの球体範囲。発動者自身も対象に含める。
       for (const target of gamePlayersFor(p)) {
         if (!target || target.health <= 0 || target.finished) continue;
-        const distance = Math.hypot(
-          target.x - center.x,
-          (target.y + PLAYER_HEIGHT * 0.5) - center.y,
-          target.z - center.z
-        );
+        // 着弾地点から水平半径5m以内を範囲とする。
+        // プレイヤーのY座標は接地・しゃがみ・段差で変動するため、
+        // 高さ差で範囲判定から漏れないよう水平距離で判定する。
+        const distance = Math.hypot(target.x - center.x, target.z - center.z);
         if (distance <= 5 && !target.isBot) {
-          io.to(target.id).emit("skillBlinded", { durationMs: 5000 });
+          io.to(target.id).emit("skillBlinded", { durationMs: 5000, radius: 3 });
         }
       }
     }
