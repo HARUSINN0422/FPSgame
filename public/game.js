@@ -5329,11 +5329,20 @@ function activateSelectedSkill(event) {
     updateSkillButtonCooldown();
   });
 }
-skillButton?.addEventListener("pointerdown", activateSelectedSkill);
-skillButton?.addEventListener("click", event => {
-  // キーボード操作にも対応。ポインター操作はpointerdown側で処理する。
-  if (event.detail === 0) activateSelectedSkill(event);
-});
+// スキルボタンの入力を捕捉し、タッチ操作が射撃ボタンやゲーム画面へ
+// 伝播して通常武器の発射を同時に起こさないようにする。
+skillButton?.addEventListener("pointerdown", event => {
+  event.preventDefault();
+  event.stopPropagation();
+  try { skillButton.setPointerCapture(event.pointerId); } catch (_) {}
+  activateSelectedSkill(event);
+}, { capture: true, passive: false });
+for (const eventName of ["pointerup", "pointercancel", "click"]) {
+  skillButton?.addEventListener(eventName, event => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, { capture: true, passive: false });
+}
 socket.on("skillFlash", ({ start, end, durationMs = 650 } = {}) => {
   if (!start || !end || !scene) return;
 
@@ -5389,23 +5398,55 @@ socket.on("skillFlash", ({ start, end, durationMs = 650 } = {}) => {
   };
   requestAnimationFrame(animate);
 });
-socket.on("skillBlinded", ({ durationMs = 5000 } = {}) => {
+let flashBlindUntil = 0;
+let flashBlindRestore = null;
+let flashBlindTimer = null;
+function applyFlashBlindVisuals() {
   const overlay = document.getElementById("flashBlindOverlay");
   if (!overlay) return;
   overlay.classList.add("active");
-  const oldFar = camera.far, oldFogFar = scene.fog?.far, oldFogNear = scene.fog?.near;
-  camera.far = Math.min(oldFar, 3);
+  camera.far = 3;
   camera.updateProjectionMatrix();
-  if (scene.fog) { scene.fog.near = 0.1; scene.fog.far = 3; }
-  setTimeout(() => {
-    overlay.classList.remove("active");
-    camera.far = oldFar;
+  if (scene.fog) {
+    scene.fog.near = 0.1;
+    scene.fog.far = 3;
+  }
+}
+function clearFlashBlindVisuals() {
+  const overlay = document.getElementById("flashBlindOverlay");
+  overlay?.classList.remove("active");
+  if (flashBlindRestore) {
+    camera.far = flashBlindRestore.cameraFar;
     camera.updateProjectionMatrix();
     if (scene.fog) {
-      if (oldFogFar != null) scene.fog.far = oldFogFar;
-      if (oldFogNear != null) scene.fog.near = oldFogNear;
+      scene.fog.near = flashBlindRestore.fogNear;
+      scene.fog.far = flashBlindRestore.fogFar;
     }
-  }, Math.max(500, Math.min(6000, Number(durationMs) || 2500)));
+  }
+  flashBlindRestore = null;
+  flashBlindUntil = 0;
+  flashBlindTimer = null;
+}
+socket.on("skillBlinded", ({ durationMs = 5000, radius = 3 } = {}) => {
+  const duration = Math.max(500, Math.min(10000, Number(durationMs) || 5000));
+  if (!flashBlindRestore) {
+    flashBlindRestore = {
+      cameraFar: camera.far,
+      fogNear: scene.fog?.near ?? null,
+      fogFar: scene.fog?.far ?? null
+    };
+  }
+  flashBlindUntil = Math.max(flashBlindUntil, Date.now() + duration);
+  applyFlashBlindVisuals();
+  if (flashBlindTimer) clearTimeout(flashBlindTimer);
+  const finishAt = flashBlindUntil;
+  flashBlindTimer = setTimeout(() => {
+    if (Date.now() < flashBlindUntil) {
+      flashBlindTimer = setTimeout(clearFlashBlindVisuals, flashBlindUntil - Date.now());
+    } else {
+      clearFlashBlindVisuals();
+    }
+  }, Math.max(0, finishAt - Date.now()));
 });
 document.querySelectorAll(".skill-card").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
