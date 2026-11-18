@@ -5334,24 +5334,62 @@ skillButton?.addEventListener("click", event => {
   // キーボード操作にも対応。ポインター操作はpointerdown側で処理する。
   if (event.detail === 0) activateSelectedSkill(event);
 });
-socket.on("skillFlash", ({ start, end, durationMs = 350 } = {}) => {
-  if (!start || !end) return;
-  const material = new THREE.MeshBasicMaterial({ color: 0xffffff, emissive: 0xffffff });
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), material);
-  orb.position.set(start.x, start.y, start.z);
-  scene.add(orb);
+socket.on("skillFlash", ({ start, end, durationMs = 650 } = {}) => {
+  if (!start || !end || !scene) return;
+
+  // 中心の発光球に加えて外側のグローを重ね、明るいマップ上でも見失いにくくする。
+  const projectile = new THREE.Group();
+  const coreGeometry = new THREE.SphereGeometry(0.32, 18, 14);
+  const coreMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfff4a3, transparent: true, opacity: 1, depthWrite: false
+  });
+  const core = new THREE.Mesh(coreGeometry, coreMaterial);
+  const glowGeometry = new THREE.SphereGeometry(0.58, 16, 12);
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffb52e, transparent: true, opacity: 0.42, depthWrite: false
+  });
+  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+  projectile.add(glow, core);
+
+  const trailGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(start.x, start.y, start.z),
+    new THREE.Vector3(start.x, start.y, start.z)
+  ]);
+  const trailMaterial = new THREE.LineBasicMaterial({
+    color: 0xffdf72, transparent: true, opacity: 0.9, depthWrite: false
+  });
+  const trail = new THREE.Line(trailGeometry, trailMaterial);
+  scene.add(trail);
+  projectile.position.set(start.x, start.y, start.z);
+  scene.add(projectile);
+
   const began = performance.now();
-  const duration = Math.max(100, Number(durationMs) || 350);
+  const duration = Math.max(300, Number(durationMs) || 650);
+  const from = new THREE.Vector3(start.x, start.y, start.z);
+  const to = new THREE.Vector3(end.x, end.y, end.z);
   const animate = now => {
     const t = Math.min(1, (now - began) / duration);
-    orb.position.set(start.x + (end.x - start.x) * t, start.y + (end.y - start.y) * t, start.z + (end.z - start.z) * t);
-    orb.scale.setScalar(1 + Math.sin(t * Math.PI) * 0.8);
-    if (t < 1) requestAnimationFrame(animate);
-    else { scene.remove(orb); orb.geometry.dispose(); material.dispose(); }
+    projectile.position.lerpVectors(from, to, t);
+    const pulse = 1 + Math.sin(t * Math.PI * 5) * 0.13;
+    projectile.scale.setScalar(pulse);
+    glowMaterial.opacity = 0.32 + Math.sin(t * Math.PI) * 0.28;
+    trailGeometry.setFromPoints([from, projectile.position]);
+    if (t < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      scene.remove(projectile);
+      scene.remove(trail);
+      coreGeometry.dispose();
+      coreMaterial.dispose();
+      glowGeometry.dispose();
+      glowMaterial.dispose();
+      trailGeometry.dispose();
+      trailMaterial.dispose();
+    }
   };
   requestAnimationFrame(animate);
 });
-socket.on("skillBlinded", ({ durationMs = 2500 } = {}) => {
+socket.on("skillBlinded", ({ durationMs = 5000 } = {}) => {
   const overlay = document.getElementById("flashBlindOverlay");
   if (!overlay) return;
   overlay.classList.add("active");
