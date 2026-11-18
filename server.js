@@ -5418,32 +5418,25 @@ io.on("connection", (socket) => {
       const moveX = movementLength > 0.08 ? movementX / movementLength : -sin;
       const moveZ = movementLength > 0.08 ? movementZ / movementLength : -cos;
 
-      // 移動入力の方向を最優先する。横移動中もその方向へブリンクでき、
-      // その方向が壁などで塞がれている場合だけ別方向の空きを探す。
-      const directions = [
-        [moveX, moveZ],
-        [-sin, -cos],
-        [cos, -sin],
-        [-cos, sin],
-        [sin, cos]
-      ];
+      // 移動入力方向（入力がない場合は視点方向）へ最大6m進む。
+      // 経路を短い間隔で前方から走査し、壁・障害物に当たる直前の
+      // 最後の安全地点を採用する。遠方の空き地点を先に探すと壁を
+      // すり抜けるため、必ず近い地点から順番に判定する。
       const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
       const map = getMapForPlayer(p);
+      const maxDistance = 6;
+      const step = 0.1;
       let dest = null;
-      for (const [dx, dz] of directions) {
-        for (let d = 6; d >= 0.35; d -= 0.25) {
-          const x = p.x + dx * d, z = p.z + dz * d;
-          if (x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS ||
-              z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) continue;
-          const y = getGroundHeight(x, z, p.y, p);
-          if (Number.isFinite(y) && !collides(x, z, y, height, p)) {
-            dest = { x, y, z };
-            break;
-          }
-        }
-        if (dest) break;
+      for (let d = step; d <= maxDistance + 1e-6; d += step) {
+        const x = p.x + moveX * d;
+        const z = p.z + moveZ * d;
+        if (x < map.world.minX + PLAYER_RADIUS || x > map.world.maxX - PLAYER_RADIUS ||
+            z < map.world.minZ + PLAYER_RADIUS || z > map.world.maxZ - PLAYER_RADIUS) break;
+        const y = getGroundHeight(x, z, p.y, p);
+        if (!Number.isFinite(y) || collides(x, z, y, height, p)) break;
+        dest = { x, y, z };
       }
-      if (!dest) {
+      if (!dest || Math.hypot(dest.x - p.x, dest.z - p.z) < 0.25) {
         reply({ ok: false, message: "ブリンク先に安全な空き場所がありません。" });
         return;
       }
