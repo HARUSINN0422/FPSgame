@@ -3199,6 +3199,70 @@ function updateSwordLeap(player, now = Date.now()) {
   }
   return true;
 }
+function tryBodyCharmVault(player, currentHeight, now) {
+  if (!player || player.charm !== "body" || player.grounded ||
+      Number(player.velocityY) <= 0.5 || now < (player.bodyCharmVaultReadyAt || 0)) return false;
+
+  // 身体のお守りはジャンプ上昇中、正面3m以内の壁を越える。
+  const dirX = -Math.sin(player.yaw);
+  const dirZ = -Math.cos(player.yaw);
+  const map = getMapForPlayer(player);
+  const bounds = map.world;
+  let nearest = null;
+
+  // プレイヤー半径ぶん拡張した壁のXZ矩形に対してレイを当て、
+  // 壁の手前ではなく、厚みを抜けた先の距離を求める。
+  for (const obstacle of map.obstacles || []) {
+    if (obstacle.ceiling || (Number(obstacle.h) || 0) < 1.2) continue;
+    if (player.y >= (Number(obstacle.h) || 0) - 0.05) continue;
+
+    const minX = obstacle.x - obstacle.w / 2 - PLAYER_RADIUS;
+    const maxX = obstacle.x + obstacle.w / 2 + PLAYER_RADIUS;
+    const minZ = obstacle.z - obstacle.d / 2 - PLAYER_RADIUS;
+    const maxZ = obstacle.z + obstacle.d / 2 + PLAYER_RADIUS;
+    let enter = 0;
+    let exit = 3;
+    let intersects = true;
+
+    for (const [origin, direction, min, max] of [
+      [player.x, dirX, minX, maxX],
+      [player.z, dirZ, minZ, maxZ]
+    ]) {
+      if (Math.abs(direction) < 1e-8) {
+        if (origin < min || origin > max) { intersects = false; break; }
+        continue;
+      }
+      let t1 = (min - origin) / direction;
+      let t2 = (max - origin) / direction;
+      if (t1 > t2) [t1, t2] = [t2, t1];
+      enter = Math.max(enter, t1);
+      exit = Math.min(exit, t2);
+      if (enter > exit) { intersects = false; break; }
+    }
+
+    if (!intersects || exit < 0 || enter > 3 || exit < enter) continue;
+    if (!nearest || enter < nearest.enter) nearest = { enter, exit };
+  }
+
+  if (!nearest) return false;
+
+  const beyondDistance = nearest.exit + 0.3;
+  const targetX = player.x + dirX * beyondDistance;
+  const targetZ = player.z + dirZ * beyondDistance;
+
+  // マップ外や壁の裏の別障害物へめり込む場合は発動しない。
+  if (targetX < bounds.minX + PLAYER_RADIUS ||
+      targetX > bounds.maxX - PLAYER_RADIUS ||
+      targetZ < bounds.minZ + PLAYER_RADIUS ||
+      targetZ > bounds.maxZ - PLAYER_RADIUS ||
+      collides(targetX, targetZ, player.y, currentHeight, player)) return false;
+
+  player.x = targetX;
+  player.z = targetZ;
+  player.bodyCharmVaultReadyAt = now + 700;
+  return true;
+}
+
 function movePlayer(p, dt) {
   const now = Date.now();
   if (p.frozenUntil > now) { p.input.forward = 0; p.input.strafe = 0; p.velocityY = 0; return; }
@@ -3355,6 +3419,15 @@ function movePlayer(p, dt) {
     p.knockbackVelocityZ = 0;
   }
   const currentHeight = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
+
+  // 空中で正面3m以内に壁があれば、身体のお守りで壁の反対側へ抜ける。
+  // 成功したtickは通常の横移動を重ねず、移動先で衝突判定を維持する。
+  const bodyCharmVaulted = tryBodyCharmVault(p, currentHeight, now);
+  if (bodyCharmVaulted) {
+    dx = 0;
+    dz = 0;
+  }
+
   if (p.grapplePullTarget) {
     // 高速の引き寄せを短い区間に分割し、壁・床の薄い当たり判定を飛び越えない。
     const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dz)) / 0.12));
