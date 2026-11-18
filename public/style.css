@@ -2074,5 +2074,5 @@ body.controller-mode #settingsButton {
 #skillButton.layout-editing-target { pointer-events: auto !important; touch-action: none !important; cursor: move !important; outline: 2px dashed rgba(190,130,255,.95); outline-offset: 4px; }
 #skillButton.layout-dragging { filter: brightness(1.35); outline-style: solid; }
 #skillButton:not(:disabled) { border-color: #e0a7ff; box-shadow: 0 0 16px rgba(190,110,255,.48); }
-#flashBlindOverlay { position: fixed; inset: 0; z-index: 10020; pointer-events: none; background: #fff; opacity: 0; transition: opacity .22s ease; }
-#flashBlindOverlay.active { opacity: .16; }
+#flashBlindOverlay { position: fixed; inset: 0; z-index: 10020; pointer-events: none; background: radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(0,0,0,.42) 48%, rgba(0,0,0,.96) 100%); opacity: 0; transition: opacity .18s ease; }
+#flashBlindOverlay.active { opacity: 1; }
