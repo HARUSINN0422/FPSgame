@@ -1334,6 +1334,9 @@ function activateSkyfall(player, now = Date.now()) {
 const SMOKE_RADIUS = 5.2;
 const SMOKE_DURATION_MS = 8500;
 const SMOKE_PROJECTILE_GRAVITY = 18;
+const arcSnareProjectiles = new Map();
+const arcSnareZones = new Map();
+let arcSnareSequence = 0;
 const smokeProjectiles = new Map();
 const grenadeProjectiles = new Map();
 const grapplerProjectiles = new Map();
@@ -1740,6 +1743,95 @@ function explodeGrenade(projectile, position, now = Date.now()) {
         victimId: target.id, victimName: target.name,
         killerKills: projectile.owner.kills, zone: "body"
       });
+    }
+  }
+}
+
+
+function arcSnareEvent(owner, eventName, payload) {
+  broadcastGameEvent(owner, eventName, payload);
+}
+function createArcSnareZone(projectile, center, now) {
+  const zone = {
+    id: "arc-snare-zone-" + (++arcSnareSequence),
+    owner: projectile.owner,
+    ownerId: projectile.owner.id,
+    matchId: projectile.owner.matchId,
+    mode: projectile.owner.mode,
+    x: center.x, y: center.y, z: center.z,
+    radius: 5,
+    expiresAt: now + 3000,
+    affectedPlayerIds: new Set()
+  };
+  arcSnareZones.set(zone.id, zone);
+  arcSnareEvent(projectile.owner, "arcSnareZone", {
+    id: zone.id, x: zone.x, y: zone.y, z: zone.z, radius: zone.radius, durationMs: 3000
+  });
+}
+function updateArcSnareProjectiles(dt, now = Date.now()) {
+  for (const projectile of [...arcSnareProjectiles.values()]) {
+    if (now >= projectile.expiresAt) {
+      arcSnareProjectiles.delete(projectile.id);
+      continue;
+    }
+    const from = { x: projectile.x, y: projectile.y, z: projectile.z };
+    const stepDistance = projectile.speed * dt;
+    const to = {
+      x: from.x + projectile.dir.x * stepDistance,
+      y: from.y + projectile.dir.y * stepDistance,
+      z: from.z + projectile.dir.z * stepDistance
+    };
+    const delta = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
+    const distance = Math.hypot(delta.x, delta.y, delta.z);
+    const wallDistance = distance > 0 ? rayHitsObstacle(from, projectile.dir, distance, projectile.owner) : null;
+    let hitDistance = wallDistance;
+    let hitPoint = wallDistance == null ? null : {
+      x: from.x + projectile.dir.x * wallDistance,
+      y: from.y + projectile.dir.y * wallDistance,
+      z: from.z + projectile.dir.z * wallDistance
+    };
+    for (const target of gamePlayersFor(projectile.owner)) {
+      if (!target || target.id === projectile.ownerId || target.health <= 0 || target.finished) continue;
+      const rel = { x: target.x - from.x, y: target.y + PLAYER_HEIGHT * 0.5 - from.y, z: target.z - from.z };
+      const projection = clamp(rel.x * projectile.dir.x + rel.y * projectile.dir.y + rel.z * projectile.dir.z, 0, Math.min(distance, hitDistance ?? distance));
+      const closest = {
+        x: from.x + projectile.dir.x * projection,
+        y: from.y + projectile.dir.y * projection,
+        z: from.z + projectile.dir.z * projection
+      };
+      if (Math.hypot(target.x - closest.x, target.z - closest.z) <= PLAYER_RADIUS + 0.3 &&
+          Math.abs(target.y + PLAYER_HEIGHT * 0.5 - closest.y) <= 1.1 &&
+          (hitDistance == null || projection < hitDistance)) {
+        hitDistance = projection;
+        hitPoint = closest;
+      }
+    }
+    if (hitPoint) {
+      arcSnareProjectiles.delete(projectile.id);
+      createArcSnareZone(projectile, hitPoint, now);
+      continue;
+    }
+    projectile.x = to.x; projectile.y = to.y; projectile.z = to.z;
+    projectile.travelled += distance;
+    if (projectile.travelled >= 35) {
+      arcSnareProjectiles.delete(projectile.id);
+      continue;
+    }
+  }
+
+  for (const [id, zone] of [...arcSnareZones.entries()]) {
+    if (now >= zone.expiresAt) {
+      arcSnareZones.delete(id);
+      continue;
+    }
+    for (const target of gamePlayersFor(zone.owner)) {
+      if (!target || target.id === zone.ownerId || target.health <= 0 || target.finished ||
+          zone.affectedPlayerIds.has(target.id)) continue;
+      if (Math.hypot(target.x - zone.x, target.z - zone.z) <= zone.radius) {
+        zone.affectedPlayerIds.add(target.id);
+        target.arcSnareSlowUntil = Math.max(Number(target.arcSnareSlowUntil) || 0, now + 5000);
+        io.to(target.id).emit("arcSnareSlowed", { durationMs: 5000, sourceId: zone.ownerId });
+      }
     }
   }
 }
@@ -3199,69 +3291,6 @@ function updateSwordLeap(player, now = Date.now()) {
   }
   return true;
 }
-function tryBodyCharmVault(player, currentHeight, now) {
-  if (!player || player.charm !== "body" || player.grounded ||
-      Number(player.velocityY) <= 0.5 || now < (player.bodyCharmVaultReadyAt || 0)) return false;
-
-  // 身体のお守りはジャンプ上昇中、正面3m以内の壁を越える。
-  const dirX = -Math.sin(player.yaw);
-  const dirZ = -Math.cos(player.yaw);
-  const map = getMapForPlayer(player);
-  const bounds = map.world;
-  let nearest = null;
-
-  // プレイヤー半径ぶん拡張した壁のXZ矩形に対してレイを当て、
-  // 壁の手前ではなく、厚みを抜けた先の距離を求める。
-  for (const obstacle of map.obstacles || []) {
-    if (obstacle.ceiling || (Number(obstacle.h) || 0) < 1.2) continue;
-    if (player.y >= (Number(obstacle.h) || 0) - 0.05) continue;
-
-    const minX = obstacle.x - obstacle.w / 2 - PLAYER_RADIUS;
-    const maxX = obstacle.x + obstacle.w / 2 + PLAYER_RADIUS;
-    const minZ = obstacle.z - obstacle.d / 2 - PLAYER_RADIUS;
-    const maxZ = obstacle.z + obstacle.d / 2 + PLAYER_RADIUS;
-    let enter = 0;
-    let exit = 3;
-    let intersects = true;
-
-    for (const [origin, direction, min, max] of [
-      [player.x, dirX, minX, maxX],
-      [player.z, dirZ, minZ, maxZ]
-    ]) {
-      if (Math.abs(direction) < 1e-8) {
-        if (origin < min || origin > max) { intersects = false; break; }
-        continue;
-      }
-      let t1 = (min - origin) / direction;
-      let t2 = (max - origin) / direction;
-      if (t1 > t2) [t1, t2] = [t2, t1];
-      enter = Math.max(enter, t1);
-      exit = Math.min(exit, t2);
-      if (enter > exit) { intersects = false; break; }
-    }
-
-    if (!intersects || exit < 0 || enter > 3 || exit < enter) continue;
-    if (!nearest || enter < nearest.enter) nearest = { enter, exit };
-  }
-
-  if (!nearest) return false;
-
-  const beyondDistance = nearest.exit + 0.3;
-  const targetX = player.x + dirX * beyondDistance;
-  const targetZ = player.z + dirZ * beyondDistance;
-
-  // マップ外や壁の裏の別障害物へめり込む場合は発動しない。
-  if (targetX < bounds.minX + PLAYER_RADIUS ||
-      targetX > bounds.maxX - PLAYER_RADIUS ||
-      targetZ < bounds.minZ + PLAYER_RADIUS ||
-      targetZ > bounds.maxZ - PLAYER_RADIUS ||
-      collides(targetX, targetZ, player.y, currentHeight, player)) return false;
-
-  player.x = targetX;
-  player.z = targetZ;
-  player.bodyCharmVaultReadyAt = now + 700;
-  return true;
-}
 
 function movePlayer(p, dt) {
   const now = Date.now();
@@ -3356,7 +3385,8 @@ function movePlayer(p, dt) {
     p.weapon === "minigun" ? 0.6 :
     p.weapon === "bow" && p.bowChargeStartedAt ? 0.5 : 1;
   const charmMoveMultiplier = p.charm === "speed" ? 1.8 : p.charm === "slide" ? 1.5 : 1;
-  let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier;
+  const arcSnareSlowMultiplier = now < Number(p.arcSnareSlowUntil || 0) ? 0.25 : 1;
+  let moveSpeed = baseMoveSpeed * floorMoveMultiplier * weaponMoveMultiplier * charmMoveMultiplier * arcSnareSlowMultiplier;
   if (p.grapplePullTarget) {
     const target = p.grapplePullTarget;
     const pullX = target.x - p.x;
@@ -3419,14 +3449,6 @@ function movePlayer(p, dt) {
     p.knockbackVelocityZ = 0;
   }
   const currentHeight = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-
-  // 空中で正面3m以内に壁があれば、身体のお守りで壁の反対側へ抜ける。
-  // 成功したtickは通常の横移動を重ねず、移動先で衝突判定を維持する。
-  const bodyCharmVaulted = tryBodyCharmVault(p, currentHeight, now);
-  if (bodyCharmVaulted) {
-    dx = 0;
-    dz = 0;
-  }
 
   if (p.grapplePullTarget) {
     // 高速の引き寄せを短い区間に分割し、壁・床の薄い当たり判定を飛び越えない。
@@ -4483,17 +4505,18 @@ function publicPlayer(p, includeSkin = false) {
     pitch: p.pitch,
     crouched: Boolean(p.crouched),
     frozenUntil: Number(p.frozenUntil) || 0,
+    arcSnareSlowUntil: Number(p.arcSnareSlowUntil) || 0,
     name: p.name,
     invisible: Number(p.invisibleUntil) > Date.now(),
     health: p.health,
     maxHealth: Number(p.maxHealth) || 100,
     ultimateCharge: Math.min(100, Number(p.ultimateCharge) || 0),
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(p.ultimateType) ? p.ultimateType : "skyfall",
-    skillType: ["blink", "flash"].includes(p.skillType) ? p.skillType : "blink",
+    skillType: ["blink", "flash", "arcSnare"].includes(p.skillType) ? p.skillType : "blink",
     skillCooldownUntil: Number(p.skillCooldownUntil) || 0,
     shield: Math.max(0, Number(p.shield) || 0),
     ultimateActiveUntil: Number(p.ultimateActiveUntil) || 0,
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(p.charm) ? p.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "slide", "flight"].includes(p.charm) ? p.charm : "none",
     kills: p.kills,
     deaths: p.deaths,
     weapon: p.weapon,
@@ -4514,7 +4537,7 @@ function publicPlayer(p, includeSkin = false) {
 
 function createAreaPlayer({ id, name, skin, weapon, secondaryWeapon, charm, skillType, ultimateType, team, matchId, isBot, botSpawnIndex = 0, mode = AREA_MODE, role = null }, spawn) {
   const now = Date.now();
-  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(charm) ? charm : "none";
+  const safeCharm = !isBot && ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "slide", "flight"].includes(charm) ? charm : "none";
   const maxHealth = safeCharm === "hp" ? 120 : 100;
   return {
     id,
@@ -4658,7 +4681,7 @@ function queueAreaPlayer(socket, data = {}) {
     skin: sanitizeSkin(data.skin),
     weapon: sanitizeWeapon(data.weapon),
     secondaryWeapon: sanitizeWeapon(data.secondaryWeapon),
-    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(data.charm) ? data.charm : "none",
+    charm: ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "slide", "flight"].includes(data.charm) ? data.charm : "none",
     skillType: ["blink", "flash"].includes(data.skillType) ? data.skillType : "blink",
     ultimateType: ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(data.ultimateType) ? data.ultimateType : "skyfall",
     queuedAt: Date.now()
@@ -5184,7 +5207,7 @@ io.on("connection", (socket) => {
         : weapon === "rifle" ? "shotgun" : "rifle";
     }
     const weaponSlots = [weapon, secondaryWeapon];
-    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(data.charm) ? data.charm : "none";
+    const charm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "slide", "flight"].includes(data.charm) ? data.charm : "none";
     const skillType = ["blink", "flash"].includes(data.skillType) ? data.skillType : "blink";
     const maxHealth = charm === "hp" ? 120 : 100;
     const name = sanitizeName(data.name);
@@ -5480,7 +5503,7 @@ io.on("connection", (socket) => {
     if (now < Number(p.skillCooldownUntil || 0)) {
       reply({ ok: false, message: "スキルはクールタイム中です。" }); return;
     }
-    const type = p.skillType === "flash" ? "flash" : "blink";
+    const type = ["blink", "flash", "arcSnare"].includes(p.skillType) ? p.skillType : "blink";
     if (type === "blink") {
       const forward = Number(p.input?.forward) || 0;
       const strafe = Number(p.input?.strafe) || 0;
@@ -5515,34 +5538,38 @@ io.on("connection", (socket) => {
       }
       p.x = dest.x; p.y = dest.y; p.z = dest.z; p.velocityY = 0; p.grounded = true;
       broadcastPlayers();
-    } else {
+    } else if (type === "flash") {
       const cp = Math.cos(p.pitch || 0);
       const dir = { x: -Math.sin(p.yaw) * cp, y: Math.sin(p.pitch || 0), z: -Math.cos(p.yaw) * cp };
       const origin = { x: p.x, y: p.y + (p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.72, z: p.z };
       const wall = rayHitsObstacle(origin, dir, 10, p);
       const d = Math.max(0.5, Math.min(10, wall == null ? 10 : wall - 0.25));
       const center = { x: origin.x + dir.x*d, y: origin.y + dir.y*d, z: origin.z + dir.z*d };
-
-      // 発射されたフラッシュ弾を同じ試合の全クライアントへ通知する。
-      // 短すぎて視認できない問題を避け、弾の移動を650ms表示する。
       for (const client of io.sockets.sockets.values()) {
         const viewer = players.get(client.id);
-        if (viewer && viewer.matchId === p.matchId && viewer.mode === p.mode) {
-          client.emit("skillFlash", { start: origin, end: center, durationMs: 650 });
-        }
+        if (viewer && isSameGame(viewer, p)) client.emit("skillFlash", { start: origin, end: center, durationMs: 650 });
       }
-
-      // 着弾地点を中心とした半径5mの球体範囲。発動者自身も対象に含める。
       for (const target of gamePlayersFor(p)) {
         if (!target || target.health <= 0 || target.finished) continue;
-        // 着弾地点から水平半径5m以内を範囲とする。
-        // プレイヤーのY座標は接地・しゃがみ・段差で変動するため、
-        // 高さ差で範囲判定から漏れないよう水平距離で判定する。
-        const distance = Math.hypot(target.x - center.x, target.z - center.z);
-        if (distance <= 5 && !target.isBot) {
+        if (Math.hypot(target.x - center.x, target.z - center.z) <= 5 && !target.isBot) {
           io.to(target.id).emit("skillBlinded", { durationMs: 5000, radius: 3 });
         }
       }
+    } else {
+      const cp = Math.cos(p.pitch || 0);
+      const dir = { x: -Math.sin(p.yaw) * cp, y: Math.sin(p.pitch || 0), z: -Math.cos(p.yaw) * cp };
+      const origin = { x: p.x, y: p.y + (p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT) * 0.72, z: p.z };
+      const id = "arc-snare-" + (++arcSnareSequence);
+      const projectile = {
+        id, owner: p, ownerId: p.id, x: origin.x, y: origin.y, z: origin.z,
+        dir, speed: 20, travelled: 0, expiresAt: now + 2500
+      };
+      arcSnareProjectiles.set(id, projectile);
+      arcSnareEvent(p, "arcSnareProjectile", {
+        id, start: origin,
+        end: { x: origin.x + dir.x * 35, y: origin.y + dir.y * 35, z: origin.z + dir.z * 35 },
+        durationMs: 1750
+      });
     }
     p.skillCooldownUntil = now + 7000;
     reply({ ok: true, type, cooldownUntil: p.skillCooldownUntil });
@@ -5554,44 +5581,6 @@ io.on("connection", (socket) => {
     const now = Date.now();
     p.lastJumpInputAt = now;
     const canJumpFromGround = p.grounded || now - (p.lastGroundedAt || 0) <= 140;
-
-    if (p.charm === "body") {
-      const armedAt = Number(p.bodyBlinkArmedAt) || 0;
-      const isAirborne = !p.grounded;
-
-      // 最初のジャンプから1.2秒以内に空中でもう一度押すと、前方へブリンクする。
-      if (armedAt && now - armedAt <= 1200 && now - armedAt >= 80 && isAirborne) {
-        const directionX = -Math.sin(p.yaw);
-        const directionZ = -Math.cos(p.yaw);
-        const height = p.crouched ? CROUCH_HEIGHT : PLAYER_HEIGHT;
-        let destination = null;
-
-        // 壁や建築物の中に入らないよう、最大7mから安全な位置を探す。
-        for (let distance = 7; distance >= 1.5; distance -= 0.5) {
-          const x = p.x + directionX * distance;
-          const z = p.z + directionZ * distance;
-          if (!collides(x, z, p.y, height, p)) {
-            destination = { x, z };
-            break;
-          }
-        }
-
-        p.bodyBlinkArmedAt = 0;
-        if (destination) {
-          p.x = destination.x;
-          p.z = destination.z;
-          broadcastPlayers();
-        }
-        return;
-      }
-
-      if (canJumpFromGround) {
-        // 接地中の再入力は新しいジャンプとして扱い、空中での次の入力を待つ。
-        p.bodyBlinkArmedAt = now;
-        p.jumpQueuedUntil = now + 120;
-      }
-      return;
-    }
 
     if (p.charm === "flight" && !p.grounded) {
       if (!p.flying) {
@@ -6197,6 +6186,7 @@ setInterval(() => {
     }
   }
 
+  updateArcSnareProjectiles(dt, now);
   updateSmokeProjectiles(dt, now);
   updateGrenadeProjectiles(dt, now);
   updatePlayerCannons(now);
