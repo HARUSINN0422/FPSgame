@@ -219,7 +219,7 @@ const WEAPONS = {
     falloffStart: 0, minDamageMultiplier: 1, magazineSize: 0, reloadTime: 0, automatic: false
   },
   sniper: {
-    name: "スナイパーライフル", damage: 85, fireInterval: 400, range: 130, spread: 0.0015,
+    name: "スナイパーライフル", damage: 110, fireInterval: 400, range: 130, spread: 0.0015,
     falloffStart: 80, minDamageMultiplier: 0.8, magazineSize: 6,
     reloadTime: 1900, automatic: false
   },
@@ -252,7 +252,7 @@ const DEFAULT_WEAPON_DESCRIPTIONS = {
   grappler: "吸盤付きワイヤーで着弾地点へ自分を引き寄せる。リロード不要。",
   marksman: "中〜遠距離向けの精密連射武器。ダメージ: 1発40。装弾数30発。",
   formingGun: "長押しでチャージし、最大まで溜めて離すと誘導弾を3発連続発射。半径15m以内で遮蔽物のない敵を追尾し、1発5ダメージ。",
-  sniper: "遠距離向けのボルトアクション式狙撃銃。次弾まで0.4秒。ダメージ: 1発85（距離により減衰）。装弾数6発。",
+  sniper: "遠距離向けのボルトアクション式狙撃銃。次弾まで0.4秒。ダメージ: 1発110（距離により減衰）。装弾数6発。",
   bow: "長押しで弓を引き、溜めてから放つ。ダメージ: 最大140。弾薬・リロード不要。",
   minigun: "長押しでチャージし、離すと連続発射。ダメージ: 1発7。",
   railgun: "2秒間チャージしてから発射する貫通弾。ダメージ: 35。射程最大150m。弾薬・リロード不要.",
@@ -297,6 +297,7 @@ for (const [id, description] of Object.entries(DEFAULT_WEAPON_DESCRIPTIONS)) {
 }
 
 // バランス調整値は、古いローカル武器設定に上書きされないよう固定する。
+WEAPONS.sniper.damage = 110;
 WEAPONS.sniper.magazineSize = 6;
 WEAPONS.sniper.description = DEFAULT_WEAPON_DESCRIPTIONS.sniper;
 WEAPONS.smg.fireInterval = 107 / 4.5;
