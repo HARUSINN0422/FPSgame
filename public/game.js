@@ -5345,6 +5345,7 @@ for (const eventName of ["pointerup", "pointercancel", "click"]) {
 }
 
 const arcSnareVisuals = new Map();
+const arcSnareProjectileVisuals = new Map();
 socket.on("arcSnareProjectile", ({ id, start, end, durationMs = 1750 } = {}) => {
   if (!id || !start || !end || !scene) return;
   const group = new THREE.Group();
@@ -5357,19 +5358,31 @@ socket.on("arcSnareProjectile", ({ id, start, end, durationMs = 1750 } = {}) => 
   const to = new THREE.Vector3(end.x, end.y, end.z);
   group.position.copy(from);
   scene.add(group);
+  const visual = { group, blade, material, core, from, to };
+  arcSnareProjectileVisuals.set(id, visual);
   const began = performance.now();
   const duration = Math.max(350, Number(durationMs) || 1750);
   const animate = now => {
     const t = Math.min(1, (now - began) / duration);
     group.position.lerpVectors(from, to, t);
     group.rotation.z += 0.42;
-    if (t < 1 && scene) requestAnimationFrame(animate);
+    if (t < 1 && scene && arcSnareProjectileVisuals.get(id) === visual) requestAnimationFrame(animate);
     else {
       scene.remove(group);
+      arcSnareProjectileVisuals.delete(id);
       blade.geometry.dispose(); material.dispose(); core.geometry.dispose(); core.material.dispose();
     }
   };
   requestAnimationFrame(animate);
+});
+socket.on("arcSnareProjectileHit", ({ id, point } = {}) => {
+  const visual = arcSnareProjectileVisuals.get(id);
+  if (!visual) return;
+  if (point) visual.group.position.set(point.x, point.y, point.z);
+  scene.remove(visual.group);
+  visual.blade.geometry.dispose(); visual.material.dispose();
+  visual.core.geometry.dispose(); visual.core.material.dispose();
+  arcSnareProjectileVisuals.delete(id);
 });
 socket.on("arcSnareZone", ({ id, x, y, z, radius = 5, durationMs = 3000 } = {}) => {
   if (!id || !scene) return;
