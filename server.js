@@ -1784,11 +1784,18 @@ function updateArcSnareProjectiles(dt, now = Date.now()) {
     const delta = { x: to.x - from.x, y: to.y - from.y, z: to.z - from.z };
     const distance = Math.hypot(delta.x, delta.y, delta.z);
     const wallDistance = distance > 0 ? rayHitsObstacle(from, projectile.dir, distance, projectile.owner) : null;
-    let hitDistance = wallDistance;
-    let hitPoint = wallDistance == null ? null : {
-      x: from.x + projectile.dir.x * wallDistance,
-      y: from.y + projectile.dir.y * wallDistance,
-      z: from.z + projectile.dir.z * wallDistance
+    // 地面(y=0)も衝突面として扱う。障害物判定だけでは床に当たった投擲物を検出できない。
+    const groundDistance = projectile.dir.y < -1e-8 && from.y >= 0 && to.y <= 0
+      ? from.y / -projectile.dir.y
+      : null;
+    const surfaceDistance = wallDistance == null
+      ? groundDistance
+      : groundDistance == null ? wallDistance : Math.min(wallDistance, groundDistance);
+    let hitDistance = surfaceDistance;
+    let hitPoint = surfaceDistance == null ? null : {
+      x: from.x + projectile.dir.x * surfaceDistance,
+      y: groundDistance != null && surfaceDistance === groundDistance ? 0 : from.y + projectile.dir.y * surfaceDistance,
+      z: from.z + projectile.dir.z * surfaceDistance
     };
     for (const target of gamePlayersFor(projectile.owner)) {
       if (!target || target.id === projectile.ownerId || target.health <= 0 || target.finished) continue;
