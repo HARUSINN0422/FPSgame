@@ -4866,7 +4866,7 @@ socket.on("joined", ({ player }) => {
   wasJoinedBeforeDisconnect = true;
   reconnecting = false;
   selectedGameMode = player.mode || "Melee";
-  selectedSkill = ["blink", "flash"].includes(player.skillType) ? player.skillType : selectedSkill;
+  selectedSkill = ["blink", "flash", "arcSnare"].includes(player.skillType) ? player.skillType : selectedSkill;
   skillCooldownEndsAt = Number(player.skillCooldownUntil) > Date.now() ? Number(player.skillCooldownUntil) : 0;
   updateSkillButtonCooldown();
   areaResultOpen = false;
@@ -4876,7 +4876,7 @@ socket.on("joined", ({ player }) => {
   weaponSlots = Array.isArray(player.weaponSlots) ? [...player.weaponSlots] : [selectedWeapon, selectedWeapon === "rifle" ? "shotgun" : "rifle"];
   selectedPrimaryWeapon = weaponSlots[0] || selectedWeapon;
   selectedSecondaryWeapon = weaponSlots[1] || (selectedWeapon === "rifle" ? "shotgun" : "rifle");
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(player.charm) ? player.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "slide", "flight"].includes(player.charm) ? player.charm : "none";
   selectedUltimate = ["skyfall", "teleport", "aegis", "invisible", "rift", "tornado"].includes(player.ultimateType) ? player.ultimateType : "skyfall";
   activeWeaponSlot = Number(player.activeWeaponSlot) || 0;
   setScopeEnabled(false);
@@ -5310,8 +5310,8 @@ function updateSkillButtonCooldown() {
   skillButton.style.setProperty("--skill-progress", (progress * 100).toFixed(1) + "%");
   skillButton.style.opacity = remaining > 0 ? "0.48" : "1";
   skillButton.disabled = !joined || remaining > 0 || myState?.health <= 0;
-  skillButton.textContent = remaining > 0 ? (remaining / 1000).toFixed(1) + "s" : (selectedSkill === "flash" ? "FLASH" : "BLINK");
-  skillButton.setAttribute("aria-label", remaining > 0 ? "スキル クールタイム残り " + (remaining / 1000).toFixed(1) + " 秒" : "スキル " + (selectedSkill === "flash" ? "フラッシュ" : "ブリンク"));
+  skillButton.textContent = remaining > 0 ? (remaining / 1000).toFixed(1) + "s" : (selectedSkill === "flash" ? "FLASH" : selectedSkill === "arcSnare" ? "ARC" : "BLINK");
+  skillButton.setAttribute("aria-label", remaining > 0 ? "スキル クールタイム残り " + (remaining / 1000).toFixed(1) + " 秒" : "スキル " + (selectedSkill === "flash" ? "フラッシュ" : selectedSkill === "arcSnare" ? "アークスネア" : "ブリンク"));
 }
 setInterval(updateSkillButtonCooldown, 50);
 function activateSelectedSkill(event) {
@@ -5343,6 +5343,75 @@ for (const eventName of ["pointerup", "pointercancel", "click"]) {
     event.stopPropagation();
   }, { capture: true, passive: false });
 }
+
+const arcSnareVisuals = new Map();
+socket.on("arcSnareProjectile", ({ id, start, end, durationMs = 1750 } = {}) => {
+  if (!id || !start || !end || !scene) return;
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: 0x65eaff, emissive: 0x087bba, emissiveIntensity: 1.8, metalness: 0.55, roughness: 0.22 });
+  const blade = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.075, 8, 24, Math.PI * 1.55), material);
+  blade.rotation.x = Math.PI / 2;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), new THREE.MeshBasicMaterial({ color: 0xd9ffff }));
+  group.add(blade, core);
+  const from = new THREE.Vector3(start.x, start.y, start.z);
+  const to = new THREE.Vector3(end.x, end.y, end.z);
+  group.position.copy(from);
+  scene.add(group);
+  const began = performance.now();
+  const duration = Math.max(350, Number(durationMs) || 1750);
+  const animate = now => {
+    const t = Math.min(1, (now - began) / duration);
+    group.position.lerpVectors(from, to, t);
+    group.rotation.z += 0.42;
+    if (t < 1 && scene) requestAnimationFrame(animate);
+    else {
+      scene.remove(group);
+      blade.geometry.dispose(); material.dispose(); core.geometry.dispose(); core.material.dispose();
+    }
+  };
+  requestAnimationFrame(animate);
+});
+socket.on("arcSnareZone", ({ id, x, y, z, radius = 5, durationMs = 3000 } = {}) => {
+  if (!id || !scene) return;
+  const group = new THREE.Group();
+  const disc = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, 0.08, 48, 1, false),
+    new THREE.MeshBasicMaterial({ color: 0x32d9ff, transparent: true, opacity: 0.13, depthWrite: false, side: THREE.DoubleSide })
+  );
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, 0.11, 8, 64),
+    new THREE.MeshBasicMaterial({ color: 0x7ef4ff, transparent: true, opacity: 0.95 })
+  );
+  ring.rotation.x = Math.PI / 2;
+  group.add(disc, ring);
+  group.position.set(x, y + 0.06, z);
+  scene.add(group);
+  const started = performance.now();
+  const duration = Math.max(500, Number(durationMs) || 3000);
+  const animate = now => {
+    const t = Math.min(1, (now - started) / duration);
+    ring.rotation.z += 0.012;
+    disc.material.opacity = 0.13 * (1 - t);
+    ring.material.opacity = 0.95 * (1 - t);
+    if (t < 1 && scene) requestAnimationFrame(animate);
+    else {
+      scene.remove(group);
+      disc.geometry.dispose(); disc.material.dispose(); ring.geometry.dispose(); ring.material.dispose();
+      arcSnareVisuals.delete(id);
+    }
+  };
+  arcSnareVisuals.set(id, group);
+  requestAnimationFrame(animate);
+});
+socket.on("arcSnareSlowed", ({ durationMs = 5000 } = {}) => {
+  const hud = document.getElementById("message");
+  if (hud) {
+    hud.textContent = "アークスネア：移動速度低下";
+    hud.classList.add("show");
+    setTimeout(() => { if (hud.textContent === "アークスネア：移動速度低下") hud.classList.remove("show"); }, Math.max(500, durationMs));
+  }
+});
+
 socket.on("skillFlash", ({ start, end, durationMs = 650 } = {}) => {
   if (!start || !end || !scene) return;
 
@@ -5450,7 +5519,7 @@ socket.on("skillBlinded", ({ durationMs = 5000, radius = 3 } = {}) => {
 });
 document.querySelectorAll(".skill-card").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedSkill = ["blink", "flash"].includes(card.dataset.skill) ? card.dataset.skill : "blink";
+  selectedSkill = ["blink", "flash", "arcSnare"].includes(card.dataset.skill) ? card.dataset.skill : "blink";
   updateLoadoutSelectionUi();
 }));
 document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListener("click", () => {
@@ -5460,7 +5529,7 @@ document.querySelectorAll(".ultimate-card").forEach(card => card.addEventListene
 }));
 document.querySelectorAll(".charm-card[data-charm]").forEach(card => card.addEventListener("click", () => {
   if (joined) return;
-  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "body", "slide", "flight"].includes(card.dataset.charm) ? card.dataset.charm : "none";
+  selectedCharm = ["hp", "speed", "reload", "jump", "floor", "aim", "ultimate", "slide", "flight"].includes(card.dataset.charm) ? card.dataset.charm : "none";
   updateLoadoutSelectionUi();
 }));
 for (const button of document.querySelectorAll(".weapon-card")) {
