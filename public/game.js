@@ -307,7 +307,7 @@ const DEFAULT_SETTINGS = {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     lookUp: "ArrowUp", lookDown: "ArrowDown", lookRight: "ArrowRight", lookLeft: "ArrowLeft",
     jump: "Space", crouch: "KeyC", reload: "KeyR", switchWeapon: "KeyQ",
-    weapon1: "Digit1", weapon2: "Digit2", ultimate: "KeyF", fire: "MouseLeft", scope: "MouseRight"
+    weapon1: "Digit1", weapon2: "Digit2", skill: "KeyV", ultimate: "KeyF", fire: "MouseLeft", scope: "MouseRight"
   },
   layout: {
     movePad: { x: 14, y: 12, side: "left", size: 150 },
@@ -609,10 +609,16 @@ function updateSettingsUi() {
   }
 
   const skillSizeSlider = document.getElementById("skillButtonSizeSlider");
-  skillSizeSlider?.addEventListener("input", () => {
-    gameSettings.layout.skillButton.size = Math.round(THREE.MathUtils.clamp(Number(skillSizeSlider.value) || 72, 48, 160));
-    applyButtonLayout(); updateSettingsUi(); saveGameSettings();
-  });
+  if (skillSizeSlider && skillSizeSlider.dataset.bound !== "true") {
+    skillSizeSlider.dataset.bound = "true";
+    skillSizeSlider.addEventListener("input", () => {
+      gameSettings.layout.skillButton.size = Math.round(THREE.MathUtils.clamp(Number(skillSizeSlider.value) || 72, 48, 160));
+      applyButtonLayout();
+      const value = document.getElementById("skillButtonSizeValue");
+      if (value) value.textContent = gameSettings.layout.skillButton.size + "px";
+      saveGameSettings();
+    });
+  }
   const skillSizeValue = document.getElementById("skillButtonSizeValue");
   const skillSize = THREE.MathUtils.clamp(Number(gameSettings.layout.skillButton.size) || 72, 48, 160);
   gameSettings.layout.skillButton.size = Math.round(skillSize);
@@ -665,7 +671,7 @@ const KEY_BINDING_LABELS = {
   lookUp: "上を向く", lookDown: "下を向く", lookRight: "右を向く", lookLeft: "左を向く",
   jump: "ジャンプ", crouch: "しゃがむ", reload: "リロード",
   switchWeapon: "武器切替", weapon1: "武器スロット1", weapon2: "武器スロット2",
-  fire: "発射", scope: "スコープを覗く", ultimate: "アルティメット"
+  fire: "発射", scope: "スコープを覗く", skill: "スキル", ultimate: "アルティメット"
 };
 let pendingKeyBindingAction = null;
 
@@ -5332,6 +5338,7 @@ function activateSelectedSkill(event) {
 // スキルボタンの入力を捕捉し、タッチ操作が射撃ボタンやゲーム画面へ
 // 伝播して通常武器の発射を同時に起こさないようにする。
 skillButton?.addEventListener("pointerdown", event => {
+  if (layoutEditing) return;
   event.preventDefault();
   event.stopPropagation();
   try { skillButton.setPointerCapture(event.pointerId); } catch (_) {}
@@ -6386,6 +6393,13 @@ function performBoundAction(action, pressed, isRepeat = false) {
       break;
     case "scope":
       setScopeEnabled(pressed && selectedWeapon === "sniper");
+      break;
+    case "skill":
+      if (pressed && !isRepeat) {
+        if (layoutEditing) break;
+        const button = document.getElementById("skillButton");
+        if (button && !button.disabled) activateSelectedSkill({ preventDefault() {}, stopPropagation() {} });
+      }
       break;
     case "ultimate":
       if (pressed && !isRepeat) activateUltimate();
